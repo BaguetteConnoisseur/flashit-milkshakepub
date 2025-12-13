@@ -1,0 +1,97 @@
+CREATE TABLE orders (
+    order_id SERIAL PRIMARY KEY,
+    order_number VARCHAR(50) UNIQUE NOT NULL,
+    customer_name VARCHAR(100) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    order_comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE milkshakes (
+    milkshake_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    ingredients TEXT
+);
+
+CREATE TABLE toasts (
+    toast_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    ingredients TEXT
+);
+
+CREATE TABLE order_milkshakes (
+    order_milkshake_id SERIAL PRIMARY KEY,
+    order_id INT REFERENCES orders(order_id),
+    milkshake_id INT REFERENCES milkshakes(milkshake_id),
+    comment TEXT,
+    status VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE order_toasts (
+    order_toast_id SERIAL PRIMARY KEY,
+    order_id INT REFERENCES orders(order_id),
+    toast_id INT REFERENCES toasts(toast_id),
+    comment TEXT,
+    status VARCHAR(50) NOT NULL
+);
+
+-----
+
+CREATE TABLE orders (
+    order_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_number VARCHAR(50) UNIQUE NOT NULL,
+    customer_name VARCHAR(100) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    order_comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE milkshakes (
+    milkshake_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    ingredients TEXT
+) ENGINE=InnoDB;
+
+CREATE TABLE toasts (
+    toast_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    ingredients TEXT
+) ENGINE=InnoDB;
+
+CREATE TABLE order_milkshakes (
+    order_milkshake_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id INT UNSIGNED NOT NULL,
+    milkshake_id INT UNSIGNED NOT NULL,
+    comment TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+
+    CONSTRAINT fk_order_milkshakes_order
+        FOREIGN KEY (order_id)
+        REFERENCES orders(order_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_order_milkshakes_milkshake
+        FOREIGN KEY (milkshake_id)
+        REFERENCES milkshakes(milkshake_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE order_toasts (
+    order_toast_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id INT UNSIGNED NOT NULL,
+    toast_id INT UNSIGNED NOT NULL,
+    comment TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+
+    CONSTRAINT fk_order_toasts_order
+        FOREIGN KEY (order_id)
+        REFERENCES orders(order_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_order_toasts_toast
+        FOREIGN KEY (toast_id)
+        REFERENCES toasts(toast_id)
+) ENGINE=InnoDB;

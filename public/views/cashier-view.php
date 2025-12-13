@@ -1,0 +1,503 @@
+<?php
+require_once("../../private/initalize.php");
+require(PRIVATE_PATH . "/master_code/db-conn.php");
+
+if (!$loggedIn) {
+    header("Location: " . WWW_ROOT . "/index.php");
+}
+
+if (!$conn) {
+    die("Database connection failed: " . mysqli_connect_error());
+}
+
+// --- HELPER FUNCTIONS ---
+function escape($conn, $string) {
+    return mysqli_real_escape_string($conn, $string);
+}
+
+// --- LOGIC: HANDLE FORM SUBMISSIONS ---
+
+// 1. CREATE ORDER
+if (isset($_POST['create_order'])) {
+    $customer_name = escape($conn, $_POST['customer_name']);
+    $order_comment = escape($conn, $_POST['order_comment']);
+    $order_number = "ORD-" . strtoupper(uniqid()); // Generate unique ID
+    $status = "Pending";
+
+    // Insert Main Order
+    $sql = "INSERT INTO orders (order_number, customer_name, status, order_comment) 
+            VALUES ('$order_number', '$customer_name', '$status', '$order_comment')";
+    
+    if (mysqli_query($conn, $sql)) {
+        $new_order_id = mysqli_insert_id($conn);
+
+        // Process Milkshakes
+        if (isset($_POST['milkshakes']) && is_array($_POST['milkshakes'])) {
+            foreach ($_POST['milkshakes'] as $m_id) {
+                $m_id = intval($m_id);
+                $sql_item = "INSERT INTO order_milkshakes (order_id, milkshake_id, comment, status) 
+                             VALUES ($new_order_id, $m_id, '', 'Pending')";
+                mysqli_query($conn, $sql_item);
+            }
+        }
+
+        // Process Toasts
+        if (isset($_POST['toasts']) && is_array($_POST['toasts'])) {
+            foreach ($_POST['toasts'] as $t_id) {
+                $t_id = intval($t_id);
+                $sql_item = "INSERT INTO order_toasts (order_id, toast_id, comment, status) 
+                             VALUES ($new_order_id, $t_id, '', 'Pending')";
+                mysqli_query($conn, $sql_item);
+            }
+        }
+
+        // Redirect to clear post data
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    } else {
+        echo "Error: " . mysqli_error($conn);
+    }
+}
+
+// 2. UPDATE ORDER (FROM MODAL)
+if (isset($_POST['update_order'])) {
+    $order_id = intval($_POST['order_id']);
+    $main_status = escape($conn, $_POST['main_status']);
+    $main_comment = escape($conn, $_POST['main_comment']);
+
+    // Update Main Order
+    $sql = "UPDATE orders SET status = '$main_status', order_comment = '$main_comment' WHERE order_id = $order_id";
+    mysqli_query($conn, $sql);
+
+    // Update Individual Milkshakes
+    if (isset($_POST['om_status']) && is_array($_POST['om_status'])) {
+        foreach ($_POST['om_status'] as $om_id => $status) {
+            $om_id = intval($om_id);
+            $status = escape($conn, $status);
+            $comment = escape($conn, $_POST['om_comment'][$om_id] ?? '');
+            
+            $sql_upd = "UPDATE order_milkshakes SET status = '$status', comment = '$comment' WHERE order_milkshake_id = $om_id";
+            mysqli_query($conn, $sql_upd);
+        }
+    }
+
+    // Update Individual Toasts
+    if (isset($_POST['ot_status']) && is_array($_POST['ot_status'])) {
+        foreach ($_POST['ot_status'] as $ot_id => $status) {
+            $ot_id = intval($ot_id);
+            $status = escape($conn, $status);
+            $comment = escape($conn, $_POST['ot_comment'][$ot_id] ?? '');
+            
+            $sql_upd = "UPDATE order_toasts SET status = '$status', comment = '$comment' WHERE order_toast_id = $ot_id";
+            mysqli_query($conn, $sql_upd);
+        }
+    }
+
+    // Redirect to same order view
+    header("Location: " . $_SERVER['PHP_SELF'] . "?view_order=" . $order_id);
+    exit;
+}
+
+// 3. DELETE ORDER
+if (isset($_POST['delete_order'])) {
+    $order_id = intval($_POST['order_id']);
+    
+    // Manually delete children first (if DB doesn't have ON DELETE CASCADE)
+    mysqli_query($conn, "DELETE FROM order_milkshakes WHERE order_id = $order_id");
+    mysqli_query($conn, "DELETE FROM order_toasts WHERE order_id = $order_id");
+    mysqli_query($conn, "DELETE FROM orders WHERE order_id = $order_id");
+
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
+
+// --- DATA FETCHING ---
+
+// 1. Fetch Inventory for "Create" Form
+$inv_milkshakes = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM milkshakes"), MYSQLI_ASSOC);
+$inv_toasts = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM toasts"), MYSQLI_ASSOC);
+
+// 2. Fetch Order List (Summary)
+$sql_list = "SELECT * FROM orders ORDER BY created_at DESC";
+$res_list = mysqli_query($conn, $sql_list);
+$orders_list = mysqli_fetch_all($res_list, MYSQLI_ASSOC);
+
+// Attach summary items to list for display (Quick preview)
+foreach ($orders_list as &$ord) {
+    $oid = $ord['order_id'];
+    
+    // Get milkshakes summary
+    $res_m = mysqli_query($conn, "SELECT m.name FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id WHERE om.order_id = $oid");
+    $m_names = [];
+    while($row = mysqli_fetch_assoc($res_m)) $m_names[] = $row['name'];
+
+    // Get toasts summary
+    $res_t = mysqli_query($conn, "SELECT t.name FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id WHERE ot.order_id = $oid");
+    $t_names = [];
+    while($row = mysqli_fetch_assoc($res_t)) $t_names[] = $row['name'];
+
+    $ord['summary'] = implode(", ", array_merge($m_names, $t_names));
+}
+unset($ord); // Break reference
+
+// 3. Fetch Specific Order for Modal (if clicked)
+$modal_order = null;
+$modal_items_m = [];
+$modal_items_t = [];
+
+if (isset($_GET['view_order'])) {
+    $view_id = intval($_GET['view_order']);
+    
+    // Get Order Info
+    $res = mysqli_query($conn, "SELECT * FROM orders WHERE order_id = $view_id");
+    $modal_order = mysqli_fetch_assoc($res);
+
+    if ($modal_order) {
+        // Get Milkshake Details (Join to get names)
+        $sql_m = "SELECT om.*, m.name, m.description 
+                  FROM order_milkshakes om 
+                  JOIN milkshakes m ON om.milkshake_id = m.milkshake_id 
+                  WHERE om.order_id = $view_id";
+        $modal_items_m = mysqli_fetch_all(mysqli_query($conn, $sql_m), MYSQLI_ASSOC);
+
+        // Get Toast Details
+        $sql_t = "SELECT ot.*, t.name, t.description 
+                  FROM order_toasts ot 
+                  JOIN toasts t ON ot.toast_id = t.toast_id 
+                  WHERE ot.order_id = $view_id";
+        $modal_items_t = mysqli_fetch_all(mysqli_query($conn, $sql_t), MYSQLI_ASSOC);
+    }
+}
+
+mysqli_close($conn);
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order System</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg-light: #f3f4f6;
+            --surface: #ffffff;
+            --text-main: #1f2937;
+            --text-sub: #6b7280;
+            --border: #e5e7eb;
+            --delivered: #9ca3af;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- LEFT COLUMN: CREATE --- */
+        .col-create {
+            width: 350px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 2rem;
+            overflow-y: auto;
+            flex-shrink: 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.02);
+        }
+
+        h1, h2, h3 { margin-top: 0; font-weight: 600; }
+        h2 { font-size: 1.25rem; margin-bottom: 1rem; }
+
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+        
+        .checkbox-group {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+        .checkbox-item { display: flex; align-items: center; padding: 0.25rem 0; }
+        .checkbox-item input { margin-right: 0.5rem; }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-danger { background-color: #ef4444; margin-top: 1rem; }
+
+        /* --- RIGHT COLUMN: ORDER LIST --- */
+        .col-list {
+            flex-grow: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .order-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .order-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        .order-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-color: var(--primary);
+        }
+
+        /* Delivered State */
+        .order-card.status-delivered {
+            opacity: 0.6;
+            background-color: #f9fafb;
+            border-color: transparent;
+        }
+        .order-card.status-delivered:hover {
+            opacity: 1;
+            border-color: var(--border);
+        }
+
+        .card-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem; }
+        .order-number { font-size: 0.75rem; color: var(--text-sub); font-family: monospace; }
+        .order-time { font-size: 0.75rem; color: var(--text-sub); }
+        .customer-name { font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem; }
+        .order-summary { font-size: 0.9rem; color: var(--text-sub); line-height: 1.4; }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 99px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge-pending { background: #fff7ed; color: #c2410c; }
+        .badge-preparing { background: #eff6ff; color: #1d4ed8; }
+        .badge-delivered { background: #f3f4f6; color: #374151; }
+
+        /* --- MODAL --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: var(--surface);
+            width: 600px;
+            max-width: 90%;
+            max-height: 90vh;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            background: #f9fafb;
+        }
+        .modal-body { padding: 1.5rem; overflow-y: auto; }
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex; justify-content: space-between;
+        }
+        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-sub); }
+
+        .item-row {
+            background: #f9fafb;
+            border: 1px solid var(--border);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .item-row h4 { margin: 0 0 0.5rem 0; font-size: 1rem; }
+        .row-split { display: flex; gap: 1rem; }
+        .row-split > div { flex: 1; }
+
+    </style>
+</head>
+<body>
+
+    <section class="col-create">
+        <h2>New Order</h2>
+        <form action="<?= $_SERVER['PHP_SELF'] ?>" method="POST">
+            <div class="form-group">
+                <label>Customer Name</label>
+                <input type="text" name="customer_name" required placeholder="e.g. John Doe">
+            </div>
+
+            <div class="form-group">
+                <label>Milkshakes</label>
+                <div class="checkbox-group">
+                    <?php foreach($inv_milkshakes as $m): ?>
+                        <div class="checkbox-item">
+                            <input type="checkbox" name="milkshakes[]" value="<?= $m['milkshake_id'] ?>" id="m_<?= $m['milkshake_id'] ?>">
+                            <label for="m_<?= $m['milkshake_id'] ?>" style="margin:0; font-weight:400;"><?= htmlspecialchars($m['name']) ?></label>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Toasts</label>
+                <div class="checkbox-group">
+                    <?php foreach($inv_toasts as $t): ?>
+                        <div class="checkbox-item">
+                            <input type="checkbox" name="toasts[]" value="<?= $t['toast_id'] ?>" id="t_<?= $t['toast_id'] ?>">
+                            <label for="t_<?= $t['toast_id'] ?>" style="margin:0; font-weight:400;"><?= htmlspecialchars($t['name']) ?></label>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Order Comment</label>
+                <textarea name="order_comment" rows="3" placeholder="General notes..."></textarea>
+            </div>
+
+            <button type="submit" name="create_order" class="btn">Create Order</button>
+        </form>
+    </section>
+
+    <section class="col-list">
+        <h2>Current Orders</h2>
+        <div class="order-grid">
+            <?php foreach($orders_list as $order): 
+                $statusClass = strtolower($order['status']) === 'delivered' ? 'status-delivered' : '';
+                $badgeClass = 'badge-' . strtolower($order['status']);
+            ?>
+                <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
+                    <div class="card-header">
+                        <span class="order-number">Order: <?= $order['order_id'] ?></span>
+                        <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
+                    </div>
+                    <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
+                    <div class="order-time"><?= date("M j, g:i a", strtotime($order['created_at'])) ?></div>
+                    <hr style="border: 0; border-top: 1px solid var(--border); margin: 0.5rem 0;">
+                    <div class="order-summary">
+                        <?= $order['summary'] ? htmlspecialchars(substr($order['summary'], 0, 50)) . (strlen($order['summary']) > 50 ? '...' : '') : 'No items' ?>
+                    </div>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <?php if ($modal_order): ?>
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2 style="margin:0">Order #<?= $modal_order['order_id'] ?></h2>
+                    <span style="font-size:0.9rem; color:var(--text-sub)"><?= htmlspecialchars($modal_order['customer_name']) ?></span>
+                </div>
+                <a href="<?= $_SERVER['PHP_SELF'] ?>" class="close-btn">&times;</a>
+            </div>
+
+            <form action="<?= $_SERVER['PHP_SELF'] ?>" method="POST" style="display:contents;">
+                <input type="hidden" name="order_id" value="<?= $modal_order['order_id'] ?>">
+                
+                <div class="modal-body">
+                    <div class="row-split" style="margin-bottom: 2rem;">
+                        <div class="form-group">
+                            <label>Order Status</label>
+                            <select name="main_status">
+                                <?php $s = $modal_order['status']; ?>
+                                <option value="Pending" <?= $s=='Pending'?'selected':'' ?>>Pending</option>
+                                <option value="Preparing" <?= $s=='Preparing'?'selected':'' ?>>Preparing</option>
+                                <option value="Delivered" <?= $s=='Delivered'?'selected':'' ?>>Delivered</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Main Comment</label>
+                            <input type="text" name="main_comment" value="<?= htmlspecialchars($modal_order['order_comment']) ?>">
+                        </div>
+                    </div>
+
+                    <h3 style="border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">Items</h3>
+
+                    <?php foreach($modal_items_m as $item): ?>
+                        <div class="item-row">
+                            <h4>🥤 <?= htmlspecialchars($item['name']) ?></h4>
+                            <div class="row-split">
+                                <div>
+                                    <label>Status</label>
+                                    <select name="om_status[<?= $item['order_milkshake_id'] ?>]" style="padding:0.25rem;">
+                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Pending</option>
+                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Done</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Note</label>
+                                    <input type="text" name="om_comment[<?= $item['order_milkshake_id'] ?>]" value="<?= htmlspecialchars($item['comment']) ?>" placeholder="Add note...">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+
+                    <?php foreach($modal_items_t as $item): ?>
+                        <div class="item-row">
+                            <h4>🥪 <?= htmlspecialchars($item['name']) ?></h4>
+                            <div class="row-split">
+                                <div>
+                                    <label>Status</label>
+                                    <select name="ot_status[<?= $item['order_toast_id'] ?>]" style="padding:0.25rem;">
+                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Pending</option>
+                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Done</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Note</label>
+                                    <input type="text" name="ot_comment[<?= $item['order_toast_id'] ?>]" value="<?= htmlspecialchars($item['comment']) ?>" placeholder="Add note...">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="submit" name="delete_order" class="btn btn-danger" style="width:auto; margin:0;" onclick="return confirm('Delete this entire order?');">Delete Order</button>
+                    <button type="submit" name="update_order" class="btn" style="width:auto; margin:0;">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
+</body>
+</html>
