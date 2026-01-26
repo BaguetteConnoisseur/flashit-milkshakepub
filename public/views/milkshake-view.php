@@ -110,7 +110,7 @@ if (isset($_GET['fetch_view'])) {
             $statusClass = str_replace(' ', '', $t['status']); 
             if($t['status'] == 'In Progress') $statusClass = 'Progress';
             ?>
-            <div class="ticket-card">
+            <div class="ticket-card bar-ticket-<?= $statusClass ?>">
                 <div class="status-bar bar-<?= $statusClass ?>"></div>
                 <div class="card-body">
                     <div class="meta">
@@ -248,6 +248,13 @@ if (isset($_GET['fetch_view'])) {
         .bar-Progress { background-color: var(--status-progress); }
         .bar-Done { background-color: var(--status-done); }
 
+        .bar-ticket-Progress {
+            border: 20px solid var(--status-progress);
+        }
+        .bar-ticket-Done {
+            border: 20px solid var(--status-done);
+        }
+
         .card-body { padding: 1.5rem; flex-grow: 1; }
         .meta { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-sub); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .item-name { font-size: 1.5rem; font-weight: 800; margin-bottom: 1rem; line-height: 1.2; }
@@ -298,7 +305,6 @@ if (isset($_GET['fetch_view'])) {
     </style>
 </head>
 <body>
-
     <div class="header">
         <h1>🥤 Milkshake Station</h1>
         <div id="connection-status">● Live</div>
@@ -307,7 +313,7 @@ if (isset($_GET['fetch_view'])) {
     <div id="ticket-grid" class="grid">
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Loading orders...</div>
     </div>
-
+    <?php include(SHARED_PATH . "/public_footer.php"); ?>
     <script>
         function loadTickets() {
             fetch('?fetch_view=1')

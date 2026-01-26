@@ -11,14 +11,16 @@ CREATE TABLE milkshakes (
     milkshake_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
-    ingredients TEXT
+    ingredients TEXT,
+    color VARCHAR(50) NOT NULL DEFAULT '#FFFFFF'
 );
 
 CREATE TABLE toasts (
     toast_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
-    ingredients TEXT
+    ingredients TEXT,
+    color VARCHAR(50) NOT NULL DEFAULT '#FFFFFF'
 );
 
 CREATE TABLE order_milkshakes (
@@ -52,14 +54,16 @@ CREATE TABLE milkshakes (
     milkshake_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
-    ingredients TEXT
+    ingredients TEXT,
+    color VARCHAR(50) NOT NULL DEFAULT '#FFFFFF',
 ) ENGINE=InnoDB;
 
 CREATE TABLE toasts (
     toast_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
-    ingredients TEXT
+    ingredients TEXT,
+    color VARCHAR(50) NOT NULL DEFAULT '#FFFFFF',
 ) ENGINE=InnoDB;
 
 CREATE TABLE order_milkshakes (

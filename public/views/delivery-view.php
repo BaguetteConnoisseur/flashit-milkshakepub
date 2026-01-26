@@ -305,6 +305,7 @@ if (isset($_GET['fetch_view'])) {
     <div id="ticket-grid" class="grid">
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Loading orders...</div>
     </div>
+    <?php include(SHARED_PATH . "/public_footer.php"); ?>
 
     <script>
         function loadOrders() {

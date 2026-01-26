@@ -9,12 +9,12 @@ if (!$conn) {
 // --- DATA FETCHING ---
 
 // Fetch Milkshakes
-$query = "SELECT milkshake_id AS item_id, name, description, ingredients, 'milkshake' AS type FROM milkshakes";
+$query = "SELECT milkshake_id AS item_id, name, description, ingredients, color, 'milkshake' AS type FROM milkshakes";
 $result = mysqli_query($conn, $query);
 $milkshakeInventory = mysqli_fetch_all($result, MYSQLI_ASSOC);
 
 // Fetch Toasts
-$query = "SELECT toast_id AS item_id, name, description, ingredients, 'toast' AS type FROM toasts";
+$query = "SELECT toast_id AS item_id, name, description, ingredients, color, 'toast' AS type FROM toasts";
 $result = mysqli_query($conn, $query);
 $toastInventory = mysqli_fetch_all($result, MYSQLI_ASSOC);
 
@@ -25,13 +25,15 @@ if (isset($_POST['add-milkshake'])) {
     $milkshakeName = htmlspecialchars($_POST['milkshake-name']);
     $description = htmlspecialchars($_POST['description']);
     $ingredients = htmlspecialchars($_POST['ingredients']);
+    $color = htmlspecialchars($_POST['color']);
 
-    if (!empty($milkshakeName) && !empty($description) && !empty($ingredients)) {
+    if (!empty($milkshakeName) && !empty($description) && !empty($ingredients) && !empty($color)) {
         $milkshakeName = mysqli_real_escape_string($conn, $milkshakeName);
         $description = mysqli_real_escape_string($conn, $description);
         $ingredients = mysqli_real_escape_string($conn, $ingredients);
+        $color = mysqli_real_escape_string($conn, $color);
         
-        $query = "INSERT INTO milkshakes (name, description, ingredients) VALUES ('$milkshakeName', '$description', '$ingredients')";
+        $query = "INSERT INTO milkshakes (name, description, ingredients, color) VALUES ('$milkshakeName', '$description', '$ingredients', '$color')";
         mysqli_query($conn, $query);
         
         // Use Javascript redirect to prevent form resubmission on refresh
@@ -45,13 +47,15 @@ if (isset($_POST['add-toast'])) {
     $toastName = htmlspecialchars($_POST['name']);
     $description = htmlspecialchars($_POST['description']);
     $ingredients = htmlspecialchars($_POST['ingredients']);
+    $color = htmlspecialchars($_POST['color']);
 
-    if (!empty($toastName) && !empty($description) && !empty($ingredients)) {
+    if (!empty($toastName) && !empty($description) && !empty($ingredients) && !empty($color)) {
         $toastName = mysqli_real_escape_string($conn, $toastName);
         $description = mysqli_real_escape_string($conn, $description);
         $ingredients = mysqli_real_escape_string($conn, $ingredients);
+        $color = mysqli_real_escape_string($conn, $color);
         
-        $query = "INSERT INTO toasts (name, description, ingredients) VALUES ('$toastName', '$description', '$ingredients')";
+        $query = "INSERT INTO toasts (name, description, ingredients, color) VALUES ('$toastName', '$description', '$ingredients', '$color')";
         mysqli_query($conn, $query);
 
         echo "<script>window.location.href='" . $_SERVER['PHP_SELF'] . "';</script>";
@@ -147,9 +151,11 @@ mysqli_close($conn);
         tr:last-child td { border-bottom: none; }
         
         /* Specific Column Widths */
-        td:nth-child(2) { font-weight: 600; color: var(--text-main); width: 20%; } /* Name */
-        td:nth-child(3) { color: var(--text-sub); width: 30%; } /* Desc */
-        td:nth-child(4) { font-size: 0.85rem; color: var(--text-sub); width: 30%; } /* Ingredients */
+        td:nth-child(2) { font-weight: 600; color: var(--text-main); width: 18%; } /* Name */
+        td:nth-child(3) { color: var(--text-sub); width: 25%; } /* Desc */
+        td:nth-child(4) { font-size: 0.85rem; color: var(--text-sub); width: 25%; } /* Ingredients */
+        td:nth-child(5) { width: 10%; text-align: center; } /* Color */
+        td:nth-child(6) { width: 10%; } /* Action */
 
         /* Buttons */
         .btn-remove {
@@ -228,6 +234,7 @@ mysqli_close($conn);
                                 <th>Name</th>
                                 <th>Description</th>
                                 <th>Ingredients</th>
+                                <th>Color</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -238,6 +245,7 @@ mysqli_close($conn);
                                 <td><?= htmlspecialchars($item['name']) ?></td>
                                 <td><?= htmlspecialchars($item['description']) ?></td>
                                 <td><?= htmlspecialchars($item['ingredients']) ?></td>
+                                <td style="text-align: center;"><div style="width: 30px; height: 30px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto;"></div></td>
                                 <td>
                                     <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
                                         <input type="hidden" name="milkshake-id" value="<?= $item['item_id'] ?>">
@@ -265,6 +273,7 @@ mysqli_close($conn);
                                 <th>Name</th>
                                 <th>Description</th>
                                 <th>Ingredients</th>
+                                <th>Color</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -275,6 +284,7 @@ mysqli_close($conn);
                                 <td><?= htmlspecialchars($item['name']) ?></td>
                                 <td><?= htmlspecialchars($item['description']) ?></td>
                                 <td><?= htmlspecialchars($item['ingredients']) ?></td>
+                                <td style="text-align: center;"><div style="width: 30px; height: 30px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto;"></div></td>
                                 <td>
                                     <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
                                         <input type="hidden" name="toast-id" value="<?= $item['item_id'] ?>">
@@ -304,6 +314,10 @@ mysqli_close($conn);
                     <label for="m-ing">Ingredients (semi-colon separated)</label>
                     <textarea id="m-ing" name="ingredients" rows="2" required placeholder="e.g. Milk; Chocolate Ice Cream; Cocoa"></textarea>
                 </div>
+                <div class="form-group">
+                    <label for="m-color">Color</label>
+                    <input id="m-color" name="color" type="color" required value="#ffffff">
+                </div>
                 <input name="add-milkshake" type="submit" class="btn-submit btn-milkshake" value="Add Milkshake">
             </form>
         </section>
@@ -323,11 +337,16 @@ mysqli_close($conn);
                     <label for="t-ing">Ingredients (semi-colon separated)</label>
                     <textarea id="t-ing" name="ingredients" rows="2" required placeholder="e.g. Sourdough; Ham; Cheddar; Butter"></textarea>
                 </div>
+                <div class="form-group">
+                    <label for="t-color">Color</label>
+                    <input id="t-color" name="color" type="color" required value="#ffffff">
+                </div>
                 <input name="add-toast" type="submit" class="btn-submit btn-toast" value="Add Toast">
             </form>
         </section>
 
     </div>
+    <?php include(SHARED_PATH . "/public_footer.php"); ?>
 
 </body>
 </html>
