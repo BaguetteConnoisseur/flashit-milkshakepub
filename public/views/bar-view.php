@@ -9,69 +9,80 @@ if (!$conn) {
 // --- DATA FETCHING & AJAX ---
 if (isset($_GET['fetch_view'])) {
     
-    // Fetch orders from the last 12 hours
-    $query = "SELECT order_id, order_number, customer_name, status FROM orders 
-              WHERE created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
-              ORDER BY created_at DESC";
+    // Fetch orders with their item statuses from the last 12 hours
+    $query = "
+        SELECT 
+            o.order_id, 
+            o.order_number, 
+            o.customer_name, 
+            o.status as order_status,
+            o.created_at,
+            -- Determine overall status based on item statuses
+            CASE 
+                WHEN NOT EXISTS (SELECT 1 FROM order_milkshakes om WHERE om.order_id = o.order_id AND om.status NOT IN ('Done', 'Delivered'))
+                     AND NOT EXISTS (SELECT 1 FROM order_toasts ot WHERE ot.order_id = o.order_id AND ot.status NOT IN ('Done', 'Delivered')) THEN 'Done'
+                WHEN EXISTS (SELECT 1 FROM order_milkshakes om WHERE om.order_id = o.order_id AND om.status = 'In Progress') 
+                     OR EXISTS (SELECT 1 FROM order_toasts ot WHERE ot.order_id = o.order_id AND ot.status = 'In Progress') THEN 'In Progress'
+                WHEN EXISTS (SELECT 1 FROM order_milkshakes om WHERE om.order_id = o.order_id AND om.status = 'Received') 
+                     OR EXISTS (SELECT 1 FROM order_toasts ot WHERE ot.order_id = o.order_id AND ot.status = 'Received') THEN 'Received'
+                ELSE 'Pending'
+            END as calculated_status
+        FROM orders o
+        WHERE o.created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
+        ORDER BY o.created_at DESC
+    ";
     
     $result = mysqli_query($conn, $query);
     $orders = mysqli_fetch_all($result, MYSQLI_ASSOC);
 
     // Buckets
-    $kitchen = [];   // Will hold 'Received' and 'In Progress' (Preparing)
-    $done = [];      // Will hold 'Done'
-    $delivered = []; // Will hold 'Delivered'
+    $preparing = [];    // Will hold 'Pending' and 'Received'
+    $inProgress = [];   // Will hold 'In Progress'
+    $doneDelivered = []; // Will hold 'Done' and 'Delivered'
 
     foreach ($orders as $o) {
-        $s = strtolower($o['status']);
+        $s = strtolower($o['calculated_status']);
         
-        // Map DB statuses to User Requested Display Text
-        if ($s === 'delivered') {
-            if (count($delivered) < 8) { // Show last 8 delivered
-                $o['display_status'] = 'Delivered';
-                $delivered[] = $o;
-            }
-        } elseif ($s === 'done') {
-            $o['display_status'] = 'Done';
-            $done[] = $o;
-        } elseif ($s === 'in progress') {
+        if ($s === 'pending' || $s === 'received') {
             $o['display_status'] = 'Preparing';
-            $kitchen[] = $o;
-        } else {
-            // 'Pending' or 'Received'
-            $o['display_status'] = 'Received';
-            $kitchen[] = $o;
+            $preparing[] = $o;
+        } elseif ($s === 'in progress') {
+            $o['display_status'] = 'In-progress';
+            $inProgress[] = $o;
+        } elseif ($s === 'done') {
+            // Check if all items are delivered to determine display status
+            $order_id = $o['order_id'];
+            $milkshake_query = "SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) as delivered 
+                               FROM order_milkshakes WHERE order_id = $order_id";
+            $toast_query = "SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) as delivered 
+                           FROM order_toasts WHERE order_id = $order_id";
+            
+            $milkshake_result = mysqli_query($conn, $milkshake_query);
+            $toast_result = mysqli_query($conn, $toast_query);
+            
+            $milkshake_data = mysqli_fetch_assoc($milkshake_result);
+            $toast_data = mysqli_fetch_assoc($toast_result);
+            
+            $total_items = ($milkshake_data['total'] ?? 0) + ($toast_data['total'] ?? 0);
+            $delivered_items = ($milkshake_data['delivered'] ?? 0) + ($toast_data['delivered'] ?? 0);
+            
+            $o['display_status'] = ($delivered_items == $total_items && $total_items > 0) ? 'Delivered' : 'Done';
+            $doneDelivered[] = $o;
         }
     }
 
     // --- RENDER HTML FRAGMENTS ---
     
-    // 1. KITCHEN COLUMN (Received + Preparing)
-    echo '<div id="col-kitchen">';
-    foreach ($kitchen as $o) {
-        // Different badge color for "Preparing" vs "Received"
-        $badgeClass = ($o['display_status'] === 'Preparing') ? 'badge-prep' : 'badge-recv';
-        
-        echo '<div class="card card-kitchen">
-                <div class="row-top">
-                    <span class="ord-num">#' . htmlspecialchars($o['order_id']) . '</span>
-                    <span class="status-pill ' . $badgeClass . '">' . $o['display_status'] . '</span>
-                </div>
-                <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
-              </div>';
-    }
-    echo '</div>';
-
-    // 2. DONE COLUMN
-    echo '<div id="col-done">';
-    if (empty($done)) {
-         echo '<div class="empty-msg">No orders waiting</div>';
+    // 1. PREPARING COLUMN
+    echo '<div id="col-preparing">';
+    if (empty($preparing)) {
+         echo '<div class="empty-msg">No orders preparing</div>';
     } else {
-        foreach ($done as $o) {
-            echo '<div class="card card-done">
+        foreach ($preparing as $o) {
+            echo '<div class="card card-preparing">
                     <div class="row-top">
                         <span class="ord-num">#' . htmlspecialchars($o['order_id']) . '</span>
-                        <span class="status-pill badge-done">Done</span>
+                        <span class="status-pill badge-prep">' . $o['display_status'] . '</span>
                     </div>
                     <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
                   </div>';
@@ -79,16 +90,40 @@ if (isset($_GET['fetch_view'])) {
     }
     echo '</div>';
 
-    // 3. DELIVERED COLUMN
-    echo '<div id="col-delivered">';
-    foreach ($delivered as $o) {
-        echo '<div class="card card-delivered">
-                <div class="row-top">
-                    <span class="ord-num">#' . htmlspecialchars($o['order_id']) . '</span>
-                    <span class="status-pill badge-del">Delivered</span>
-                </div>
-                <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
-              </div>';
+    // 2. IN-PROGRESS COLUMN
+    echo '<div id="col-inprogress">';
+    if (empty($inProgress)) {
+         echo '<div class="empty-msg">No orders in progress</div>';
+    } else {
+        foreach ($inProgress as $o) {
+            echo '<div class="card card-inProgress">
+                    <div class="row-top">
+                        <span class="ord-num">#' . htmlspecialchars($o['order_id']) . '</span>
+                        <span class="status-pill badge-cook">' . $o['display_status'] . '</span>
+                    </div>
+                    <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
+                  </div>';
+        }
+    }
+    echo '</div>';
+
+    // 3. DONE/DELIVERED COLUMN
+    echo '<div id="col-done-delivered">';
+    if (empty($doneDelivered)) {
+         echo '<div class="empty-msg">No completed orders</div>';
+    } else {
+        foreach ($doneDelivered as $o) {
+            $badgeClass = ($o['display_status'] === 'Done') ? 'badge-done' : 'badge-del';
+            $extraClass = ($o['display_status'] === 'Delivered') ? ' delivered' : '';
+            
+            echo '<div class="card card-doneDelivered' . $extraClass . '">
+                    <div class="row-top">
+                        <span class="ord-num">#' . htmlspecialchars($o['order_id']) . '</span>
+                        <span class="status-pill ' . $badgeClass . '">' . $o['display_status'] . '</span>
+                    </div>
+                    <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
+                  </div>';
+        }
     }
     echo '</div>';
 
@@ -118,6 +153,8 @@ if (isset($_GET['fetch_view'])) {
             /* Status Colors */
             --color-recv: #6b7280;  /* Grey for Received */
             --color-prep: #3b82f6;  /* Blue for Preparing */
+            --color-cook: #f59e0b;  /* Orange for Cooking */
+            --color-ready: #f59e0b; /* Orange for Ready */
             --color-done: #22c55e;  /* Green for Done */
             --color-del: #9ca3af;   /* Light Grey for Delivered */
         }
@@ -214,28 +251,29 @@ if (isset($_GET['fetch_view'])) {
 
         /* --- Specific Styles per status --- */
 
-        /* 1. Kitchen (Received / Preparing) */
-        .card-kitchen { border-left: 4px solid var(--color-prep); }
+        /* 1. Preparing (Received / Preparing) */
+        .card-preparing { border-left: 4px solid var(--color-prep); }
         .badge-recv { background: #f3f4f6; color: var(--color-recv); }
         .badge-prep { background: #eff6ff; color: var(--color-prep); }
 
-        /* 2. Done (Green & Large) */
-        .card-done { 
+        /* 2. In Progress (Cooking / Ready) */
+        .card-inProgress { border-left: 4px solid var(--color-cook); }
+        .badge-cook { background: #fef3c7; color: var(--color-cook); }
+        .badge-ready { background: #fef3c7; color: var(--color-ready); }
+
+        /* 3. Done & Delivered (Done / Delivered) */
+        .card-doneDelivered { 
             border-left: 6px solid var(--color-done); 
-            transform: scale(1.02);
             box-shadow: 0 10px 15px -3px rgba(34, 197, 94, 0.15);
         }
-        .card-done .cust-name { font-size: 2rem; color: #000; }
+        .card-doneDelivered .cust-name { font-size: 2rem; color: #000; }
         .badge-done { background: #dcfce7; color: #166534; font-size: 0.9rem; padding: 6px 12px; }
-        
-        /* Pop animation for Done items */
-        .card-done { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1.02); opacity: 1; } }
-
-        /* 3. Delivered (Faded) */
-        .card-delivered { border-left: 4px solid var(--color-del); opacity: 0.6; background: #f9fafb; }
-        .card-delivered .cust-name { text-decoration: line-through; color: var(--text-sub); }
         .badge-del { background: #f3f4f6; color: var(--color-del); }
+        
+
+        /* Delivered styling within Done & Delivered */
+        .card-doneDelivered.delivered { opacity: 0.6; background: #f9fafb; }
+        .card-doneDelivered.delivered .cust-name { text-decoration: line-through; color: var(--text-sub); }
 
     </style>
 </head>
@@ -248,20 +286,20 @@ if (isset($_GET['fetch_view'])) {
     <div class="display-board">
         
         <div class="column">
-            <div class="col-header">Preparing</div>
-            <div id="list-kitchen" class="order-list">
+            <div class="col-header">RECEIVED</div>
+            <div id="list-preparing" class="order-list">
                 </div>
         </div>
 
         <div class="column col-center">
-            <div class="col-header">Done</div>
-            <div id="list-done" class="order-list">
+            <div class="col-header">In-progress</div>
+            <div id="list-inprogress" class="order-list">
                 </div>
         </div>
 
         <div class="column">
-            <div class="col-header">Delivered</div>
-            <div id="list-delivered" class="order-list">
+            <div class="col-header">Done/Delivered</div>
+            <div id="list-done-delivered" class="order-list">
                 </div>
         </div>
 
@@ -275,9 +313,9 @@ if (isset($_GET['fetch_view'])) {
                     let parser = new DOMParser();
                     let doc = parser.parseFromString(html, 'text/html');
 
-                    document.getElementById('list-kitchen').innerHTML = doc.getElementById('col-kitchen').innerHTML;
-                    document.getElementById('list-done').innerHTML = doc.getElementById('col-done').innerHTML;
-                    document.getElementById('list-delivered').innerHTML = doc.getElementById('col-delivered').innerHTML;
+                    document.getElementById('list-preparing').innerHTML = doc.getElementById('col-preparing').innerHTML;
+                    document.getElementById('list-inprogress').innerHTML = doc.getElementById('col-inprogress').innerHTML;
+                    document.getElementById('list-done-delivered').innerHTML = doc.getElementById('col-done-delivered').innerHTML;
                 })
                 .catch(err => console.error('Display update failed', err));
         }

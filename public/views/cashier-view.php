@@ -33,21 +33,27 @@ if (isset($_POST['create_order'])) {
 
         // Process Milkshakes
         if (isset($_POST['milkshakes']) && is_array($_POST['milkshakes'])) {
-            foreach ($_POST['milkshakes'] as $m_id) {
+            foreach ($_POST['milkshakes'] as $m_id => $quantity) {
                 $m_id = intval($m_id);
-                $sql_item = "INSERT INTO order_milkshakes (order_id, milkshake_id, comment, status) 
-                             VALUES ($new_order_id, $m_id, '', 'Pending')";
-                mysqli_query($conn, $sql_item);
+                $quantity = intval($quantity);
+                for ($i = 0; $i < $quantity; $i++) {
+                    $sql_item = "INSERT INTO order_milkshakes (order_id, milkshake_id, comment, status) 
+                                 VALUES ($new_order_id, $m_id, '', 'Pending')";
+                    mysqli_query($conn, $sql_item);
+                }
             }
         }
 
         // Process Toasts
         if (isset($_POST['toasts']) && is_array($_POST['toasts'])) {
-            foreach ($_POST['toasts'] as $t_id) {
+            foreach ($_POST['toasts'] as $t_id => $quantity) {
                 $t_id = intval($t_id);
-                $sql_item = "INSERT INTO order_toasts (order_id, toast_id, comment, status) 
-                             VALUES ($new_order_id, $t_id, '', 'Pending')";
-                mysqli_query($conn, $sql_item);
+                $quantity = intval($quantity);
+                for ($i = 0; $i < $quantity; $i++) {
+                    $sql_item = "INSERT INTO order_toasts (order_id, toast_id, comment, status) 
+                                 VALUES ($new_order_id, $t_id, '', 'Pending')";
+                    mysqli_query($conn, $sql_item);
+                }
             }
         }
 
@@ -126,17 +132,21 @@ $orders_list = mysqli_fetch_all($res_list, MYSQLI_ASSOC);
 foreach ($orders_list as &$ord) {
     $oid = $ord['order_id'];
     
-    // Get milkshakes summary
-    $res_m = mysqli_query($conn, "SELECT m.name FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id WHERE om.order_id = $oid");
-    $m_names = [];
-    while($row = mysqli_fetch_assoc($res_m)) $m_names[] = $row['name'];
+    // Get milkshakes summary with counts
+    $res_m = mysqli_query($conn, "SELECT m.name, COUNT(*) as qty FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id WHERE om.order_id = $oid GROUP BY m.milkshake_id, m.name");
+    $m_summaries = [];
+    while($row = mysqli_fetch_assoc($res_m)) {
+        $m_summaries[] = $row['name'] . ($row['qty'] > 1 ? " (x{$row['qty']})" : "");
+    }
 
-    // Get toasts summary
-    $res_t = mysqli_query($conn, "SELECT t.name FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id WHERE ot.order_id = $oid");
-    $t_names = [];
-    while($row = mysqli_fetch_assoc($res_t)) $t_names[] = $row['name'];
+    // Get toasts summary with counts
+    $res_t = mysqli_query($conn, "SELECT t.name, COUNT(*) as qty FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id WHERE ot.order_id = $oid GROUP BY t.toast_id, t.name");
+    $t_summaries = [];
+    while($row = mysqli_fetch_assoc($res_t)) {
+        $t_summaries[] = $row['name'] . ($row['qty'] > 1 ? " (x{$row['qty']})" : "");
+    }
 
-    $ord['summary'] = implode(", ", array_merge($m_names, $t_names));
+    $ord['summary'] = implode(", ", array_merge($m_summaries, $t_summaries));
 }
 unset($ord); // Break reference
 
@@ -199,12 +209,48 @@ mysqli_close($conn);
             overflow: hidden;
         }
 
+        /* Navigation */
+        .page-nav {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 100;
+        }
+
+        .home-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--surface);
+            color: var(--text-main);
+            text-decoration: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .home-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .home-icon {
+            font-size: 1.1rem;
+        }
+
         /* --- LEFT COLUMN: CREATE --- */
         .col-create {
             width: 350px;
             background: var(--surface);
             border-right: 1px solid var(--border);
-            padding: 2rem;
+            padding: 4rem 2rem 2rem 2rem;
             overflow-y: auto;
             flex-shrink: 0;
             box-shadow: 2px 0 10px rgba(0,0,0,0.02);
@@ -224,15 +270,73 @@ mysqli_close($conn);
             box-sizing: border-box;
         }
         
-        .checkbox-group {
+        .quantity-group {
             border: 1px solid var(--border);
             border-radius: 6px;
-            max-height: 150px;
+            max-height: 200px;
             overflow-y: auto;
             padding: 0.5rem;
         }
-        .checkbox-item { display: flex; align-items: center; padding: 0.25rem 0; }
-        .checkbox-item input { margin-right: 0.5rem; }
+        .quantity-item { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 0.75rem 0; 
+            border-bottom: 1px solid #f0f0f0; 
+        }
+        .quantity-item:last-child { border-bottom: none; }
+        
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .qty-btn {
+            width: 30px;
+            height: 30px;
+            border: 2px solid var(--border);
+            background: white;
+            color: var(--text-main);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        
+        .qty-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: scale(1.05);
+        }
+        
+        .qty-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .qty-minus:hover {
+            background: #ef4444;
+            border-color: #ef4444;
+        }
+        
+        .quantity-input { 
+            width: 30px; 
+            height: 10px;
+            padding: 0.5rem; 
+            border: 2px solid var(--border); 
+            border-radius: 6px; 
+            text-align: center; 
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: #f9fafb;
+            color: var(--text-main);
+        }
 
         .btn {
             background-color: var(--primary);
@@ -285,6 +389,82 @@ mysqli_close($conn);
             background-color: #f9fafb;
             border-color: transparent;
         }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .view-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            background: white;
+            color: var(--text-sub);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .view-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .view-btn:hover {
+            opacity: 0.8;
+        }
+
+        /* List View */
+        .order-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .order-card.list-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            gap: 1rem;
+        }
+
+        .order-card.list-item .card-header {
+            flex: 0 0 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .order-card.list-item .customer-name {
+            flex: 1;
+            font-weight: 600;
+        }
+
+        .order-card.list-item .order-time {
+            flex: 0 0 120px;
+            text-align: right;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+        }
+
+        .order-card.list-item .order-summary {
+            flex: 2;
+            font-size: 0.9rem;
+            color: var(--text-sub);
+        }
+
+        .order-card.list-item hr {
+            display: none;
+        }
         .order-card.status-delivered:hover {
             opacity: 1;
             border-color: var(--border);
@@ -305,7 +485,8 @@ mysqli_close($conn);
             text-transform: uppercase;
         }
         .badge-pending { background: #fff7ed; color: #c2410c; }
-        .badge-preparing { background: #eff6ff; color: #1d4ed8; }
+        .badge-in-progress { background: #fef3c7; color: #92400e; }
+        .badge-done { background: #dcfce7; color: #166534; }
         .badge-delivered { background: #f3f4f6; color: #374151; }
 
         /* --- MODAL --- */
@@ -354,21 +535,32 @@ mysqli_close($conn);
 </head>
 <body>
 
+    <nav class="page-nav">
+        <a href="<?= WWW_ROOT ?>/index.php" class="home-btn">
+            <span class="home-icon">🏠</span>
+            Home
+        </a>
+    </nav>
+
     <section class="col-create">
         <h2>New Order</h2>
         <form action="<?= $_SERVER['PHP_SELF'] ?>" method="POST">
             <div class="form-group">
                 <label>Customer Name</label>
-                <input type="text" name="customer_name" required placeholder="e.g. John Doe">
+                <input type="text" name="customer_name" required placeholder="e.g. Fillidutten">
             </div>
 
             <div class="form-group">
                 <label>Milkshakes</label>
-                <div class="checkbox-group">
+                <div class="quantity-group">
                     <?php foreach($inv_milkshakes as $m): ?>
-                        <div class="checkbox-item">
-                            <input type="checkbox" name="milkshakes[]" value="<?= $m['milkshake_id'] ?>" id="m_<?= $m['milkshake_id'] ?>">
-                            <label for="m_<?= $m['milkshake_id'] ?>" style="margin:0; font-weight:400;"><?= htmlspecialchars($m['name']) ?></label>
+                        <div class="quantity-item">
+                            <label for="m_<?= $m['milkshake_id'] ?>" style="margin:0; font-weight:400; flex:1;"><?= htmlspecialchars($m['name']) ?></label>
+                            <div class="quantity-controls">
+                                <button type="button" class="qty-btn qty-minus" onclick="adjustQuantity('m_<?= $m['milkshake_id'] ?>', -1)">−</button>
+                                <input type="number" name="milkshakes[<?= $m['milkshake_id'] ?>]" value="0" min="0" id="m_<?= $m['milkshake_id'] ?>" class="quantity-input" readonly>
+                                <button type="button" class="qty-btn qty-plus" onclick="adjustQuantity('m_<?= $m['milkshake_id'] ?>', 1)">+</button>
+                            </div>
                         </div>
                     <?php endforeach; ?>
                 </div>
@@ -376,11 +568,15 @@ mysqli_close($conn);
 
             <div class="form-group">
                 <label>Toasts</label>
-                <div class="checkbox-group">
+                <div class="quantity-group">
                     <?php foreach($inv_toasts as $t): ?>
-                        <div class="checkbox-item">
-                            <input type="checkbox" name="toasts[]" value="<?= $t['toast_id'] ?>" id="t_<?= $t['toast_id'] ?>">
-                            <label for="t_<?= $t['toast_id'] ?>" style="margin:0; font-weight:400;"><?= htmlspecialchars($t['name']) ?></label>
+                        <div class="quantity-item">
+                            <label for="t_<?= $t['toast_id'] ?>" style="margin:0; font-weight:400; flex:1;"><?= htmlspecialchars($t['name']) ?></label>
+                            <div class="quantity-controls">
+                                <button type="button" class="qty-btn qty-minus" onclick="adjustQuantity('t_<?= $t['toast_id'] ?>', -1)">−</button>
+                                <input type="number" name="toasts[<?= $t['toast_id'] ?>]" value="0" min="0" id="t_<?= $t['toast_id'] ?>" class="quantity-input" readonly>
+                                <button type="button" class="qty-btn qty-plus" onclick="adjustQuantity('t_<?= $t['toast_id'] ?>', 1)">+</button>
+                            </div>
                         </div>
                     <?php endforeach; ?>
                 </div>
@@ -396,11 +592,17 @@ mysqli_close($conn);
     </section>
 
     <section class="col-list">
-        <h2>Current Orders</h2>
-        <div class="order-grid">
+        <div class="section-header">
+            <h2>Current Orders</h2>
+            <div class="view-toggle">
+                <button id="card-view-btn" class="view-btn active" onclick="setView('card')">Card View</button>
+                <button id="list-view-btn" class="view-btn" onclick="setView('list')">List View</button>
+            </div>
+        </div>
+        <div id="order-container" class="order-grid">
             <?php foreach($orders_list as $order): 
                 $statusClass = strtolower($order['status']) === 'delivered' ? 'status-delivered' : '';
-                $badgeClass = 'badge-' . strtolower($order['status']);
+                $badgeClass = 'badge-' . str_replace(' ', '-', strtolower($order['status']));
             ?>
                 <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
                     <div class="card-header">
@@ -439,7 +641,8 @@ mysqli_close($conn);
                             <select name="main_status">
                                 <?php $s = $modal_order['status']; ?>
                                 <option value="Pending" <?= $s=='Pending'?'selected':'' ?>>Pending</option>
-                                <option value="Preparing" <?= $s=='Preparing'?'selected':'' ?>>Preparing</option>
+                                <option value="In Progress" <?= $s=='In Progress'?'selected':'' ?>>In Progress</option>
+                                <option value="Done" <?= $s=='Done'?'selected':'' ?>>Done</option>
                                 <option value="Delivered" <?= $s=='Delivered'?'selected':'' ?>>Delivered</option>
                             </select>
                         </div>
@@ -459,7 +662,9 @@ mysqli_close($conn);
                                     <label>Status</label>
                                     <select name="om_status[<?= $item['order_milkshake_id'] ?>]" style="padding:0.25rem;">
                                         <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Pending</option>
+                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>In Progress</option>
                                         <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Done</option>
+                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Delivered</option>
                                     </select>
                                 </div>
                                 <div>
@@ -478,7 +683,9 @@ mysqli_close($conn);
                                     <label>Status</label>
                                     <select name="ot_status[<?= $item['order_toast_id'] ?>]" style="padding:0.25rem;">
                                         <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Pending</option>
+                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>In Progress</option>
                                         <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Done</option>
+                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Delivered</option>
                                     </select>
                                 </div>
                                 <div>
@@ -498,6 +705,43 @@ mysqli_close($conn);
         </div>
     </div>
     <?php endif; ?>
+    
+    <script>
+        function setView(viewType) {
+            const container = document.getElementById('order-container');
+            const cardBtn = document.getElementById('card-view-btn');
+            const listBtn = document.getElementById('list-view-btn');
+            const cards = container.querySelectorAll('.order-card');
+            
+            // Update button states
+            cardBtn.classList.toggle('active', viewType === 'card');
+            listBtn.classList.toggle('active', viewType === 'list');
+            
+            // Update container class
+            container.className = viewType === 'card' ? 'order-grid' : 'order-list';
+            
+            // Update card classes
+            cards.forEach(card => {
+                card.classList.toggle('list-item', viewType === 'list');
+            });
+            
+            // Save preference
+            localStorage.setItem('cashierViewPreference', viewType);
+        }
+        
+        function adjustQuantity(inputId, delta) {
+            const input = document.getElementById(inputId);
+            const currentValue = parseInt(input.value) || 0;
+            const newValue = Math.max(0, currentValue + delta);
+            input.value = newValue;
+        }
+        
+        // Load saved preference on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedView = localStorage.getItem('cashierViewPreference') || 'card';
+            setView(savedView);
+        });
+    </script>
     
 </body>
 </html>

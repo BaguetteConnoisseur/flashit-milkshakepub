@@ -43,6 +43,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
+
+    // 4. Take Back Delivered Order (Revert to Done)
+    if (isset($_POST['take_back_order'])) {
+        $order_id = intval($_POST['order_id']);
+        
+        // Mark main order as Done (not Delivered)
+        mysqli_query($conn, "UPDATE orders SET status = 'Done' WHERE order_id = $order_id");
+        
+        // Mark all children as Done (not Delivered)
+        mysqli_query($conn, "UPDATE order_milkshakes SET status = 'Done' WHERE order_id = $order_id");
+        mysqli_query($conn, "UPDATE order_toasts SET status = 'Done' WHERE order_id = $order_id");
+
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    }
 }
 
 // --- LOGIC: FETCH DATA FUNCTION ---
@@ -207,6 +222,15 @@ if (isset($_GET['fetch_view'])) {
                             <?php endif; ?>
                         </form>
                     </div>
+                <?php else: ?>
+                    <div class="card-footer">
+                        <form method="POST" style="display: flex; justify-content: flex-end;">
+                            <input type="hidden" name="order_id" value="<?= $o['order_id'] ?>">
+                            <button type="submit" name="take_back_order" class="btn-take-back" title="Take back this order">
+                                ↶
+                            </button>
+                        </form>
+                    </div>
                 <?php endif; ?>
             </div>
             <?php
@@ -290,6 +314,27 @@ if (isset($_GET['fetch_view'])) {
         .btn-success { background: var(--status-done); color: white; box-shadow: 0 4px 6px rgba(34, 197, 94, 0.3); }
         .btn-success:hover { background: #16a34a; transform: translateY(-2px); }
         .btn-disabled { background: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
+
+        /* Take back button - subtle */
+        .btn-take-back { 
+            background: transparent; 
+            color: #9ca3af; 
+            border: 1px solid #e5e7eb; 
+            width: 32px; 
+            height: 32px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 1.2rem; 
+            transition: all 0.2s; 
+        }
+        .btn-take-back:hover { 
+            background: #f3f4f6; 
+            color: #6b7280; 
+            border-color: #d1d5db; 
+        }
 
         #connection-status { font-size: 0.8rem; color: #10b981; }
         .empty-state { text-align: center; color: var(--text-sub); margin-top: 4rem; width: 100%; }

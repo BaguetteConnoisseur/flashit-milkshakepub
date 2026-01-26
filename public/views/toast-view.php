@@ -100,6 +100,22 @@ function getTickets($conn) {
     return $tickets;
 }
 
+// --- LOGIC: FETCH SUMMARY FUNCTION ---
+function getSummary($conn) {
+    $query = "
+        SELECT t.name, COUNT(*) as count
+        FROM order_toasts ot
+        JOIN toasts t ON ot.toast_id = t.toast_id
+        WHERE ot.status != 'Delivered'
+        GROUP BY t.name
+        ORDER BY count DESC
+    ";
+    $result = mysqli_query($conn, $query);
+    return mysqli_fetch_all($result, MYSQLI_ASSOC);
+}
+
+$summary = getSummary($conn);
+
 // --- AJAX HANDLER ---
 if (isset($_GET['fetch_view'])) {
     $tickets = getTickets($conn);
@@ -226,6 +242,22 @@ if (isset($_GET['fetch_view'])) {
             padding-bottom: 1rem; 
         }
         
+        .summary {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+        
+        .summary-item {
+            background: var(--card-bg);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+        
         .grid { 
             display: grid; 
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
@@ -308,7 +340,16 @@ if (isset($_GET['fetch_view'])) {
 <body>
 
     <div class="header">
-        <h1>🥪 Toast Station</h1>
+        <div>
+            <h1>🥪 Toast Station</h1>
+            <?php if (!empty($summary)): ?>
+                <div class="summary">
+                    <?php foreach ($summary as $item): ?>
+                        <span class="summary-item"><?= htmlspecialchars($item['name']) ?>: <?= $item['count'] ?></span>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
         <div id="connection-status">● Live</div>
     </div>
 
