@@ -188,6 +188,8 @@ mysqli_close($conn);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order System</title>
+    <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
         :root {
             --primary: #2563eb;
