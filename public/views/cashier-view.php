@@ -99,8 +99,8 @@ if (isset($_POST['update_order'])) {
         }
     }
 
-    // Redirect to same order view
-    header("Location: " . $_SERVER['PHP_SELF'] . "?view_order=" . $order_id);
+    // Redirect back to order list
+    header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
 
