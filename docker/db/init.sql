@@ -1,3 +1,9 @@
+SET NAMES utf8mb4 COLLATE utf8mb4_swedish_ci;
+
+ALTER DATABASE flashit_milkshakepub
+    CHARACTER SET = utf8mb4
+    COLLATE = utf8mb4_swedish_ci;
+
 CREATE TABLE IF NOT EXISTS orders (
     order_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     order_number VARCHAR(50) UNIQUE NOT NULL,
@@ -5,7 +11,7 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(50) NOT NULL,
     order_comment TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
 CREATE TABLE IF NOT EXISTS milkshakes (
     milkshake_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -13,7 +19,7 @@ CREATE TABLE IF NOT EXISTS milkshakes (
     description TEXT,
     ingredients TEXT,
     color VARCHAR(50) NOT NULL DEFAULT '#FFFFFF'
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
 CREATE TABLE IF NOT EXISTS toasts (
     toast_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -21,7 +27,7 @@ CREATE TABLE IF NOT EXISTS toasts (
     description TEXT,
     ingredients TEXT,
     color VARCHAR(50) NOT NULL DEFAULT '#FFFFFF'
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
 CREATE TABLE IF NOT EXISTS order_milkshakes (
     order_milkshake_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -36,7 +42,7 @@ CREATE TABLE IF NOT EXISTS order_milkshakes (
     CONSTRAINT fk_order_milkshakes_milkshake
         FOREIGN KEY (milkshake_id)
         REFERENCES milkshakes(milkshake_id)
-) ENGINE=InnoDB;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
 CREATE TABLE IF NOT EXISTS order_toasts (
     order_toast_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -51,7 +57,7 @@ CREATE TABLE IF NOT EXISTS order_toasts (
     CONSTRAINT fk_order_toasts_toast
         FOREIGN KEY (toast_id)
         REFERENCES toasts(toast_id)
-) ENGINE=InnoDB;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
 INSERT INTO milkshakes (name, description, ingredients, color)
 VALUES
