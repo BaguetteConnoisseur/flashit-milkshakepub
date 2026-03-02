@@ -1,13 +1,12 @@
 <?php
-// Create root var with base path support
+ini_set('default_charset', 'UTF-8');
+
 $base_path = getenv('BASE_PATH') ?: '';
 
 $public_pos = strpos($_SERVER['SCRIPT_NAME'], '/public');
 if ($public_pos !== false) {
-    // Traditional setup: /some/path/public/index.php
     $doc_root = substr($_SERVER['SCRIPT_NAME'], 0, $public_pos + 7);
 } else {
-    // Docker/direct public serving: /index.php or /milkshakepub/index.php
     $doc_root = $base_path;
 }
 define("WWW_ROOT", $doc_root);
@@ -21,3 +20,7 @@ define("SHARED_PATH", PRIVATE_PATH . '/shared');
 // Require code libraries
 require("master_code/top-user-check.php");
 require("functions.php");
+
+if (!headers_sent()) {
+    header('Content-Type: text/html; charset=UTF-8');
+}
