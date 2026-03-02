@@ -2,6 +2,12 @@
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 
+if (isset($_POST['logout-account'])) {
+    session_destroy();  
+    header("Location: " . WWW_ROOT . "/index.php");
+    exit;
+}
+
 if (!$loggedIn) {
     header("Location: " . WWW_ROOT . "/index.php");
 }
@@ -203,6 +209,8 @@ if (isset($_GET['fetch_view'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Toast Kitchen</title>
+    <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
         :root {
             /* Light Mode Palette */
@@ -338,6 +346,7 @@ if (isset($_GET['fetch_view'])) {
     </style>
 </head>
 <body>
+    <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
 
     <div class="header">
         <div>

@@ -222,6 +222,7 @@ mysqli_close($conn);
     </style>
 </head>
 <body>
+        <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
 
     <h1>Inventory Manager</h1>
 
