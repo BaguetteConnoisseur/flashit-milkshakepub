@@ -14,10 +14,10 @@ if (isset($_POST['login'])) {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
 
-    $admin_user = getenv('ADMIN_USERNAME') ?: 'admin';
-    $admin_pass = getenv('ADMIN_PASSWORD') ?: 'CHANGE_ME';
+    $admin_user = getenv('ADMIN_USERNAME') ?: '';
+    $admin_pass = getenv('ADMIN_PASSWORD') ?: '';
 
-    if ($username === $admin_user && $password === $admin_pass) {
+    if (!empty($admin_user) && !empty($admin_pass) && $username === $admin_user && $password === $admin_pass) {
         $_SESSION['absolute-username'] = $username;
         $_SESSION['absolute-password'] = $password;
         header("Location: " . $_SERVER['PHP_SELF']);
@@ -152,6 +152,33 @@ if (isset($_POST['login'])) {
             text-align: center;
             border-left: 4px solid #e53e3e;
         }
+
+        .public-screen-link {
+            max-width: 400px;
+            margin: -20px auto 40px;
+            text-align: center;
+        }
+
+        .btn-open-bar {
+            display: inline-block;
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 600;
+            color: #0f172a;
+            background: #ffffff;
+            border: 2px solid #cbd5e1;
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            box-sizing: border-box;
+        }
+
+        .btn-open-bar:hover {
+            transform: translateY(-2px);
+            border-color: #06b6d4;
+            box-shadow: 0 8px 20px rgba(6, 182, 212, 0.25);
+        }
         
         .views-grid {
             display: grid;
@@ -223,6 +250,8 @@ if (isset($_POST['login'])) {
         .view-card.toast { --accent: #f97316; }
         .view-card.inventory { --accent: #8b5cf6; }
         .view-card.bar { --accent: #06b6d4; }
+        .view-card.stats { --accent: #0ea5e9; }
+        .view-card.leaderboard { --accent: #22c55e; }
         
         .view-card.cashier .view-card-icon { background: rgba(245, 158, 11, 0.1); }
         .view-card.delivery .view-card-icon { background: rgba(16, 185, 129, 0.1); }
@@ -230,6 +259,8 @@ if (isset($_POST['login'])) {
         .view-card.toast .view-card-icon { background: rgba(249, 115, 22, 0.1); }
         .view-card.inventory .view-card-icon { background: rgba(139, 92, 246, 0.1); }
         .view-card.bar .view-card-icon { background: rgba(6, 182, 212, 0.1); }
+        .view-card.stats .view-card-icon { background: rgba(14, 165, 233, 0.12); }
+        .view-card.leaderboard .view-card-icon { background: rgba(34, 197, 94, 0.14); }
         
         .logout-wrapper {
             position: fixed;
@@ -299,6 +330,12 @@ if (isset($_POST['login'])) {
                     <button type="submit" name="login" class="btn-login">Logga in</button>
                 </form>
             </div>
+
+            <div class="public-screen-link">
+                <a class="btn-open-bar" href="views/bar-view.php">
+                    Öppna Barvy
+                </a>
+            </div>
         <?php else: ?>
             <div class="logout-wrapper">
                 <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>" style="display: inline;">
@@ -333,16 +370,28 @@ if (isset($_POST['login'])) {
                     <p>Hantera toastförberedelser och spåra orderns framsteg.</p>
                 </a>
 
-                <a href="admin_action/inventory_manager.php" class="view-card inventory">
-                    <div class="view-card-icon">📦</div>
-                    <h3>Lagerhanterare</h3>
-                    <p>Hantera menyalternativ och ingredienser.</p>
-                </a>
-
                 <a href="views/bar-view.php" class="view-card bar">
                     <div class="view-card-icon">📊</div>
                     <h3>Barvy</h3>
                     <p>Översikt över alla beställningar och köksstatusvisning för att visa up på bardatorn.</p>
+                </a>
+
+                <a href="views/statistics-view.php" class="view-card stats">
+                    <div class="view-card-icon">📈</div>
+                    <h3>Statistik</h3>
+                    <p>Se försäljning per smak, totaler och hantera rensning av orderhistorik.</p>
+                </a>
+
+                <a href="views/leaderboard-view.php" class="view-card leaderboard">
+                    <div class="view-card-icon">🏆</div>
+                    <h3>Leaderboard</h3>
+                    <p>Se topplistor för mest sålda smaker och kunder per pub.</p>
+                </a>
+
+                <a href="admin_action/inventory_manager.php" class="view-card inventory">
+                    <div class="view-card-icon">📦</div>
+                    <h3>Lagerhanterare</h3>
+                    <p>Hantera menyalternativ och ingredienser.</p>
                 </a>
             </div>
         <?php endif; ?>

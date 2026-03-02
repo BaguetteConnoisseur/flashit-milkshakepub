@@ -122,7 +122,7 @@ mysqli_close($conn);
         }
 
         h1, h2 { margin-top: 0; font-weight: 700; color: var(--text-main); }
-        h1 { margin-bottom: 2rem; text-align: center; }
+        h1 { margin-top: 1.5rem; margin-bottom: 2rem; text-align: center; }
         h2 { font-size: 1.25rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
 
         /* Grid Layout */

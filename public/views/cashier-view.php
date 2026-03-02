@@ -1,9 +1,11 @@
 <?php
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
+require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
 if (!$loggedIn) {
     header("Location: " . WWW_ROOT . "/index.php");
+    exit;
 }
 
 if (!$conn) {
@@ -15,6 +17,9 @@ function escape($conn, $string) {
     return mysqli_real_escape_string($conn, $string);
 }
 
+$pubTracking = ensure_pub_tracking($conn);
+$activeEventId = (int) $pubTracking['active_pub_id'];
+
 // --- LOGIC: HANDLE FORM SUBMISSIONS ---
 
 // 1. CREATE ORDER
@@ -25,8 +30,8 @@ if (isset($_POST['create_order'])) {
     $status = "Pending";
 
     // Insert Main Order
-    $sql = "INSERT INTO orders (order_number, customer_name, status, order_comment) 
-            VALUES ('$order_number', '$customer_name', '$status', '$order_comment')";
+        $sql = "INSERT INTO orders (order_number, customer_name, status, order_comment, event_id) 
+            VALUES ('$order_number', '$customer_name', '$status', '$order_comment', $activeEventId)";
     
     if (mysqli_query($conn, $sql)) {
         $new_order_id = mysqli_insert_id($conn);
@@ -72,7 +77,7 @@ if (isset($_POST['update_order'])) {
     $main_comment = escape($conn, $_POST['main_comment']);
 
     // Update Main Order
-    $sql = "UPDATE orders SET status = '$main_status', order_comment = '$main_comment' WHERE order_id = $order_id";
+    $sql = "UPDATE orders SET status = '$main_status', order_comment = '$main_comment' WHERE order_id = $order_id AND event_id = $activeEventId";
     mysqli_query($conn, $sql);
 
     // Update Individual Milkshakes
@@ -82,7 +87,12 @@ if (isset($_POST['update_order'])) {
             $status = escape($conn, $status);
             $comment = escape($conn, $_POST['om_comment'][$om_id] ?? '');
             
-            $sql_upd = "UPDATE order_milkshakes SET status = '$status', comment = '$comment' WHERE order_milkshake_id = $om_id";
+            $sql_upd = "
+                UPDATE order_milkshakes om
+                JOIN orders o ON o.order_id = om.order_id
+                SET om.status = '$status', om.comment = '$comment'
+                WHERE om.order_milkshake_id = $om_id AND o.event_id = $activeEventId
+            ";
             mysqli_query($conn, $sql_upd);
         }
     }
@@ -94,7 +104,12 @@ if (isset($_POST['update_order'])) {
             $status = escape($conn, $status);
             $comment = escape($conn, $_POST['ot_comment'][$ot_id] ?? '');
             
-            $sql_upd = "UPDATE order_toasts SET status = '$status', comment = '$comment' WHERE order_toast_id = $ot_id";
+            $sql_upd = "
+                UPDATE order_toasts ot
+                JOIN orders o ON o.order_id = ot.order_id
+                SET ot.status = '$status', ot.comment = '$comment'
+                WHERE ot.order_toast_id = $ot_id AND o.event_id = $activeEventId
+            ";
             mysqli_query($conn, $sql_upd);
         }
     }
@@ -109,9 +124,9 @@ if (isset($_POST['delete_order'])) {
     $order_id = intval($_POST['order_id']);
     
     // Manually delete children first (if DB doesn't have ON DELETE CASCADE)
-    mysqli_query($conn, "DELETE FROM order_milkshakes WHERE order_id = $order_id");
-    mysqli_query($conn, "DELETE FROM order_toasts WHERE order_id = $order_id");
-    mysqli_query($conn, "DELETE FROM orders WHERE order_id = $order_id");
+    mysqli_query($conn, "DELETE om FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE om.order_id = $order_id AND o.event_id = $activeEventId");
+    mysqli_query($conn, "DELETE ot FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE ot.order_id = $order_id AND o.event_id = $activeEventId");
+    mysqli_query($conn, "DELETE FROM orders WHERE order_id = $order_id AND event_id = $activeEventId");
 
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
@@ -124,7 +139,7 @@ $inv_milkshakes = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM milkshakes
 $inv_toasts = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM toasts"), MYSQLI_ASSOC);
 
 // 2. Fetch Order List (Summary)
-$sql_list = "SELECT * FROM orders ORDER BY created_at DESC";
+$sql_list = "SELECT * FROM orders WHERE event_id = $activeEventId ORDER BY created_at DESC";
 $res_list = mysqli_query($conn, $sql_list);
 $orders_list = mysqli_fetch_all($res_list, MYSQLI_ASSOC);
 
@@ -159,22 +174,24 @@ if (isset($_GET['view_order'])) {
     $view_id = intval($_GET['view_order']);
     
     // Get Order Info
-    $res = mysqli_query($conn, "SELECT * FROM orders WHERE order_id = $view_id");
+    $res = mysqli_query($conn, "SELECT * FROM orders WHERE order_id = $view_id AND event_id = $activeEventId");
     $modal_order = mysqli_fetch_assoc($res);
 
     if ($modal_order) {
         // Get Milkshake Details (Join to get names)
         $sql_m = "SELECT om.*, m.name, m.description 
                   FROM order_milkshakes om 
+                  JOIN orders o ON o.order_id = om.order_id
                   JOIN milkshakes m ON om.milkshake_id = m.milkshake_id 
-                  WHERE om.order_id = $view_id";
+                  WHERE om.order_id = $view_id AND o.event_id = $activeEventId";
         $modal_items_m = mysqli_fetch_all(mysqli_query($conn, $sql_m), MYSQLI_ASSOC);
 
         // Get Toast Details
         $sql_t = "SELECT ot.*, t.name, t.description 
                   FROM order_toasts ot 
+                  JOIN orders o ON o.order_id = ot.order_id
                   JOIN toasts t ON ot.toast_id = t.toast_id 
-                  WHERE ot.order_id = $view_id";
+                  WHERE ot.order_id = $view_id AND o.event_id = $activeEventId";
         $modal_items_t = mysqli_fetch_all(mysqli_query($conn, $sql_t), MYSQLI_ASSOC);
     }
 }
@@ -585,7 +602,7 @@ mysqli_close($conn);
             </div>
 
             <div class="form-group">
-                <label>Order Comment</label>
+                <label>General Order Comment</label>
                 <textarea name="order_comment" rows="3" placeholder="General notes..."></textarea>
             </div>
 

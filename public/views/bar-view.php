@@ -1,10 +1,14 @@
 <?php
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
+require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
+
+$pubTracking = ensure_pub_tracking($conn);
+$activePubId = (int) $pubTracking['active_pub_id'];
 
 // --- DATA FETCHING & AJAX ---
 if (isset($_GET['fetch_view'])) {
@@ -28,7 +32,7 @@ if (isset($_GET['fetch_view'])) {
                 ELSE 'Pending'
             END as calculated_status
         FROM orders o
-        WHERE o.created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
+        WHERE o.event_id = $activePubId AND o.created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
         ORDER BY o.created_at DESC
     ";
     
@@ -115,8 +119,9 @@ if (isset($_GET['fetch_view'])) {
         foreach ($doneDelivered as $o) {
             $badgeClass = ($o['display_status'] === 'Done') ? 'badge-done' : 'badge-del';
             $extraClass = ($o['display_status'] === 'Delivered') ? ' delivered' : '';
+            $statusKey = strtolower($o['display_status']);
             
-            echo '<div class="card card-doneDelivered' . $extraClass . '">
+            echo '<div class="card card-doneDelivered' . $extraClass . '" data-order-id="' . htmlspecialchars($o['order_id']) . '" data-display-status="' . htmlspecialchars($statusKey) . '">
                     <div class="row-top">
                         <span class="ord-num">#' . htmlspecialchars($o['order_id']) . '</span>
                         <span class="status-pill ' . $badgeClass . '">' . $o['display_status'] . '</span>
@@ -306,6 +311,45 @@ if (isset($_GET['fetch_view'])) {
     </div>
 
     <script>
+        const DELIVERY_HIDE_DELAY_MS = 10000;
+        const deliveredFirstSeen = new Map();
+
+        function applyDeliveredGracePeriod() {
+            const doneList = document.getElementById('list-done-delivered');
+            if (!doneList) return;
+
+            const now = Date.now();
+            const currentDeliveredIds = new Set();
+            const deliveredCards = doneList.querySelectorAll('.card-doneDelivered.delivered');
+
+            deliveredCards.forEach(card => {
+                const orderId = card.dataset.orderId;
+                if (!orderId) return;
+
+                currentDeliveredIds.add(orderId);
+
+                if (!deliveredFirstSeen.has(orderId)) {
+                    deliveredFirstSeen.set(orderId, now);
+                    return;
+                }
+
+                const firstSeenAt = deliveredFirstSeen.get(orderId);
+                if (now - firstSeenAt >= DELIVERY_HIDE_DELAY_MS) {
+                    card.remove();
+                }
+            });
+
+            for (const orderId of Array.from(deliveredFirstSeen.keys())) {
+                if (!currentDeliveredIds.has(orderId)) {
+                    deliveredFirstSeen.delete(orderId);
+                }
+            }
+
+            if (!doneList.querySelector('.card')) {
+                doneList.innerHTML = '<div class="empty-msg">No completed orders</div>';
+            }
+        }
+
         function updateBoard() {
             fetch('?fetch_view=1')
                 .then(response => response.text())
@@ -316,6 +360,8 @@ if (isset($_GET['fetch_view'])) {
                     document.getElementById('list-preparing').innerHTML = doc.getElementById('col-preparing').innerHTML;
                     document.getElementById('list-inprogress').innerHTML = doc.getElementById('col-inprogress').innerHTML;
                     document.getElementById('list-done-delivered').innerHTML = doc.getElementById('col-done-delivered').innerHTML;
+
+                    applyDeliveredGracePeriod();
                 })
                 .catch(err => console.error('Display update failed', err));
         }

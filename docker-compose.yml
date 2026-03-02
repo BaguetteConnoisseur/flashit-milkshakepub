@@ -23,10 +23,10 @@ services:
     environment:
       DB_HOST: flashit-milkshakepub-db
       DB_NAME: ${MYSQL_DATABASE:-flashit_milkshakepub}
-      DB_USER: ${MYSQL_USER:-flashit}
-      DB_PASS: ${MYSQL_PASSWORD:-flashit_pass}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-CHANGE_ME}
+      DB_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      DB_PASS: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME is required}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
       BASE_PATH: ${BASE_PATH:-}
     depends_on:
       flashit-milkshakepub-db:
@@ -39,10 +39,10 @@ services:
     container_name: flashit-milkshakepub-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-flashit_milkshakepub}
-      MYSQL_USER: ${MYSQL_USER:-flashit}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-flashit_pass}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
     volumes:
       - flashit_milkshakepub_db_data_alias:/var/lib/mysql
       - ./docker/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro

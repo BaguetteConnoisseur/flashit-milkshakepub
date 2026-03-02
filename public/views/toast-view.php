@@ -1,6 +1,7 @@
 <?php
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
+require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
 if (isset($_POST['logout-account'])) {
     session_destroy();  
@@ -10,11 +11,15 @@ if (isset($_POST['logout-account'])) {
 
 if (!$loggedIn) {
     header("Location: " . WWW_ROOT . "/index.php");
+    exit;
 }
 
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
+
+$pubTracking = ensure_pub_tracking($conn);
+$activePubId = (int) $pubTracking['active_pub_id'];
 
 // --- LOGIC: HANDLE ACTIONS (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -32,7 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($new_status !== $current_status) {
-            mysqli_query($conn, "UPDATE order_toasts SET status = '$new_status' WHERE order_toast_id = $ot_id");
+            mysqli_query($conn, "
+                UPDATE order_toasts ot
+                JOIN orders o ON o.order_id = ot.order_id
+                SET ot.status = '$new_status'
+                WHERE ot.order_toast_id = $ot_id AND o.event_id = $activePubId
+            ");
         }
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
@@ -42,7 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_status_manual'])) {
         $ot_id = intval($_POST['order_toast_id']);
         $new_status = mysqli_real_escape_string($conn, $_POST['manual_status']);
-        mysqli_query($conn, "UPDATE order_toasts SET status = '$new_status' WHERE order_toast_id = $ot_id");
+        mysqli_query($conn, "
+            UPDATE order_toasts ot
+            JOIN orders o ON o.order_id = ot.order_id
+            SET ot.status = '$new_status'
+            WHERE ot.order_toast_id = $ot_id AND o.event_id = $activePubId
+        ");
         
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
@@ -50,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // --- LOGIC: FETCH DATA FUNCTION ---
-function getTickets($conn) {
+function getTickets($conn, $activePubId) {
     // 1. Get the Toasts (Primary Items)
     $query = "
         SELECT 
@@ -66,7 +81,7 @@ function getTickets($conn) {
         FROM order_toasts ot
         JOIN toasts t ON ot.toast_id = t.toast_id
         JOIN orders o ON ot.order_id = o.order_id
-        WHERE ot.status != 'Delivered'
+        WHERE ot.status != 'Delivered' AND o.event_id = $activePubId
         ORDER BY 
             CASE WHEN ot.status = 'Done' THEN 1 ELSE 0 END,
             o.created_at ASC
@@ -107,12 +122,13 @@ function getTickets($conn) {
 }
 
 // --- LOGIC: FETCH SUMMARY FUNCTION ---
-function getSummary($conn) {
+function getSummary($conn, $activePubId) {
     $query = "
         SELECT t.name, COUNT(*) as count
         FROM order_toasts ot
         JOIN toasts t ON ot.toast_id = t.toast_id
-        WHERE ot.status != 'Delivered'
+        JOIN orders o ON o.order_id = ot.order_id
+        WHERE ot.status != 'Delivered' AND o.event_id = $activePubId
         GROUP BY t.name
         ORDER BY count DESC
     ";
@@ -120,11 +136,11 @@ function getSummary($conn) {
     return mysqli_fetch_all($result, MYSQLI_ASSOC);
 }
 
-$summary = getSummary($conn);
+$summary = getSummary($conn, $activePubId);
 
 // --- AJAX HANDLER ---
 if (isset($_GET['fetch_view'])) {
-    $tickets = getTickets($conn);
+    $tickets = getTickets($conn, $activePubId);
     
     if (empty($tickets)) {
         echo '<div class="empty-state"><h2>All clear! No pending toasts.</h2></div>';

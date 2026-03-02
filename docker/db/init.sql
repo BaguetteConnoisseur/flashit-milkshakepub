@@ -6,12 +6,29 @@ ALTER DATABASE flashit_milkshakepub
 
 CREATE TABLE IF NOT EXISTS orders (
     order_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    event_id INT UNSIGNED NULL,
     order_number VARCHAR(50) UNIQUE NOT NULL,
     customer_name VARCHAR(100) NOT NULL,
     status VARCHAR(50) NOT NULL,
     order_comment TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
+
+CREATE TABLE IF NOT EXISTS sales_events (
+    event_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    event_name VARCHAR(120) NOT NULL,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
+
+INSERT INTO sales_events (event_name, is_active)
+SELECT 'Initial Event', 1
+WHERE NOT EXISTS (SELECT 1 FROM sales_events);
+
+ALTER TABLE orders
+    ADD COLUMN IF NOT EXISTS event_id INT UNSIGNED NULL,
+    ADD INDEX IF NOT EXISTS idx_orders_event_id (event_id);
 
 CREATE TABLE IF NOT EXISTS milkshakes (
     milkshake_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

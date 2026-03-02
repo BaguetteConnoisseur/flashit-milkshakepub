@@ -1,6 +1,7 @@
 <?php
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
+require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
 if (isset($_POST['logout-account'])) {
     session_destroy();  
@@ -10,11 +11,15 @@ if (isset($_POST['logout-account'])) {
 
 if (!$loggedIn) {
     header("Location: " . WWW_ROOT . "/index.php");
+    exit;
 }
 
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
+
+$pubTracking = ensure_pub_tracking($conn);
+$activePubId = (int) $pubTracking['active_pub_id'];
 
 // --- LOGIC: HANDLE ACTIONS (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -24,11 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $order_id = intval($_POST['order_id']);
         
         // Mark main order as Delivered
-        mysqli_query($conn, "UPDATE orders SET status = 'Delivered' WHERE order_id = $order_id");
+        mysqli_query($conn, "UPDATE orders SET status = 'Delivered' WHERE order_id = $order_id AND event_id = $activePubId");
         
         // Mark all children as Delivered
-        mysqli_query($conn, "UPDATE order_milkshakes SET status = 'Delivered' WHERE order_id = $order_id");
-        mysqli_query($conn, "UPDATE order_toasts SET status = 'Delivered' WHERE order_id = $order_id");
+        mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_id = $order_id AND o.event_id = $activePubId");
+        mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_id = $order_id AND o.event_id = $activePubId");
 
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
@@ -37,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 2. Deliver Individual Milkshake
     if (isset($_POST['deliver_milkshake'])) {
         $id = intval($_POST['item_id']);
-        mysqli_query($conn, "UPDATE order_milkshakes SET status = 'Delivered' WHERE order_milkshake_id = $id");
+        mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_milkshake_id = $id AND o.event_id = $activePubId");
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
@@ -45,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 3. Deliver Individual Toast
     if (isset($_POST['deliver_toast'])) {
         $id = intval($_POST['item_id']);
-        mysqli_query($conn, "UPDATE order_toasts SET status = 'Delivered' WHERE order_toast_id = $id");
+        mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_toast_id = $id AND o.event_id = $activePubId");
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
@@ -55,11 +60,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $order_id = intval($_POST['order_id']);
         
         // Mark main order as Done (not Delivered)
-        mysqli_query($conn, "UPDATE orders SET status = 'Done' WHERE order_id = $order_id");
+        mysqli_query($conn, "UPDATE orders SET status = 'Done' WHERE order_id = $order_id AND event_id = $activePubId");
         
         // Mark all children as Done (not Delivered)
-        mysqli_query($conn, "UPDATE order_milkshakes SET status = 'Done' WHERE order_id = $order_id");
-        mysqli_query($conn, "UPDATE order_toasts SET status = 'Done' WHERE order_id = $order_id");
+        mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Done' WHERE om.order_id = $order_id AND o.event_id = $activePubId");
+        mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Done' WHERE ot.order_id = $order_id AND o.event_id = $activePubId");
 
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
@@ -67,11 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // --- LOGIC: FETCH DATA FUNCTION ---
-function getOrders($conn) {
+function getOrders($conn, $activePubId) {
     // 1. Fetch ALL Orders (Active first, then Delivered. Within those groups, oldest first)
     // We add a limit (e.g., 50) to prevent the page from crashing after a year of usage.
     $query = "
-        SELECT * FROM orders 
+        SELECT * FROM orders
+        WHERE event_id = $activePubId
         ORDER BY 
             CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END, 
             created_at ASC
@@ -90,17 +96,19 @@ function getOrders($conn) {
 
     // 2. Fetch Milkshakes for these orders
     $sql_m = "SELECT om.*, m.name 
-              FROM order_milkshakes om 
+              FROM order_milkshakes om
               JOIN milkshakes m ON om.milkshake_id = m.milkshake_id 
-              WHERE om.order_id IN ($id_list)";
+              JOIN orders o ON o.order_id = om.order_id
+              WHERE om.order_id IN ($id_list) AND o.event_id = $activePubId";
     $res_m = mysqli_query($conn, $sql_m);
     $milkshakes = mysqli_fetch_all($res_m, MYSQLI_ASSOC);
 
     // 3. Fetch Toasts for these orders
     $sql_t = "SELECT ot.*, t.name 
-              FROM order_toasts ot 
+              FROM order_toasts ot
               JOIN toasts t ON ot.toast_id = t.toast_id 
-              WHERE ot.order_id IN ($id_list)";
+              JOIN orders o ON o.order_id = ot.order_id
+              WHERE ot.order_id IN ($id_list) AND o.event_id = $activePubId";
     $res_t = mysqli_query($conn, $sql_t);
     $toasts = mysqli_fetch_all($res_t, MYSQLI_ASSOC);
 
@@ -145,7 +153,7 @@ function getOrders($conn) {
 
 // --- AJAX HANDLER ---
 if (isset($_GET['fetch_view'])) {
-    $orders = getOrders($conn);
+    $orders = getOrders($conn, $activePubId);
     
     if (empty($orders)) {
         echo '<div class="empty-state"><h2>No orders found.</h2></div>';
