@@ -5,10 +5,10 @@ A lightweight order sheet web app for FlashIT's MilkshakePub, containerized with
 ## Original Creators
 
 This project was originally created by:
-- [Filur]
-- [Ponky]
+- Filur
+- Ponky
 
-From [FlashIT'25].
+From FlashIT'25.
 
 ## Stack
 
