@@ -12,7 +12,10 @@ if (isset($_SESSION['absolute-username']) && isset($_SESSION['absolute-password'
 	$absoluteUsername = $_SESSION['absolute-username'];
 	$absolutePassword = $_SESSION['absolute-password'];
 
-	if ($absoluteUsername == "flashit" && $absolutePassword == "flashit_msp") {
+	$admin_user = getenv('ADMIN_USERNAME') ?: 'admin';
+	$admin_pass = getenv('ADMIN_PASSWORD') ?: 'CHANGE_ME';
+
+	if ($absoluteUsername == $admin_user && $absolutePassword == $admin_pass) {
 		$loggedIn = true;
 	} else {
 		session_destroy();

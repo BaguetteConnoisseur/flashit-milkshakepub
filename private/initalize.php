@@ -1,7 +1,15 @@
 <?php
-// Create root var
-$public_end = strpos($_SERVER['SCRIPT_NAME'], '/public') + 7;
-$doc_root = substr($_SERVER['SCRIPT_NAME'], 0, $public_end);
+// Create root var with base path support
+$base_path = getenv('BASE_PATH') ?: '';
+
+$public_pos = strpos($_SERVER['SCRIPT_NAME'], '/public');
+if ($public_pos !== false) {
+    // Traditional setup: /some/path/public/index.php
+    $doc_root = substr($_SERVER['SCRIPT_NAME'], 0, $public_pos + 7);
+} else {
+    // Docker/direct public serving: /index.php or /milkshakepub/index.php
+    $doc_root = $base_path;
+}
 define("WWW_ROOT", $doc_root);
 
 // Define file paths

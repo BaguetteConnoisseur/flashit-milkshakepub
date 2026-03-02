@@ -1,8 +1,32 @@
 <?php
 require_once("../private/initalize.php");
 
-?>
+// Handle POST requests before any output
+$login_error = false;
 
+if (isset($_POST['logout-account'])) {
+    session_destroy();  
+    header("Location: " . WWW_ROOT . "/index.php");
+    exit;
+}
+
+if (isset($_POST['login'])) {
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
+
+    $admin_user = getenv('ADMIN_USERNAME') ?: 'admin';
+    $admin_pass = getenv('ADMIN_PASSWORD') ?: 'CHANGE_ME';
+
+    if ($username === $admin_user && $password === $admin_pass) {
+        $_SESSION['absolute-username'] = $username;
+        $_SESSION['absolute-password'] = $password;
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    } else {
+        $login_error = true;
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -41,27 +65,9 @@ require_once("../private/initalize.php");
     }
     </style>
 
-    <?php
-        if (isset($_POST['logout-account'])) {
-            session_destroy();  
-            header("Location: " . WWW_ROOT . "/index.php");
-            exit;
-        }
-        if (isset($_POST['login'])) {
-            $username = $_POST['username'] ?? '';
-            $password = $_POST['password'] ?? '';
-
-            if ($username === 'flashit' && $password === 'flashit_msp') {
-                $_SESSION['absolute-username'] = $username;
-                $_SESSION['absolute-password'] = $password;
-                header("Location: " . $_SERVER['PHP_SELF']);
-                exit;
-            } else {
-                echo "<p style='color:red;text-align:center;'>Invalid credentials. Please try again.</p>";
-            }
-        }
-
-    ?>
+    <?php if ($login_error): ?>
+        <p style='color:red;text-align:center;'>Invalid credentials. Please try again.</p>
+    <?php endif; ?>
 
     <?php if (!$loggedIn): ?>
     <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>" class="minimal-login" style="max-width:320px;margin:20px auto 32px;display:flex;flex-direction:column;gap:8px;font-family:inherit;">

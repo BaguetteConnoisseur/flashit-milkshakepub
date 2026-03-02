@@ -2,6 +2,12 @@
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 
+// Require login to access inventory manager
+if (!$loggedIn) {
+    header("Location: " . WWW_ROOT . "/index.php");
+    exit;
+}
+
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
@@ -215,7 +221,7 @@ mysqli_close($conn);
 
     </style>
 </head>
-<body style="display: none;">
+<body>
 
     <h1>Inventory Manager</h1>
 
@@ -347,25 +353,6 @@ mysqli_close($conn);
 
     </div>
     <?php include(SHARED_PATH . "/public_footer.php"); ?>
-
-    <script>
-        // Password protection
-        function checkPassword() {
-            const password = prompt("Enter password:");
-            if (password === "admin") {
-                document.body.style.display = "block";
-            } else {
-                alert("Incorrect password. Access denied.");
-                // Redirect to home page or keep prompting
-                window.location.href = "../../index.php";
-            }
-        }
-
-        // Run password check when page loads
-        window.addEventListener('load', function() {
-            checkPassword();
-        });
-    </script>
 
 </body>
 </html>
