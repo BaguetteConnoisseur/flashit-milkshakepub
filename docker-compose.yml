@@ -1,23 +1,23 @@
 services:
-  frontend:
+  flashit-milkshakepub-frontend:
     image: nginx:1.27-alpine
-    container_name: flashit-frontend
+    container_name: flashit-milkshakepub-frontend
     ports:
       - "${APP_PORT:-8080}:80"
     volumes:
       - ./:/var/www:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      backend:
+      flashit-milkshakepub-backend:
         condition: service_started
     networks:
-      - flashit-network
+      - flashit-milkshakepub-network
 
-  backend:
+  flashit-milkshakepub-backend:
     build:
       context: .
       dockerfile: docker/backend/Dockerfile
-    container_name: flashit-backend
+    container_name: flashit-milkshakepub-backend
     volumes:
       - ./:/var/www
     environment:
@@ -32,7 +32,7 @@ services:
       flashit-milkshakepub-db:
         condition: service_healthy
     networks:
-      - flashit-network
+      - flashit-milkshakepub-network
 
   flashit-milkshakepub-db:
     image: mysql:8.4
@@ -44,7 +44,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-flashit}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-flashit_pass}
     volumes:
-      - flashit_milkshakepub_db_data:/var/lib/mysql
+      - flashit_milkshakepub_db_data_alias:/var/lib/mysql
       - ./docker/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
@@ -52,12 +52,13 @@ services:
       timeout: 5s
       retries: 20
     networks:
-      - flashit-network
+      - flashit-milkshakepub-network
 
 volumes:
-  flashit_milkshakepub_db_data:
+  flashit_milkshakepub_db_data_alias:
+    name: flashit_milkshakepub_db_data
 
 networks:
-  flashit-network:
+  flashit-milkshakepub-network:
     driver: bridge
 
