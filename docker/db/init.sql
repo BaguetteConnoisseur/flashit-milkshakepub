@@ -30,13 +30,49 @@ INSERT INTO sales_events (event_name, is_active)
 SELECT 'Initial Event', 1
 WHERE NOT EXISTS (SELECT 1 FROM sales_events);
 
-ALTER TABLE orders
-    ADD COLUMN IF NOT EXISTS event_id INT UNSIGNED NULL,
-    ADD COLUMN IF NOT EXISTS pub_order_number INT UNSIGNED NULL,
-    ADD UNIQUE KEY IF NOT EXISTS uq_orders_event_pub_order_number (event_id, pub_order_number),
-    ADD INDEX IF NOT EXISTS idx_orders_event_id (event_id),
-    ADD INDEX IF NOT EXISTS idx_orders_event_created_at (event_id, created_at),
-    ADD INDEX IF NOT EXISTS idx_orders_event_status_created_at (event_id, status, created_at);
+-- Ensure orders table has event tracking columns (for upgrades)
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE table_schema = DATABASE() AND table_name = 'orders' AND column_name = 'event_id');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE orders ADD COLUMN event_id INT UNSIGNED NULL', 'SELECT "event_id already exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE table_schema = DATABASE() AND table_name = 'orders' AND column_name = 'pub_order_number');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE orders ADD COLUMN pub_order_number INT UNSIGNED NULL', 'SELECT "pub_order_number already exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Ensure indexes exist
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'orders' AND index_name = 'idx_orders_event_id');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_orders_event_id ON orders(event_id)', 'SELECT "idx_orders_event_id already exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'orders' AND index_name = 'uq_orders_event_pub_order_number');
+SET @sql = IF(@idx_exists = 0, 'CREATE UNIQUE INDEX uq_orders_event_pub_order_number ON orders(event_id, pub_order_number)', 'SELECT "uq already exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'orders' AND index_name = 'idx_orders_event_created_at');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_orders_event_created_at ON orders(event_id, created_at)', 'SELECT "idx_orders_event_created_at already exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'orders' AND index_name = 'idx_orders_event_status_created_at');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_orders_event_status_created_at ON orders(event_id, status, created_at)', 'SELECT "idx_orders_event_status_created_at already exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS milkshakes (
     milkshake_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -150,12 +186,46 @@ LEFT JOIN pub_toasts pt
     AND pt.toast_id = t.toast_id
 WHERE pt.event_id IS NULL;
 
-ALTER TABLE order_milkshakes
-    ADD INDEX IF NOT EXISTS idx_order_milkshakes_order_id (order_id),
-    ADD INDEX IF NOT EXISTS idx_order_milkshakes_order_status (order_id, status),
-    ADD INDEX IF NOT EXISTS idx_order_milkshakes_milkshake_id (milkshake_id);
+-- Ensure order_milkshakes indexes exist (for upgrades)
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'order_milkshakes' AND index_name = 'idx_order_milkshakes_order_id');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_order_milkshakes_order_id ON order_milkshakes(order_id)', 'SELECT "idx exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE order_toasts
-    ADD INDEX IF NOT EXISTS idx_order_toasts_order_id (order_id),
-    ADD INDEX IF NOT EXISTS idx_order_toasts_order_status (order_id, status),
-    ADD INDEX IF NOT EXISTS idx_order_toasts_toast_id (toast_id);
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'order_milkshakes' AND index_name = 'idx_order_milkshakes_order_status');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_order_milkshakes_order_status ON order_milkshakes(order_id, status)', 'SELECT "idx exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'order_milkshakes' AND index_name = 'idx_order_milkshakes_milkshake_id');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_order_milkshakes_milkshake_id ON order_milkshakes(milkshake_id)', 'SELECT "idx exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Ensure order_toasts indexes exist (for upgrades)
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'order_toasts' AND index_name = 'idx_order_toasts_order_id');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_order_toasts_order_id ON order_toasts(order_id)', 'SELECT "idx exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'order_toasts' AND index_name = 'idx_order_toasts_order_status');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_order_toasts_order_status ON order_toasts(order_id, status)', 'SELECT "idx exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'order_toasts' AND index_name = 'idx_order_toasts_toast_id');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_order_toasts_toast_id ON order_toasts(toast_id)', 'SELECT "idx exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
