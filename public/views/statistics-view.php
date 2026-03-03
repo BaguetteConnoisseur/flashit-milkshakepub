@@ -75,14 +75,21 @@ $totalItemsSold = $totalMilkshakesSold + $totalToastsSold;
 
 $milkshakeSales = mysqli_fetch_all(mysqli_query(
     $conn,
-    "SELECT m.name, COUNT(*) AS sold
-     FROM order_milkshakes om
-     JOIN orders o ON o.order_id = om.order_id
-     JOIN milkshakes m ON m.milkshake_id = om.milkshake_id
-    WHERE o.event_id = $selectedPubId
-     GROUP BY m.milkshake_id, m.name
-     ORDER BY sold DESC, m.name ASC"
+    "SELECT 
+        m.milkshake_id,
+        m.name,
+        (SELECT COUNT(*) FROM order_milkshakes WHERE milkshake_id = m.milkshake_id) AS total_sold,
+        (SELECT COUNT(DISTINCT event_id) FROM pub_milkshakes WHERE milkshake_id = m.milkshake_id AND is_active = 1) AS num_pubs_active
+     FROM milkshakes m
+     WHERE (SELECT COUNT(DISTINCT event_id) FROM pub_milkshakes WHERE milkshake_id = m.milkshake_id AND is_active = 1) > 0
+     ORDER BY total_sold DESC, m.name ASC"
 ), MYSQLI_ASSOC);
+
+// Calculate average per pub
+foreach ($milkshakeSales as &$item) {
+    $item['avg_per_pub'] = $item['num_pubs_active'] > 0 ? round($item['total_sold'] / $item['num_pubs_active'], 2) : 0;
+}
+unset($item);
 
 $toastSales = mysqli_fetch_all(mysqli_query(
     $conn,
@@ -334,12 +341,13 @@ mysqli_close($conn);
         <div class="grid-2">
             <section class="card">
                 <h2>Milkshakeförsäljning per smak</h2>
+                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub</p>
                 <?php if (empty($milkshakeSales)): ?>
                     <p class="empty">Ingen milkshake-försäljning ännu.</p>
                 <?php else: ?>
                     <ol class="list">
                         <?php foreach ($milkshakeSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= (int) $row['sold'] ?></strong></li>
+                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_active'] ?> pub<?= (int) $row['num_pubs_active'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
                 <?php endif; ?>

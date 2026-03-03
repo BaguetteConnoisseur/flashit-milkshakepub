@@ -254,8 +254,8 @@ mysqli_close($conn);
                 <a class="link-btn" href="cashier-view.php">💰 Kassörsvy</a>
                 <a class="link-btn" href="milkshake-view.php">🥤 Milkshake-vy</a>
                 <a class="link-btn" href="toast-view.php">🍞 Toast-vy</a>
-                <a class="link-btn" href="bar-view.php">🍺 Barvy</a>
                 <a class="link-btn" href="delivery-view.php">📦 Leveransvy</a>
+                <a class="link-btn" href="bar-view.php">🍺 Barvy</a>
             </div>
             <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.9rem;">
                 <strong>Tips:</strong> Kassören tar emot beställningar, köket gör milkshakes/toasts, och baren levererar färdiga produkter till kunder.
@@ -277,12 +277,6 @@ mysqli_close($conn);
                     <strong>🏆 Leaderboard</strong> - Topplista över mest sålda produkter för aktivt event
                     <div style="margin-top: 0.5rem;">
                         <a class="link-btn" href="leaderboard-view.php" style="font-size: 0.85rem; padding: 0.5rem 0.7rem;">Öppna Leaderboard</a>
-                    </div>
-                </div>
-                <div style="padding: 0.75rem; background: #f9fafb; border-radius: 6px; border-left: 3px solid var(--primary);">
-                    <strong>✏️ Redigera Milkshake</strong> - Ändra namn, ingredienser och färg på befintliga milkshakes
-                    <div style="margin-top: 0.5rem;">
-                        <a class="link-btn" href="../admin_action/edit_milkshake.php" style="font-size: 0.85rem; padding: 0.5rem 0.7rem;">Öppna Editor</a>
                     </div>
                 </div>
             </div>

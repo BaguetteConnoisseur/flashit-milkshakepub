@@ -121,7 +121,7 @@ $milkshakeInventory = mysqli_fetch_all(mysqli_query(
         GROUP BY milkshake_id
      ) ms ON ms.milkshake_id = m.milkshake_id
      WHERE pm.event_id = $activePubId AND pm.is_active = 1
-     ORDER BY m.name ASC"
+     ORDER BY m.milkshake_id ASC"
 ), MYSQLI_ASSOC);
 
 $inactiveMilkshakeInventory = mysqli_fetch_all(mysqli_query(
@@ -145,7 +145,7 @@ $toastInventory = mysqli_fetch_all(mysqli_query(
         GROUP BY toast_id
      ) ts ON ts.toast_id = t.toast_id
      WHERE pt.event_id = $activePubId AND pt.is_active = 1
-     ORDER BY t.name ASC"
+     ORDER BY t.toast_id ASC"
 ), MYSQLI_ASSOC);
 
 $inactiveToastInventory = mysqli_fetch_all(mysqli_query(
