@@ -7,11 +7,15 @@ ALTER DATABASE flashit_milkshakepub
 CREATE TABLE IF NOT EXISTS orders (
     order_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     event_id INT UNSIGNED NULL,
-    order_number VARCHAR(50) UNIQUE NOT NULL,
+    order_number VARCHAR(50) NOT NULL,
+    pub_order_number INT UNSIGNED NULL,
     customer_name VARCHAR(100) NOT NULL,
     status VARCHAR(50) NOT NULL,
     order_comment TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_orders_event_pub_order_number (event_id, pub_order_number),
+    KEY idx_orders_event_created_at (event_id, created_at),
+    KEY idx_orders_event_status_created_at (event_id, status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
 CREATE TABLE IF NOT EXISTS sales_events (
@@ -28,7 +32,11 @@ WHERE NOT EXISTS (SELECT 1 FROM sales_events);
 
 ALTER TABLE orders
     ADD COLUMN IF NOT EXISTS event_id INT UNSIGNED NULL,
-    ADD INDEX IF NOT EXISTS idx_orders_event_id (event_id);
+    ADD COLUMN IF NOT EXISTS pub_order_number INT UNSIGNED NULL,
+    ADD UNIQUE KEY IF NOT EXISTS uq_orders_event_pub_order_number (event_id, pub_order_number),
+    ADD INDEX IF NOT EXISTS idx_orders_event_id (event_id),
+    ADD INDEX IF NOT EXISTS idx_orders_event_created_at (event_id, created_at),
+    ADD INDEX IF NOT EXISTS idx_orders_event_status_created_at (event_id, status, created_at);
 
 CREATE TABLE IF NOT EXISTS milkshakes (
     milkshake_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -46,12 +54,43 @@ CREATE TABLE IF NOT EXISTS toasts (
     color VARCHAR(50) NOT NULL DEFAULT '#FFFFFF'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
+CREATE TABLE IF NOT EXISTS pub_milkshakes (
+    event_id INT UNSIGNED NOT NULL,
+    milkshake_id INT UNSIGNED NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    PRIMARY KEY (event_id, milkshake_id),
+    CONSTRAINT fk_pub_milkshakes_event
+        FOREIGN KEY (event_id)
+        REFERENCES sales_events(event_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_pub_milkshakes_item
+        FOREIGN KEY (milkshake_id)
+        REFERENCES milkshakes(milkshake_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
+
+CREATE TABLE IF NOT EXISTS pub_toasts (
+    event_id INT UNSIGNED NOT NULL,
+    toast_id INT UNSIGNED NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    PRIMARY KEY (event_id, toast_id),
+    CONSTRAINT fk_pub_toasts_event
+        FOREIGN KEY (event_id)
+        REFERENCES sales_events(event_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_pub_toasts_item
+        FOREIGN KEY (toast_id)
+        REFERENCES toasts(toast_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
+
 CREATE TABLE IF NOT EXISTS order_milkshakes (
     order_milkshake_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     order_id INT UNSIGNED NOT NULL,
     milkshake_id INT UNSIGNED NOT NULL,
     comment TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+    KEY idx_order_milkshakes_order_id (order_id),
+    KEY idx_order_milkshakes_order_status (order_id, status),
+    KEY idx_order_milkshakes_milkshake_id (milkshake_id),
     CONSTRAINT fk_order_milkshakes_order
         FOREIGN KEY (order_id)
         REFERENCES orders(order_id)
@@ -67,6 +106,9 @@ CREATE TABLE IF NOT EXISTS order_toasts (
     toast_id INT UNSIGNED NOT NULL,
     comment TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+    KEY idx_order_toasts_order_id (order_id),
+    KEY idx_order_toasts_order_status (order_id, status),
+    KEY idx_order_toasts_toast_id (toast_id),
     CONSTRAINT fk_order_toasts_order
         FOREIGN KEY (order_id)
         REFERENCES orders(order_id)
@@ -89,3 +131,31 @@ VALUES
     ('Chilicheese toast', 'Chilicheese på rostatbröd', 'chillicheese', '#B8D98B'),
     ('Desert toast', 'Efterrätts toast med choklad och banan', 'Choklad, Banan', '#ce915c')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO pub_milkshakes (event_id, milkshake_id, is_active)
+SELECT e.event_id, m.milkshake_id, 1
+FROM sales_events e
+CROSS JOIN milkshakes m
+LEFT JOIN pub_milkshakes pm
+    ON pm.event_id = e.event_id
+    AND pm.milkshake_id = m.milkshake_id
+WHERE pm.event_id IS NULL;
+
+INSERT INTO pub_toasts (event_id, toast_id, is_active)
+SELECT e.event_id, t.toast_id, 1
+FROM sales_events e
+CROSS JOIN toasts t
+LEFT JOIN pub_toasts pt
+    ON pt.event_id = e.event_id
+    AND pt.toast_id = t.toast_id
+WHERE pt.event_id IS NULL;
+
+ALTER TABLE order_milkshakes
+    ADD INDEX IF NOT EXISTS idx_order_milkshakes_order_id (order_id),
+    ADD INDEX IF NOT EXISTS idx_order_milkshakes_order_status (order_id, status),
+    ADD INDEX IF NOT EXISTS idx_order_milkshakes_milkshake_id (milkshake_id);
+
+ALTER TABLE order_toasts
+    ADD INDEX IF NOT EXISTS idx_order_toasts_order_id (order_id),
+    ADD INDEX IF NOT EXISTS idx_order_toasts_order_status (order_id, status),
+    ADD INDEX IF NOT EXISTS idx_order_toasts_toast_id (toast_id);

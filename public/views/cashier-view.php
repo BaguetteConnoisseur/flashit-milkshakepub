@@ -17,8 +17,13 @@ function escape($conn, $string) {
     return mysqli_real_escape_string($conn, $string);
 }
 
+function is_valid_order_status($status) {
+    return in_array($status, ['Pending', 'In Progress', 'Done', 'Delivered'], true);
+}
+
 $pubTracking = ensure_pub_tracking($conn);
 $activeEventId = (int) $pubTracking['active_pub_id'];
+ensure_pub_menu_links($conn, $activeEventId);
 
 // --- LOGIC: HANDLE FORM SUBMISSIONS ---
 
@@ -26,14 +31,34 @@ $activeEventId = (int) $pubTracking['active_pub_id'];
 if (isset($_POST['create_order'])) {
     $customer_name = escape($conn, $_POST['customer_name']);
     $order_comment = escape($conn, $_POST['order_comment']);
-    $order_number = "ORD-" . strtoupper(uniqid()); // Generate unique ID
     $status = "Pending";
 
-    // Insert Main Order
-        $sql = "INSERT INTO orders (order_number, customer_name, status, order_comment, event_id) 
-            VALUES ('$order_number', '$customer_name', '$status', '$order_comment', $activeEventId)";
-    
-    if (mysqli_query($conn, $sql)) {
+    mysqli_begin_transaction($conn);
+
+    try {
+        $sequenceResult = mysqli_query(
+            $conn,
+            "SELECT COALESCE(MAX(pub_order_number), 0) + 1 AS next_pub_order_number
+             FROM orders
+             WHERE event_id = $activeEventId
+             FOR UPDATE"
+        );
+
+        if (!$sequenceResult) {
+            throw new Exception(mysqli_error($conn));
+        }
+
+        $sequenceRow = mysqli_fetch_assoc($sequenceResult);
+        $pubOrderNumber = (int) ($sequenceRow['next_pub_order_number'] ?? 1);
+        $order_number = (string) $pubOrderNumber;
+
+        $sql = "INSERT INTO orders (order_number, pub_order_number, customer_name, status, order_comment, event_id)
+                VALUES ('$order_number', $pubOrderNumber, '$customer_name', '$status', '$order_comment', $activeEventId)";
+
+        if (!mysqli_query($conn, $sql)) {
+            throw new Exception(mysqli_error($conn));
+        }
+
         $new_order_id = mysqli_insert_id($conn);
 
         // Process Milkshakes
@@ -44,7 +69,9 @@ if (isset($_POST['create_order'])) {
                 for ($i = 0; $i < $quantity; $i++) {
                     $sql_item = "INSERT INTO order_milkshakes (order_id, milkshake_id, comment, status) 
                                  VALUES ($new_order_id, $m_id, '', 'Pending')";
-                    mysqli_query($conn, $sql_item);
+                    if (!mysqli_query($conn, $sql_item)) {
+                        throw new Exception(mysqli_error($conn));
+                    }
                 }
             }
         }
@@ -57,61 +84,79 @@ if (isset($_POST['create_order'])) {
                 for ($i = 0; $i < $quantity; $i++) {
                     $sql_item = "INSERT INTO order_toasts (order_id, toast_id, comment, status) 
                                  VALUES ($new_order_id, $t_id, '', 'Pending')";
-                    mysqli_query($conn, $sql_item);
+                    if (!mysqli_query($conn, $sql_item)) {
+                        throw new Exception(mysqli_error($conn));
+                    }
                 }
             }
         }
 
-        // Redirect to clear post data
+        mysqli_commit($conn);
+
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
-    } else {
-        echo "Error: " . mysqli_error($conn);
+    } catch (Throwable $e) {
+        mysqli_rollback($conn);
+        echo "Error: " . htmlspecialchars($e->getMessage());
     }
 }
 
 // 2. UPDATE ORDER (FROM MODAL)
 if (isset($_POST['update_order'])) {
     $order_id = intval($_POST['order_id']);
-    $main_status = escape($conn, $_POST['main_status']);
+    $main_status_raw = $_POST['main_status'] ?? 'Pending';
+    $main_status = escape($conn, is_valid_order_status($main_status_raw) ? $main_status_raw : 'Pending');
     $main_comment = escape($conn, $_POST['main_comment']);
 
-    // Update Main Order
-    $sql = "UPDATE orders SET status = '$main_status', order_comment = '$main_comment' WHERE order_id = $order_id AND event_id = $activeEventId";
-    mysqli_query($conn, $sql);
+    mysqli_begin_transaction($conn);
 
-    // Update Individual Milkshakes
-    if (isset($_POST['om_status']) && is_array($_POST['om_status'])) {
-        foreach ($_POST['om_status'] as $om_id => $status) {
-            $om_id = intval($om_id);
-            $status = escape($conn, $status);
-            $comment = escape($conn, $_POST['om_comment'][$om_id] ?? '');
-            
-            $sql_upd = "
-                UPDATE order_milkshakes om
-                JOIN orders o ON o.order_id = om.order_id
-                SET om.status = '$status', om.comment = '$comment'
-                WHERE om.order_milkshake_id = $om_id AND o.event_id = $activeEventId
-            ";
-            mysqli_query($conn, $sql_upd);
+    try {
+        $sql = "UPDATE orders SET status = '$main_status', order_comment = '$main_comment' WHERE order_id = $order_id AND event_id = $activeEventId";
+        if (!mysqli_query($conn, $sql)) {
+            throw new Exception(mysqli_error($conn));
         }
-    }
 
-    // Update Individual Toasts
-    if (isset($_POST['ot_status']) && is_array($_POST['ot_status'])) {
-        foreach ($_POST['ot_status'] as $ot_id => $status) {
-            $ot_id = intval($ot_id);
-            $status = escape($conn, $status);
-            $comment = escape($conn, $_POST['ot_comment'][$ot_id] ?? '');
-            
-            $sql_upd = "
-                UPDATE order_toasts ot
-                JOIN orders o ON o.order_id = ot.order_id
-                SET ot.status = '$status', ot.comment = '$comment'
-                WHERE ot.order_toast_id = $ot_id AND o.event_id = $activeEventId
-            ";
-            mysqli_query($conn, $sql_upd);
+        if (isset($_POST['om_status']) && is_array($_POST['om_status'])) {
+            foreach ($_POST['om_status'] as $om_id => $status) {
+                $om_id = intval($om_id);
+                $normalizedStatus = is_valid_order_status($status) ? $status : 'Pending';
+                $statusEscaped = escape($conn, $normalizedStatus);
+                $comment = escape($conn, $_POST['om_comment'][$om_id] ?? '');
+
+                $sql_upd = "
+                    UPDATE order_milkshakes om
+                    JOIN orders o ON o.order_id = om.order_id
+                    SET om.status = '$statusEscaped', om.comment = '$comment'
+                    WHERE om.order_milkshake_id = $om_id AND o.event_id = $activeEventId
+                ";
+                if (!mysqli_query($conn, $sql_upd)) {
+                    throw new Exception(mysqli_error($conn));
+                }
+            }
         }
+
+        if (isset($_POST['ot_status']) && is_array($_POST['ot_status'])) {
+            foreach ($_POST['ot_status'] as $ot_id => $status) {
+                $ot_id = intval($ot_id);
+                $normalizedStatus = is_valid_order_status($status) ? $status : 'Pending';
+                $statusEscaped = escape($conn, $normalizedStatus);
+                $comment = escape($conn, $_POST['ot_comment'][$ot_id] ?? '');
+
+                $sql_upd = "
+                    UPDATE order_toasts ot
+                    JOIN orders o ON o.order_id = ot.order_id
+                    SET ot.status = '$statusEscaped', ot.comment = '$comment'
+                    WHERE ot.order_toast_id = $ot_id AND o.event_id = $activeEventId
+                ";
+                if (!mysqli_query($conn, $sql_upd)) {
+                    throw new Exception(mysqli_error($conn));
+                }
+            }
+        }
+
+        mysqli_commit($conn);
+    } catch (Throwable $e) {
+        mysqli_rollback($conn);
     }
 
     // Redirect back to order list
@@ -122,11 +167,25 @@ if (isset($_POST['update_order'])) {
 // 3. DELETE ORDER
 if (isset($_POST['delete_order'])) {
     $order_id = intval($_POST['order_id']);
-    
-    // Manually delete children first (if DB doesn't have ON DELETE CASCADE)
-    mysqli_query($conn, "DELETE om FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE om.order_id = $order_id AND o.event_id = $activeEventId");
-    mysqli_query($conn, "DELETE ot FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE ot.order_id = $order_id AND o.event_id = $activeEventId");
-    mysqli_query($conn, "DELETE FROM orders WHERE order_id = $order_id AND event_id = $activeEventId");
+
+    mysqli_begin_transaction($conn);
+    try {
+        if (!mysqli_query($conn, "DELETE om FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE om.order_id = $order_id AND o.event_id = $activeEventId")) {
+            throw new Exception(mysqli_error($conn));
+        }
+
+        if (!mysqli_query($conn, "DELETE ot FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE ot.order_id = $order_id AND o.event_id = $activeEventId")) {
+            throw new Exception(mysqli_error($conn));
+        }
+
+        if (!mysqli_query($conn, "DELETE FROM orders WHERE order_id = $order_id AND event_id = $activeEventId")) {
+            throw new Exception(mysqli_error($conn));
+        }
+
+        mysqli_commit($conn);
+    } catch (Throwable $e) {
+        mysqli_rollback($conn);
+    }
 
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
@@ -135,8 +194,23 @@ if (isset($_POST['delete_order'])) {
 // --- DATA FETCHING ---
 
 // 1. Fetch Inventory for "Create" Form
-$inv_milkshakes = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM milkshakes"), MYSQLI_ASSOC);
-$inv_toasts = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM toasts"), MYSQLI_ASSOC);
+$inv_milkshakes = mysqli_fetch_all(mysqli_query(
+    $conn,
+    "SELECT m.*
+     FROM milkshakes m
+     JOIN pub_milkshakes pm ON pm.milkshake_id = m.milkshake_id
+     WHERE pm.event_id = $activeEventId AND pm.is_active = 1
+     ORDER BY m.name ASC"
+), MYSQLI_ASSOC);
+
+$inv_toasts = mysqli_fetch_all(mysqli_query(
+    $conn,
+    "SELECT t.*
+     FROM toasts t
+     JOIN pub_toasts pt ON pt.toast_id = t.toast_id
+     WHERE pt.event_id = $activeEventId AND pt.is_active = 1
+     ORDER BY t.name ASC"
+), MYSQLI_ASSOC);
 
 // 2. Fetch Order List (Summary)
 $sql_list = "SELECT * FROM orders WHERE event_id = $activeEventId ORDER BY created_at DESC";
@@ -144,24 +218,44 @@ $res_list = mysqli_query($conn, $sql_list);
 $orders_list = mysqli_fetch_all($res_list, MYSQLI_ASSOC);
 
 // Attach summary items to list for display (Quick preview)
+if (!empty($orders_list)) {
+    $orderIds = array_map('intval', array_column($orders_list, 'order_id'));
+    $idList = implode(',', $orderIds);
+
+    $milkshakeSummaryByOrder = [];
+    $resMilkshakeSummary = mysqli_query(
+        $conn,
+        "SELECT om.order_id, m.name, COUNT(*) as qty
+         FROM order_milkshakes om
+         JOIN milkshakes m ON om.milkshake_id = m.milkshake_id
+         WHERE om.order_id IN ($idList)
+         GROUP BY om.order_id, m.milkshake_id, m.name"
+    );
+    while ($row = mysqli_fetch_assoc($resMilkshakeSummary)) {
+        $orderId = (int) $row['order_id'];
+        $milkshakeSummaryByOrder[$orderId][] = $row['name'] . ((int) $row['qty'] > 1 ? " (x{$row['qty']})" : "");
+    }
+
+    $toastSummaryByOrder = [];
+    $resToastSummary = mysqli_query(
+        $conn,
+        "SELECT ot.order_id, t.name, COUNT(*) as qty
+         FROM order_toasts ot
+         JOIN toasts t ON ot.toast_id = t.toast_id
+         WHERE ot.order_id IN ($idList)
+         GROUP BY ot.order_id, t.toast_id, t.name"
+    );
+    while ($row = mysqli_fetch_assoc($resToastSummary)) {
+        $orderId = (int) $row['order_id'];
+        $toastSummaryByOrder[$orderId][] = $row['name'] . ((int) $row['qty'] > 1 ? " (x{$row['qty']})" : "");
+    }
+}
+
 foreach ($orders_list as &$ord) {
-    $oid = $ord['order_id'];
-    
-    // Get milkshakes summary with counts
-    $res_m = mysqli_query($conn, "SELECT m.name, COUNT(*) as qty FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id WHERE om.order_id = $oid GROUP BY m.milkshake_id, m.name");
-    $m_summaries = [];
-    while($row = mysqli_fetch_assoc($res_m)) {
-        $m_summaries[] = $row['name'] . ($row['qty'] > 1 ? " (x{$row['qty']})" : "");
-    }
-
-    // Get toasts summary with counts
-    $res_t = mysqli_query($conn, "SELECT t.name, COUNT(*) as qty FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id WHERE ot.order_id = $oid GROUP BY t.toast_id, t.name");
-    $t_summaries = [];
-    while($row = mysqli_fetch_assoc($res_t)) {
-        $t_summaries[] = $row['name'] . ($row['qty'] > 1 ? " (x{$row['qty']})" : "");
-    }
-
-    $ord['summary'] = implode(", ", array_merge($m_summaries, $t_summaries));
+    $oid = (int) $ord['order_id'];
+    $mSummaries = $milkshakeSummaryByOrder[$oid] ?? [];
+    $tSummaries = $toastSummaryByOrder[$oid] ?? [];
+    $ord['summary'] = implode(", ", array_merge($mSummaries, $tSummaries));
 }
 unset($ord); // Break reference
 
@@ -625,7 +719,7 @@ mysqli_close($conn);
             ?>
                 <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
                     <div class="card-header">
-                        <span class="order-number">Order: <?= $order['order_id'] ?></span>
+                        <span class="order-number">Order: #<?= htmlspecialchars($order['pub_order_number'] ?? $order['order_number'] ?? $order['order_id']) ?></span>
                         <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
                     </div>
                     <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
@@ -644,7 +738,7 @@ mysqli_close($conn);
         <div class="modal-content">
             <div class="modal-header">
                 <div>
-                    <h2 style="margin:0">Order #<?= $modal_order['order_id'] ?></h2>
+                    <h2 style="margin:0">Order #<?= htmlspecialchars($modal_order['pub_order_number'] ?? $modal_order['order_number'] ?? $modal_order['order_id']) ?></h2>
                     <span style="font-size:0.9rem; color:var(--text-sub)"><?= htmlspecialchars($modal_order['customer_name']) ?></span>
                 </div>
                 <a href="<?= $_SERVER['PHP_SELF'] ?>" class="close-btn">&times;</a>

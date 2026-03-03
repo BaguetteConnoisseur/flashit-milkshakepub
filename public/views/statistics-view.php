@@ -12,63 +12,22 @@ if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
 
-function escape($conn, $string) {
-    return mysqli_real_escape_string($conn, $string);
-}
-
-function getPubMetrics($conn, $pubId) {
-    $pubId = (int) $pubId;
-
-    $orders = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM orders WHERE event_id = $pubId"))['c'] ?? 0);
-    $milkshakes = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = $pubId"))['c'] ?? 0);
-    $toasts = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = $pubId"))['c'] ?? 0);
-
-    return [
-        'orders' => $orders,
-        'milkshakes' => $milkshakes,
-        'toasts' => $toasts,
-        'items' => $milkshakes + $toasts,
-    ];
-}
-
 $pubTracking = ensure_pub_tracking($conn);
 $activePubId = (int) $pubTracking['active_pub_id'];
+$activePubName = $pubTracking['active_pub_name'];
 
 $feedback = null;
-
-if (isset($_POST['start_new_pub'])) {
-    $pubName = trim($_POST['new_pub_name'] ?? '');
-
-    if ($pubName === '') {
-        $pubName = 'Pub ' . date('Y-m-d H:i');
-    }
-
-    mysqli_begin_transaction($conn);
-
-    try {
-        mysqli_query($conn, "UPDATE sales_events SET is_active = 0, ended_at = NOW() WHERE is_active = 1");
-        $safePubName = escape($conn, $pubName);
-        mysqli_query($conn, "INSERT INTO sales_events (event_name, is_active) VALUES ('$safePubName', 1)");
-        $activePubId = (int) mysqli_insert_id($conn);
-
-        mysqli_commit($conn);
-        $feedback = ['type' => 'success', 'message' => 'New pub started. New orders will now be tracked in that pub.'];
-    } catch (Throwable $e) {
-        mysqli_rollback($conn);
-        $feedback = ['type' => 'error', 'message' => 'Could not start a new pub.'];
-    }
-}
 
 if (isset($_POST['delete_pub'])) {
     $targetPubId = (int) ($_POST['target_pub_id'] ?? 0);
     $confirmation = trim($_POST['confirm_delete_pub'] ?? '');
 
     if ($targetPubId <= 0) {
-        $feedback = ['type' => 'error', 'message' => 'Invalid pub selection.'];
+        $feedback = ['type' => 'error', 'message' => 'Ogiltigt pubval.'];
     } elseif ($targetPubId === $activePubId) {
-        $feedback = ['type' => 'error', 'message' => 'You cannot delete the active pub. Start a new pub first.'];
+        $feedback = ['type' => 'error', 'message' => 'Du kan inte ta bort den aktiva puben. Starta en ny pub först.'];
     } elseif ($confirmation !== 'DELETE PUB') {
-        $feedback = ['type' => 'error', 'message' => 'Confirmation text must be exactly: DELETE PUB'];
+        $feedback = ['type' => 'error', 'message' => 'Bekräftelsetexten måste vara exakt: DELETE PUB'];
     } else {
         mysqli_begin_transaction($conn);
 
@@ -79,10 +38,10 @@ if (isset($_POST['delete_pub'])) {
             mysqli_query($conn, "DELETE FROM sales_events WHERE event_id = $targetPubId AND is_active = 0");
 
             mysqli_commit($conn);
-            $feedback = ['type' => 'success', 'message' => 'Selected pub and its order history were deleted.'];
+            $feedback = ['type' => 'success', 'message' => 'Vald pub och dess orderhistorik togs bort.'];
         } catch (Throwable $e) {
             mysqli_rollback($conn);
-            $feedback = ['type' => 'error', 'message' => 'Could not delete selected pub.'];
+            $feedback = ['type' => 'error', 'message' => 'Kunde inte ta bort vald pub.'];
         }
     }
 }
@@ -102,24 +61,8 @@ $allPubs = mysqli_fetch_all(mysqli_query(
      ORDER BY e.started_at DESC"
 ), MYSQLI_ASSOC);
 
-$selectedPubId = (int) ($_GET['pub_id'] ?? $_GET['event_id'] ?? $activePubId);
-$pubIds = array_map(static function ($pub) { return (int) $pub['event_id']; }, $allPubs);
-if (!in_array($selectedPubId, $pubIds, true) && !empty($pubIds)) {
-    $selectedPubId = $activePubId;
-}
-
-$comparePubId = (int) ($_GET['compare_pub_id'] ?? $_GET['compare_event_id'] ?? 0);
-if (!in_array($comparePubId, $pubIds, true) || $comparePubId === $selectedPubId) {
-    $comparePubId = 0;
-}
-
-$selectedPubName = 'Selected Pub';
-foreach ($allPubs as $pub) {
-    if ((int) $pub['event_id'] === $selectedPubId) {
-        $selectedPubName = $pub['event_name'];
-        break;
-    }
-}
+$selectedPubId = $activePubId;
+$selectedPubName = $activePubName;
 
 $totalOrders = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM orders WHERE event_id = $selectedPubId"))['c'] ?? 0);
 $totalMilkshakesSold = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = $selectedPubId"))['c'] ?? 0);
@@ -148,37 +91,15 @@ $toastSales = mysqli_fetch_all(mysqli_query(
      ORDER BY sold DESC, t.name ASC"
 ), MYSQLI_ASSOC);
 
-$comparison = null;
-if ($comparePubId > 0) {
-    $currentMetrics = getPubMetrics($conn, $selectedPubId);
-    $compareMetrics = getPubMetrics($conn, $comparePubId);
-    $compareName = 'Compared Pub';
-
-    foreach ($allPubs as $pub) {
-        if ((int) $pub['event_id'] === $comparePubId) {
-            $compareName = $pub['event_name'];
-            break;
-        }
-    }
-
-    $comparison = [
-        'compareName' => $compareName,
-        'ordersDiff' => $currentMetrics['orders'] - $compareMetrics['orders'],
-        'itemsDiff' => $currentMetrics['items'] - $compareMetrics['items'],
-        'milkshakeDiff' => $currentMetrics['milkshakes'] - $compareMetrics['milkshakes'],
-        'toastDiff' => $currentMetrics['toasts'] - $compareMetrics['toasts'],
-    ];
-}
-
 mysqli_close($conn);
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Statistics</title>
+    <title>Statistik</title>
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
@@ -379,86 +300,37 @@ mysqli_close($conn);
     <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
 
     <div class="container">
-        <h1>Statistics</h1>
-        <p class="subtitle">Track each pub separately and compare sales across pubs.</p>
+        <h1>Statistik</h1>
+        <p class="subtitle">Statistik för aktiv pub: <strong><?= htmlspecialchars($selectedPubName) ?></strong></p>
 
         <?php if ($feedback): ?>
             <div class="notice <?= $feedback['type'] ?>"><?= htmlspecialchars($feedback['message']) ?></div>
         <?php endif; ?>
 
-        <section class="card" style="margin-top: 1rem;">
-            <h2>Pub Controls</h2>
-            <form method="get" class="pub-tools" style="margin-bottom:0.9rem;">
-                <label for="pub_id">View Pub</label>
-                <select id="pub_id" name="pub_id">
-                    <?php foreach ($allPubs as $pub): ?>
-                        <option value="<?= (int) $pub['event_id'] ?>" <?= ((int) $pub['event_id'] === $selectedPubId) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($pub['event_name']) ?><?= ((int) $pub['is_active'] === 1) ? ' (Active Pub)' : '' ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-
-                <label for="compare_pub_id">Compare With</label>
-                <select id="compare_pub_id" name="compare_pub_id">
-                    <option value="0">None</option>
-                    <?php foreach ($allPubs as $pub): ?>
-                        <?php if ((int) $pub['event_id'] !== $selectedPubId): ?>
-                            <option value="<?= (int) $pub['event_id'] ?>" <?= ((int) $pub['event_id'] === $comparePubId) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($pub['event_name']) ?>
-                            </option>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </select>
-
-                <button type="submit">Apply</button>
-            </form>
-
-            <form method="post" class="pub-tools">
-                <input type="text" name="new_pub_name" placeholder="New pub name (optional)">
-                <button type="submit" name="start_new_pub">Start New Pub</button>
-            </form>
-
-            <p style="margin:0.85rem 0 0; color: var(--text-sub);">
-                Currently viewing: <strong><?= htmlspecialchars($selectedPubName) ?></strong>
-            </p>
-        </section>
-
-        <?php if ($comparison): ?>
-            <section class="card">
-                <h2>Comparison vs <?= htmlspecialchars($comparison['compareName']) ?></h2>
-                <p style="margin:0; color: var(--text-sub);">
-                    Orders: <?= $comparison['ordersDiff'] ?>,
-                    Items: <?= $comparison['itemsDiff'] ?>,
-                    Milkshakes: <?= $comparison['milkshakeDiff'] ?>,
-                    Toasts: <?= $comparison['toastDiff'] ?>
-                </p>
-            </section>
-        <?php endif; ?>
-
         <div class="kpi-grid">
             <div class="kpi">
-                <div class="kpi-label">Total Orders (<?= htmlspecialchars($selectedPubName) ?>)</div>
+                <div class="kpi-label">Totala beställningar (<?= htmlspecialchars($selectedPubName) ?>)</div>
                 <div class="kpi-value"><?= $totalOrders ?></div>
             </div>
             <div class="kpi">
-                <div class="kpi-label">Items Sold</div>
+                <div class="kpi-label">Sålda produkter</div>
                 <div class="kpi-value"><?= $totalItemsSold ?></div>
             </div>
             <div class="kpi">
-                <div class="kpi-label">Milkshakes Sold</div>
+                <div class="kpi-label">Sålda milkshakes</div>
                 <div class="kpi-value"><?= $totalMilkshakesSold ?></div>
             </div>
             <div class="kpi">
-                <div class="kpi-label">Toasts Ordered</div>
+                <div class="kpi-label">Beställda toasts</div>
                 <div class="kpi-value"><?= $totalToastsSold ?></div>
             </div>
         </div>
 
         <div class="grid-2">
             <section class="card">
-                <h2>Milkshake Sales by Flavor</h2>
+                <h2>Milkshakeförsäljning per smak</h2>
                 <?php if (empty($milkshakeSales)): ?>
-                    <p class="empty">No milkshake sales yet.</p>
+                    <p class="empty">Ingen milkshake-försäljning ännu.</p>
                 <?php else: ?>
                     <ol class="list">
                         <?php foreach ($milkshakeSales as $row): ?>
@@ -469,9 +341,9 @@ mysqli_close($conn);
             </section>
 
             <section class="card">
-                <h2>Toast Sales by Flavor</h2>
+                <h2>Toastförsäljning per smak</h2>
                 <?php if (empty($toastSales)): ?>
-                    <p class="empty">No toast sales yet.</p>
+                    <p class="empty">Ingen toast-försäljning ännu.</p>
                 <?php else: ?>
                     <ol class="list">
                         <?php foreach ($toastSales as $row): ?>
@@ -483,17 +355,17 @@ mysqli_close($conn);
         </div>
 
         <section class="card" style="margin-bottom: 1.5rem;">
-            <h2>Pub History Overview</h2>
+            <h2>Översikt över pubhistorik</h2>
             <?php if (empty($allPubs)): ?>
-                <p class="empty">No pubs created yet.</p>
+                <p class="empty">Inga pubar skapade ännu.</p>
             <?php else: ?>
                 <table>
                     <thead>
                         <tr>
                             <th>Pub</th>
-                            <th>Started</th>
-                            <th>Ended</th>
-                            <th>Orders</th>
+                            <th>Startad</th>
+                            <th>Avslutad</th>
+                            <th>Beställningar</th>
                             <th>Milkshakes</th>
                             <th>Toasts</th>
                         </tr>
@@ -504,7 +376,7 @@ mysqli_close($conn);
                                 <td>
                                     <?= htmlspecialchars($pub['event_name']) ?>
                                     <?php if ((int) $pub['is_active'] === 1): ?>
-                                        <span class="badge-active">ACTIVE</span>
+                                        <span class="badge-active">AKTIV</span>
                                     <?php endif; ?>
                                 </td>
                                 <td><?= htmlspecialchars($pub['started_at']) ?></td>
@@ -520,11 +392,11 @@ mysqli_close($conn);
         </section>
 
         <section class="danger-zone" style="margin-top: 1rem;">
-            <h2>Danger Zone: Delete Selected Pub</h2>
-            <p>Select which old pub to delete. The active pub is not shown in this list and cannot be deleted.</p>
-            <form method="post" class="pub-tools" onsubmit="return confirm('Delete selected pub and all its orders? This cannot be undone.');">
+            <h2>Riskzon: Ta bort vald pub</h2>
+            <p>Välj vilken gammal pub som ska tas bort. Den aktiva puben visas inte i listan och kan inte tas bort.</p>
+            <form method="post" class="pub-tools" onsubmit="return confirm('Ta bort vald pub och alla dess beställningar? Detta kan inte ångras.');">
                 <select name="target_pub_id" required>
-                    <option value="">Select old pub</option>
+                    <option value="">Välj gammal pub</option>
                     <?php foreach ($allPubs as $pub): ?>
                         <?php if ((int) $pub['is_active'] === 0): ?>
                             <option value="<?= (int) $pub['event_id'] ?>">
@@ -534,8 +406,8 @@ mysqli_close($conn);
                         <?php endif; ?>
                     <?php endforeach; ?>
                 </select>
-                <input type="text" name="confirm_delete_pub" placeholder="Type DELETE PUB" required autocomplete="off">
-                <button type="submit" class="danger" name="delete_pub">Delete Selected Pub</button>
+                <input type="text" name="confirm_delete_pub" placeholder="Skriv DELETE PUB" required autocomplete="off">
+                <button type="submit" class="danger" name="delete_pub">Ta bort vald pub</button>
             </form>
 
             <?php
@@ -548,7 +420,7 @@ mysqli_close($conn);
                 }
             ?>
             <?php if (!$hasOldPubs): ?>
-                <p class="empty" style="margin-top:0.75rem;">No old pubs available to delete yet.</p>
+                <p class="empty" style="margin-top:0.75rem;">Inga gamla pubar att ta bort ännu.</p>
             <?php endif; ?>
         </section>
     </div>

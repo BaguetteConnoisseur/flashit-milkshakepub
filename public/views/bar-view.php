@@ -18,6 +18,7 @@ if (isset($_GET['fetch_view'])) {
         SELECT 
             o.order_id, 
             o.order_number, 
+            o.pub_order_number,
             o.customer_name, 
             o.status as order_status,
             o.created_at,
@@ -83,9 +84,10 @@ if (isset($_GET['fetch_view'])) {
          echo '<div class="empty-msg">No orders preparing</div>';
     } else {
         foreach ($preparing as $o) {
+            $displayOrderNumber = $o['pub_order_number'] ?? $o['order_number'] ?? $o['order_id'];
             echo '<div class="card card-preparing">
                     <div class="row-top">
-                        <span class="ord-num">#' . htmlspecialchars($o['order_id']) . '</span>
+                        <span class="ord-num">#' . htmlspecialchars($displayOrderNumber) . '</span>
                         <span class="status-pill badge-prep">' . $o['display_status'] . '</span>
                     </div>
                     <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
@@ -100,9 +102,10 @@ if (isset($_GET['fetch_view'])) {
          echo '<div class="empty-msg">No orders in progress</div>';
     } else {
         foreach ($inProgress as $o) {
+            $displayOrderNumber = $o['pub_order_number'] ?? $o['order_number'] ?? $o['order_id'];
             echo '<div class="card card-inProgress">
                     <div class="row-top">
-                        <span class="ord-num">#' . htmlspecialchars($o['order_id']) . '</span>
+                        <span class="ord-num">#' . htmlspecialchars($displayOrderNumber) . '</span>
                         <span class="status-pill badge-cook">' . $o['display_status'] . '</span>
                     </div>
                     <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
@@ -120,10 +123,11 @@ if (isset($_GET['fetch_view'])) {
             $badgeClass = ($o['display_status'] === 'Done') ? 'badge-done' : 'badge-del';
             $extraClass = ($o['display_status'] === 'Delivered') ? ' delivered' : '';
             $statusKey = strtolower($o['display_status']);
+            $displayOrderNumber = $o['pub_order_number'] ?? $o['order_number'] ?? $o['order_id'];
             
             echo '<div class="card card-doneDelivered' . $extraClass . '" data-order-id="' . htmlspecialchars($o['order_id']) . '" data-display-status="' . htmlspecialchars($statusKey) . '">
                     <div class="row-top">
-                        <span class="ord-num">#' . htmlspecialchars($o['order_id']) . '</span>
+                        <span class="ord-num">#' . htmlspecialchars($displayOrderNumber) . '</span>
                         <span class="status-pill ' . $badgeClass . '">' . $o['display_status'] . '</span>
                     </div>
                     <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>

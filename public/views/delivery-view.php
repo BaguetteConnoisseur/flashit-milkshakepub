@@ -3,12 +3,6 @@ require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
-if (isset($_POST['logout-account'])) {
-    session_destroy();  
-    header("Location: " . WWW_ROOT . "/index.php");
-    exit;
-}
-
 if (!$loggedIn) {
     header("Location: " . WWW_ROOT . "/index.php");
     exit;
@@ -21,19 +15,43 @@ if (!$conn) {
 $pubTracking = ensure_pub_tracking($conn);
 $activePubId = (int) $pubTracking['active_pub_id'];
 
+function localize_status_label($status) {
+    $map = [
+        'Pending' => 'Väntar',
+        'Received' => 'Mottagen',
+        'In Progress' => 'Pågår',
+        'Done' => 'Klar',
+        'Delivered' => 'Levererad',
+    ];
+
+    return $map[$status] ?? $status;
+}
+
 // --- LOGIC: HANDLE ACTIONS (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // 1. Deliver Entire Order
     if (isset($_POST['deliver_all'])) {
         $order_id = intval($_POST['order_id']);
-        
-        // Mark main order as Delivered
-        mysqli_query($conn, "UPDATE orders SET status = 'Delivered' WHERE order_id = $order_id AND event_id = $activePubId");
-        
-        // Mark all children as Delivered
-        mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_id = $order_id AND o.event_id = $activePubId");
-        mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_id = $order_id AND o.event_id = $activePubId");
+
+        mysqli_begin_transaction($conn);
+        try {
+            if (!mysqli_query($conn, "UPDATE orders SET status = 'Delivered' WHERE order_id = $order_id AND event_id = $activePubId")) {
+                throw new Exception(mysqli_error($conn));
+            }
+
+            if (!mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_id = $order_id AND o.event_id = $activePubId")) {
+                throw new Exception(mysqli_error($conn));
+            }
+
+            if (!mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_id = $order_id AND o.event_id = $activePubId")) {
+                throw new Exception(mysqli_error($conn));
+            }
+
+            mysqli_commit($conn);
+        } catch (Throwable $e) {
+            mysqli_rollback($conn);
+        }
 
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
@@ -43,6 +61,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['deliver_milkshake'])) {
         $id = intval($_POST['item_id']);
         mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_milkshake_id = $id AND o.event_id = $activePubId");
+        mysqli_query($conn, "
+            UPDATE orders o
+            SET o.status = 'Delivered'
+            WHERE o.order_id = (
+                SELECT om.order_id
+                FROM order_milkshakes om
+                JOIN orders ox ON ox.order_id = om.order_id
+                WHERE om.order_milkshake_id = $id AND ox.event_id = $activePubId
+                LIMIT 1
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM order_milkshakes om2
+                WHERE om2.order_id = o.order_id AND om2.status <> 'Delivered'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM order_toasts ot2
+                WHERE ot2.order_id = o.order_id AND ot2.status <> 'Delivered'
+            )
+        ");
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
@@ -51,6 +88,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['deliver_toast'])) {
         $id = intval($_POST['item_id']);
         mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_toast_id = $id AND o.event_id = $activePubId");
+        mysqli_query($conn, "
+            UPDATE orders o
+            SET o.status = 'Delivered'
+            WHERE o.order_id = (
+                SELECT ot.order_id
+                FROM order_toasts ot
+                JOIN orders ox ON ox.order_id = ot.order_id
+                WHERE ot.order_toast_id = $id AND ox.event_id = $activePubId
+                LIMIT 1
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM order_milkshakes om2
+                WHERE om2.order_id = o.order_id AND om2.status <> 'Delivered'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM order_toasts ot2
+                WHERE ot2.order_id = o.order_id AND ot2.status <> 'Delivered'
+            )
+        ");
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
@@ -58,13 +114,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 4. Take Back Delivered Order (Revert to Done)
     if (isset($_POST['take_back_order'])) {
         $order_id = intval($_POST['order_id']);
-        
-        // Mark main order as Done (not Delivered)
-        mysqli_query($conn, "UPDATE orders SET status = 'Done' WHERE order_id = $order_id AND event_id = $activePubId");
-        
-        // Mark all children as Done (not Delivered)
-        mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Done' WHERE om.order_id = $order_id AND o.event_id = $activePubId");
-        mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Done' WHERE ot.order_id = $order_id AND o.event_id = $activePubId");
+
+        mysqli_begin_transaction($conn);
+        try {
+            if (!mysqli_query($conn, "UPDATE orders SET status = 'Done' WHERE order_id = $order_id AND event_id = $activePubId")) {
+                throw new Exception(mysqli_error($conn));
+            }
+
+            if (!mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Done' WHERE om.order_id = $order_id AND o.event_id = $activePubId")) {
+                throw new Exception(mysqli_error($conn));
+            }
+
+            if (!mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Done' WHERE ot.order_id = $order_id AND o.event_id = $activePubId")) {
+                throw new Exception(mysqli_error($conn));
+            }
+
+            mysqli_commit($conn);
+        } catch (Throwable $e) {
+            mysqli_rollback($conn);
+        }
 
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
@@ -112,41 +180,61 @@ function getOrders($conn, $activePubId) {
     $res_t = mysqli_query($conn, $sql_t);
     $toasts = mysqli_fetch_all($res_t, MYSQLI_ASSOC);
 
+    $milkshakesByOrder = [];
+    foreach ($milkshakes as $m) {
+        $orderId = (int) $m['order_id'];
+        $m['type'] = 'milkshake';
+        $milkshakesByOrder[$orderId][] = $m;
+    }
+
+    $toastsByOrder = [];
+    foreach ($toasts as $t) {
+        $orderId = (int) $t['order_id'];
+        $t['type'] = 'toast';
+        $toastsByOrder[$orderId][] = $t;
+    }
+
     // 4. Attach items to orders
     foreach ($orders as &$order) {
-        $order['items'] = [];
+        $orderId = (int) $order['order_id'];
+        $orderMilkshakes = $milkshakesByOrder[$orderId] ?? [];
+        $orderToasts = $toastsByOrder[$orderId] ?? [];
+        $order['items'] = array_merge($orderMilkshakes, $orderToasts);
         $order['ready_to_serve'] = true; // Assume ready
-        $order['has_items'] = false;
-        $order['is_fully_delivered'] = ($order['status'] === 'Delivered');
+        $order['has_items'] = !empty($order['items']);
+        $order['is_fully_delivered'] = false;
 
-        // Attach Milkshakes
-        foreach ($milkshakes as $m) {
-            if ($m['order_id'] == $order['order_id']) {
-                $m['type'] = 'milkshake';
-                $order['items'][] = $m;
-                $order['has_items'] = true;
-                
-                // If any item is NOT Done and NOT Delivered, order isn't ready
-                if ($m['status'] != 'Done' && $m['status'] != 'Delivered') {
-                    $order['ready_to_serve'] = false;
-                }
-            }
-        }
-
-        // Attach Toasts
-        foreach ($toasts as $t) {
-            if ($t['order_id'] == $order['order_id']) {
-                $t['type'] = 'toast';
-                $order['items'][] = $t;
-                $order['has_items'] = true;
-                if ($t['status'] != 'Done' && $t['status'] != 'Delivered') {
-                    $order['ready_to_serve'] = false;
-                }
+        foreach ($order['items'] as $item) {
+            if ($item['status'] !== 'Done' && $item['status'] !== 'Delivered') {
+                $order['ready_to_serve'] = false;
             }
         }
         
-        if (!$order['has_items']) $order['ready_to_serve'] = false;
+        if (!$order['has_items']) {
+            $order['ready_to_serve'] = false;
+        }
+
+        $allDelivered = $order['has_items'];
+        foreach ($order['items'] as $item) {
+            if ($item['status'] !== 'Delivered') {
+                $allDelivered = false;
+                break;
+            }
+        }
+
+        $order['is_fully_delivered'] = $allDelivered;
     }
+
+    usort($orders, function ($a, $b) {
+        $priorityA = $a['is_fully_delivered'] ? 2 : ($a['ready_to_serve'] ? 0 : 1);
+        $priorityB = $b['is_fully_delivered'] ? 2 : ($b['ready_to_serve'] ? 0 : 1);
+
+        if ($priorityA !== $priorityB) {
+            return $priorityA <=> $priorityB;
+        }
+
+        return strtotime($a['created_at']) <=> strtotime($b['created_at']);
+    });
 
     return $orders;
 }
@@ -156,7 +244,7 @@ if (isset($_GET['fetch_view'])) {
     $orders = getOrders($conn, $activePubId);
     
     if (empty($orders)) {
-        echo '<div class="empty-state"><h2>No orders found.</h2></div>';
+        echo '<div class="empty-state"><h2>Inga beställningar hittades.</h2></div>';
     } else {
         foreach($orders as $o) {
             $isDelivered = $o['is_fully_delivered'];
@@ -173,12 +261,12 @@ if (isset($_GET['fetch_view'])) {
             <div class="ticket-card <?= $cardClass ?>">
                 <div class="card-header">
                     <div class="meta">
-                        <span>#<?= $o['order_id'] ?></span>
+                        <span>#<?= htmlspecialchars($o['pub_order_number'] ?? $o['order_number'] ?? $o['order_id']) ?></span>
                         <span><?= date("H:i", strtotime($o['created_at'])) ?></span>
                     </div>
                     <div class="customer">
                         <?= htmlspecialchars($o['customer_name']) ?>
-                        <?php if($isDelivered): ?> <span style="font-size:0.8rem; opacity:0.6;">(Delivered)</span><?php endif; ?>
+                        <?php if($isDelivered): ?> <span style="font-size:0.8rem; opacity:0.6;">(Levererad)</span><?php endif; ?>
                     </div>
                     <?php if(!empty($o['order_comment'])): ?>
                         <div class="order-note">📝 <?= htmlspecialchars($o['order_comment']) ?></div>
@@ -205,7 +293,7 @@ if (isset($_GET['fetch_view'])) {
                             
                             <div class="item-status">
                                 <?php if (!$isItemDelivered): ?>
-                                    <span class="status-text"><?= $item['status'] ?></span>
+                                    <span class="status-text"><?= localize_status_label($item['status']) ?></span>
                                     
                                     <?php if ($isItemReady && !$isDelivered): ?>
                                         <form method="POST" style="display:inline;">
@@ -214,7 +302,7 @@ if (isset($_GET['fetch_view'])) {
                                         </form>
                                     <?php endif; ?>
                                 <?php else: ?>
-                                    <span>Delivered</span>
+                                    <span>Levererad</span>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -227,11 +315,11 @@ if (isset($_GET['fetch_view'])) {
                             <input type="hidden" name="order_id" value="<?= $o['order_id'] ?>">
                             <?php if ($isReady): ?>
                                 <button type="submit" name="deliver_all" class="btn-main btn-success">
-                                    DELIVER ORDER
+                                    LEVERERA BESTÄLLNING
                                 </button>
                             <?php else: ?>
                                 <button type="button" class="btn-main btn-disabled" disabled>
-                                    Waiting for Kitchen...
+                                    Väntar på köket...
                                 </button>
                             <?php endif; ?>
                         </form>
@@ -240,7 +328,7 @@ if (isset($_GET['fetch_view'])) {
                     <div class="card-footer">
                         <form method="POST" style="display: flex; justify-content: flex-end;">
                             <input type="hidden" name="order_id" value="<?= $o['order_id'] ?>">
-                            <button type="submit" name="take_back_order" class="btn-take-back" title="Take back this order">
+                            <button type="submit" name="take_back_order" class="btn-take-back" title="Återta denna beställning">
                                 ↶
                             </button>
                         </form>
@@ -255,11 +343,11 @@ if (isset($_GET['fetch_view'])) {
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delivery Station</title>
+    <title>Leveransstation</title>
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
@@ -360,12 +448,12 @@ if (isset($_GET['fetch_view'])) {
     <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
 
     <div class="header">
-        <h1>📦 Delivery Station</h1>
+        <h1>📦 Leveransstation</h1>
         <div id="connection-status">● Live</div>
     </div>
 
     <div id="ticket-grid" class="grid">
-        <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Loading orders...</div>
+        <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
     </div>
     <?php include(SHARED_PATH . "/public_footer.php"); ?>
 
@@ -378,7 +466,7 @@ if (isset($_GET['fetch_view'])) {
                     document.getElementById('connection-status').style.color = '#10b981';
                 })
                 .catch(err => {
-                    console.error('Error fetching orders:', err);
+                    console.error('Kunde inte hämta beställningar:', err);
                     document.getElementById('connection-status').style.color = '#ef4444';
                 });
         }

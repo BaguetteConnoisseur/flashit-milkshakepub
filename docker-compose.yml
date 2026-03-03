@@ -28,6 +28,7 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME is required}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
       BASE_PATH: ${BASE_PATH:-}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Stockholm}
     depends_on:
       flashit-milkshakepub-db:
         condition: service_healthy

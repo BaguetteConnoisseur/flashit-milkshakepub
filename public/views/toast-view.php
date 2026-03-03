@@ -3,12 +3,6 @@ require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
-if (isset($_POST['logout-account'])) {
-    session_destroy();  
-    header("Location: " . WWW_ROOT . "/index.php");
-    exit;
-}
-
 if (!$loggedIn) {
     header("Location: " . WWW_ROOT . "/index.php");
     exit;
@@ -20,6 +14,18 @@ if (!$conn) {
 
 $pubTracking = ensure_pub_tracking($conn);
 $activePubId = (int) $pubTracking['active_pub_id'];
+
+function localize_status_label($status) {
+    $map = [
+        'Pending' => 'Väntar',
+        'Received' => 'Mottagen',
+        'In Progress' => 'Pågår',
+        'Done' => 'Klar',
+        'Delivered' => 'Levererad',
+    ];
+
+    return $map[$status] ?? $status;
+}
 
 // --- LOGIC: HANDLE ACTIONS (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -75,6 +81,7 @@ function getTickets($conn, $activePubId) {
             ot.order_id,
             t.name AS toast_name,
             o.order_number,
+            o.pub_order_number,
             o.customer_name,
             o.created_at,
             o.order_comment AS main_comment
@@ -88,6 +95,11 @@ function getTickets($conn, $activePubId) {
     ";
     $result = mysqli_query($conn, $query);
     $tickets = mysqli_fetch_all($result, MYSQLI_ASSOC);
+
+    foreach ($tickets as &$ticket) {
+        $ticket['linked_milkshakes'] = [];
+    }
+    unset($ticket);
 
     // 2. Get associated Milkshakes (Linked Items)
     if (!empty($tickets)) {
@@ -106,15 +118,16 @@ function getTickets($conn, $activePubId) {
             $ms_result = mysqli_query($conn, $milkshake_query);
             $all_milkshakes = mysqli_fetch_all($ms_result, MYSQLI_ASSOC);
 
-            // Attach milkshakes to the specific toast ticket
-            foreach ($tickets as &$ticket) {
-                $ticket['linked_milkshakes'] = [];
-                foreach ($all_milkshakes as $ms) {
-                    if ($ms['order_id'] == $ticket['order_id']) {
-                        $ticket['linked_milkshakes'][] = $ms;
-                    }
-                }
+            $milkshakesByOrder = [];
+            foreach ($all_milkshakes as $ms) {
+                $orderId = (int) $ms['order_id'];
+                $milkshakesByOrder[$orderId][] = $ms;
             }
+
+            foreach ($tickets as &$ticket) {
+                $ticket['linked_milkshakes'] = $milkshakesByOrder[(int) $ticket['order_id']] ?? [];
+            }
+            unset($ticket);
         }
     }
 
@@ -143,7 +156,7 @@ if (isset($_GET['fetch_view'])) {
     $tickets = getTickets($conn, $activePubId);
     
     if (empty($tickets)) {
-        echo '<div class="empty-state"><h2>All clear! No pending toasts.</h2></div>';
+        echo '<div class="empty-state"><h2>Inga väntande toast.</h2></div>';
     } else {
         foreach($tickets as $t) {
             $statusClass = str_replace(' ', '', $t['status']); 
@@ -153,7 +166,7 @@ if (isset($_GET['fetch_view'])) {
                 <div class="status-bar bar-<?= $statusClass ?>"></div>
                 <div class="card-body">
                     <div class="meta">
-                        <span>#<?= $t['order_id'] ?></span>
+                        <span>#<?= htmlspecialchars($t['pub_order_number'] ?? $t['order_number'] ?? $t['order_id']) ?></span>
                         <span><?= date("H:i", strtotime($t['created_at'])) ?></span>
                     </div>
                     
@@ -161,27 +174,27 @@ if (isset($_GET['fetch_view'])) {
                     
                     <?php if(!empty($t['item_comment'])): ?>
                         <div class="comment-box item-note">
-                            <strong>Note:</strong> <?= htmlspecialchars($t['item_comment']) ?>
+                            <strong>Notering:</strong> <?= htmlspecialchars($t['item_comment']) ?>
                         </div>
                     <?php endif; ?>
 
                     <?php if(!empty($t['main_comment'])): ?>
                         <div class="comment-box order-note">
-                            <strong>Order Note:</strong> <?= htmlspecialchars($t['main_comment']) ?>
+                            <strong>Ordernotering:</strong> <?= htmlspecialchars($t['main_comment']) ?>
                         </div>
                     <?php endif; ?>
 
                     <div style="font-size: 0.9rem; color: var(--text-sub); margin-bottom: 1rem;">
-                        Customer: <?= htmlspecialchars($t['customer_name']) ?>
+                        Kund: <?= htmlspecialchars($t['customer_name']) ?>
                     </div>
 
                     <?php if(!empty($t['linked_milkshakes'])): ?>
                         <div class="linked-list">
-                            <div class="linked-header">With Milkshakes:</div>
+                            <div class="linked-header">Med milkshakes:</div>
                             <?php foreach($t['linked_milkshakes'] as $ms): ?>
                                 <div class="linked-item">
                                     <span>🥤 <?= htmlspecialchars($ms['milkshake_name']) ?></span>
-                                    <span style="font-size:0.8em; opacity:0.7;">(<?= $ms['status'] ?>)</span>
+                                    <span style="font-size:0.8em; opacity:0.7;">(<?= localize_status_label($ms['status']) ?>)</span>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -192,11 +205,11 @@ if (isset($_GET['fetch_view'])) {
                     <form method="POST" style="flex-grow:1; display:flex; gap:5px;">
                         <input type="hidden" name="order_toast_id" value="<?= $t['order_toast_id'] ?>">
                         <select name="manual_status" onchange="this.form.submit()">
-                            <option value="" hidden>Update</option>
-                            <option value="Pending" <?= ($t['status']=='Pending' || $t['status']=='Received') ? 'selected' : '' ?>>Received</option>
-                            <option value="In Progress" <?= $t['status']=='In Progress' ? 'selected' : '' ?>>In Progress</option>
-                            <option value="Done" <?= $t['status']=='Done' ? 'selected' : '' ?>>Done</option>
-                            <option value="Delivered">Delivered</option>
+                            <option value="" hidden>Uppdatera</option>
+                            <option value="Pending" <?= ($t['status']=='Pending' || $t['status']=='Received') ? 'selected' : '' ?>>Mottagen</option>
+                            <option value="In Progress" <?= $t['status']=='In Progress' ? 'selected' : '' ?>>Pågår</option>
+                            <option value="Done" <?= $t['status']=='Done' ? 'selected' : '' ?>>Klar</option>
+                            <option value="Delivered">Levererad</option>
                         </select>
                         <input type="hidden" name="update_status_manual" value="1">
                     </form>
@@ -205,9 +218,9 @@ if (isset($_GET['fetch_view'])) {
                             <input type="hidden" name="order_toast_id" value="<?= $t['order_toast_id'] ?>">
                             <input type="hidden" name="current_status" value="<?= $t['status'] ?>">
                             <?php if($t['status'] == 'Pending' || $t['status'] == 'Received'): ?>
-                                <button type="submit" name="advance_status" class="btn-next">Start &rarr;</button>
+                                <button type="submit" name="advance_status" class="btn-next">Starta &rarr;</button>
                             <?php elseif($t['status'] == 'In Progress'): ?>
-                                <button type="submit" name="advance_status" class="btn-next btn-finish">Done &#10003;</button>
+                                <button type="submit" name="advance_status" class="btn-next btn-finish">Klar &#10003;</button>
                             <?php endif; ?>
                         </form>
                     <?php endif; ?>
@@ -220,11 +233,11 @@ if (isset($_GET['fetch_view'])) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Toast Kitchen</title>
+    <title>Toast-station</title>
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
@@ -366,7 +379,7 @@ if (isset($_GET['fetch_view'])) {
 
     <div class="header">
         <div>
-            <h1>🥪 Toast Station</h1>
+            <h1>🥪 Toast-station</h1>
             <?php if (!empty($summary)): ?>
                 <div class="summary">
                     <?php foreach ($summary as $item): ?>
@@ -379,7 +392,7 @@ if (isset($_GET['fetch_view'])) {
     </div>
 
     <div id="ticket-grid" class="grid">
-        <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Loading orders...</div>
+        <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
     </div>
     <?php include(SHARED_PATH . "/public_footer.php"); ?>
 
@@ -392,7 +405,7 @@ if (isset($_GET['fetch_view'])) {
                     document.getElementById('connection-status').style.color = '#10b981';
                 })
                 .catch(err => {
-                    console.error('Error fetching orders:', err);
+                    console.error('Kunde inte hämta beställningar:', err);
                     document.getElementById('connection-status').style.color = '#ef4444';
                 });
         }

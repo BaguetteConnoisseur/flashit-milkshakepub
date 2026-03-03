@@ -1,6 +1,10 @@
 <?php
 ini_set('default_charset', 'UTF-8');
 
+$appTimezone = getenv('APP_TIMEZONE') ?: 'Europe/Stockholm';
+date_default_timezone_set($appTimezone);
+define("APP_TIMEZONE", $appTimezone);
+
 $base_path = getenv('BASE_PATH') ?: '';
 
 $public_pos = strpos($_SERVER['SCRIPT_NAME'], '/public');

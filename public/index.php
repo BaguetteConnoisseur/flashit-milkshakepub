@@ -4,12 +4,6 @@ require_once("../private/initalize.php");
 // Handle logout and login actions BEFORE any output
 $showError = false;
 
-if (isset($_POST['logout-account'])) {
-    session_destroy();  
-    header("Location: " . WWW_ROOT . "/index.php");
-    exit;
-}
-
 if (isset($_POST['login'])) {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
@@ -252,6 +246,7 @@ if (isset($_POST['login'])) {
         .view-card.bar { --accent: #06b6d4; }
         .view-card.stats { --accent: #0ea5e9; }
         .view-card.leaderboard { --accent: #22c55e; }
+        .view-card.startup { --accent: #3b82f6; }
         
         .view-card.cashier .view-card-icon { background: rgba(245, 158, 11, 0.1); }
         .view-card.delivery .view-card-icon { background: rgba(16, 185, 129, 0.1); }
@@ -261,6 +256,7 @@ if (isset($_POST['login'])) {
         .view-card.bar .view-card-icon { background: rgba(6, 182, 212, 0.1); }
         .view-card.stats .view-card-icon { background: rgba(14, 165, 233, 0.12); }
         .view-card.leaderboard .view-card-icon { background: rgba(34, 197, 94, 0.14); }
+        .view-card.startup .view-card-icon { background: rgba(59, 130, 246, 0.14); }
         
         .logout-wrapper {
             position: fixed;
@@ -346,6 +342,12 @@ if (isset($_POST['login'])) {
             </div>
 
             <div class="views-grid">
+                <a href="views/startup-view.php" class="view-card startup">
+                    <div class="view-card-icon">🚀</div>
+                    <h3>Uppstart</h3>
+                    <p>Starta ny pub och gå direkt till lager eller kassör i ett steg.</p>
+                </a>
+
                 <a href="views/cashier-view.php" class="view-card cashier">
                     <div class="view-card-icon">💰</div>
                     <h3>Kassörsvy</h3>
@@ -376,16 +378,16 @@ if (isset($_POST['login'])) {
                     <p>Översikt över alla beställningar och köksstatusvisning för att visa up på bardatorn.</p>
                 </a>
 
+                <a href="views/leaderboard-view.php" class="view-card leaderboard">
+                    <div class="view-card-icon">🏆</div>
+                    <h3>Topplista</h3>
+                    <p>Se topplistor för mest sålda smaker och kunder över alla MSP's.</p>
+                </a>
+
                 <a href="views/statistics-view.php" class="view-card stats">
                     <div class="view-card-icon">📈</div>
                     <h3>Statistik</h3>
                     <p>Se försäljning per smak, totaler och hantera rensning av orderhistorik.</p>
-                </a>
-
-                <a href="views/leaderboard-view.php" class="view-card leaderboard">
-                    <div class="view-card-icon">🏆</div>
-                    <h3>Leaderboard</h3>
-                    <p>Se topplistor för mest sålda smaker och kunder per pub.</p>
                 </a>
 
                 <a href="admin_action/inventory_manager.php" class="view-card inventory">

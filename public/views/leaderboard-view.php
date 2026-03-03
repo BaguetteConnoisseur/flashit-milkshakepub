@@ -87,11 +87,11 @@ mysqli_close($conn);
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leaderboard</title>
+    <title>Topplista</title>
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
@@ -217,14 +217,14 @@ mysqli_close($conn);
     <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
 
     <div class="container">
-        <h1>Leaderboard</h1>
-        <p class="subtitle">Top-selling items and customers of all time.</p>
+        <h1>Topplista</h1>
+        <p class="subtitle">Mest sålda produkter och kunder genom tiderna.</p>
 
         <div class="grid">
             <section class="card">
-                <h2>Top Milkshakes</h2>
+                <h2>Topp milkshakes</h2>
                 <?php if (empty($topMilkshakes)): ?>
-                    <p class="empty">No milkshake sales yet.</p>
+                    <p class="empty">Inga milkshake-försäljningar ännu.</p>
                 <?php else: ?>
                     <ol class="board">
                         <?php foreach ($topMilkshakes as $index => $row): ?>
@@ -239,9 +239,9 @@ mysqli_close($conn);
             </section>
 
             <section class="card">
-                <h2>Top Toasts</h2>
+                <h2>Topp toasts</h2>
                 <?php if (empty($topToasts)): ?>
-                    <p class="empty">No toast sales yet.</p>
+                    <p class="empty">Inga toast-försäljningar ännu.</p>
                 <?php else: ?>
                     <ol class="board">
                         <?php foreach ($topToasts as $index => $row): ?>
@@ -256,9 +256,9 @@ mysqli_close($conn);
             </section>
 
             <section class="card">
-                <h2>Top Items (Combined)</h2>
+                <h2>Topp produkter (kombinerat)</h2>
                 <?php if (empty($topAllItems)): ?>
-                    <p class="empty">No item sales yet.</p>
+                    <p class="empty">Ingen produktförsäljning ännu.</p>
                 <?php else: ?>
                     <ol class="board">
                         <?php foreach ($topAllItems as $index => $row): ?>
@@ -273,9 +273,9 @@ mysqli_close($conn);
             </section>
 
             <section class="card">
-                <h2>Top Customers (By Items Placed)</h2>
+                <h2>Toppkunder (antal köpta produkter)</h2>
                 <?php if (empty($topCustomers)): ?>
-                    <p class="empty">No customer orders yet.</p>
+                    <p class="empty">Inga kundbeställningar ännu.</p>
                 <?php else: ?>
                     <ol class="board">
                         <?php foreach ($topCustomers as $index => $row): ?>
