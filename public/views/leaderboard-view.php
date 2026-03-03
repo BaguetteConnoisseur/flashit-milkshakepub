@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Leaderboard View Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
@@ -16,8 +18,10 @@ function escape($conn, $string) {
     return mysqli_real_escape_string($conn, $string);
 }
 
+/* 2. Ensure Pub Schema Context */
 ensure_pub_tracking($conn);
 
+/* 3. Top Lists Data Fetching */
 $topMilkshakes = mysqli_fetch_all(mysqli_query(
     $conn,
     "SELECT m.name AS item_name, COUNT(*) AS sold
@@ -95,6 +99,7 @@ mysqli_close($conn);
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
+        /* --- 4. Layout & Theme --- */
         :root {
             --bg: #f3f4f6;
             --surface: #ffffff;

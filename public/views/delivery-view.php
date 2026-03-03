@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Delivery Station View Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
@@ -27,7 +29,7 @@ function localize_status_label($status) {
     return $map[$status] ?? $status;
 }
 
-// --- LOGIC: HANDLE ACTIONS (POST) ---
+/* --- 2. Actions (POST) --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // 1. Deliver Entire Order
@@ -139,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// --- LOGIC: FETCH DATA FUNCTION ---
+/* --- 3. Data Fetching Helpers --- */
 function getOrders($conn, $activePubId) {
     // 1. Fetch ALL Orders (Active first, then Delivered. Within those groups, oldest first)
     // We add a limit (e.g., 50) to prevent the page from crashing after a year of usage.
@@ -239,7 +241,7 @@ function getOrders($conn, $activePubId) {
     return $orders;
 }
 
-// --- AJAX HANDLER ---
+/* --- 4. AJAX Partial Renderer --- */
 if (isset($_GET['fetch_view'])) {
     $orders = getOrders($conn, $activePubId);
     
@@ -351,6 +353,7 @@ if (isset($_GET['fetch_view'])) {
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
+        /* --- 5. Layout & Theme --- */
         :root {
             --bg: #f3f4f6; 
             --card-bg: #ffffff;

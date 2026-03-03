@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Cashier View Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
@@ -12,7 +14,7 @@ if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
 
-// --- HELPER FUNCTIONS ---
+/* --- 2. Helper Functions --- */
 function escape($conn, $string) {
     return mysqli_real_escape_string($conn, $string);
 }
@@ -25,7 +27,7 @@ $pubTracking = ensure_pub_tracking($conn);
 $activeEventId = (int) $pubTracking['active_pub_id'];
 ensure_pub_menu_links($conn, $activeEventId);
 
-// --- LOGIC: HANDLE FORM SUBMISSIONS ---
+/* --- 3. Form Actions --- */
 
 // 1. CREATE ORDER
 if (isset($_POST['create_order'])) {
@@ -191,7 +193,7 @@ if (isset($_POST['delete_order'])) {
     exit;
 }
 
-// --- DATA FETCHING ---
+/* --- 4. Data Fetching --- */
 
 // 1. Fetch Inventory for "Create" Form
 $inv_milkshakes = mysqli_fetch_all(mysqli_query(
@@ -358,7 +360,7 @@ mysqli_close($conn);
             font-size: 1.1rem;
         }
 
-        /* --- LEFT COLUMN: CREATE --- */
+        /* --- 5. Left Column: Create --- */
         .col-create {
             width: 350px;
             background: var(--surface);
@@ -466,7 +468,7 @@ mysqli_close($conn);
         .btn:hover { opacity: 0.9; }
         .btn-danger { background-color: #ef4444; margin-top: 1rem; }
 
-        /* --- RIGHT COLUMN: ORDER LIST --- */
+        /* --- 6. Right Column: Order List --- */
         .col-list {
             flex-grow: 1;
             padding: 2rem;
@@ -602,7 +604,7 @@ mysqli_close($conn);
         .badge-done { background: #dcfce7; color: #166534; }
         .badge-delivered { background: #f3f4f6; color: #374151; }
 
-        /* --- MODAL --- */
+        /* --- 7. Modal --- */
         .modal-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.5);

@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Milkshake Station View Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
@@ -15,7 +17,7 @@ if (!$conn) {
 $pubTracking = ensure_pub_tracking($conn);
 $activePubId = (int) $pubTracking['active_pub_id'];
 
-// --- LOGIC: HANDLE ACTIONS (POST) ---
+/* --- 2. Actions (POST) --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // 1. Next Step Button
@@ -58,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// --- LOGIC: FETCH DATA FUNCTION ---
+/* --- 3. Data Fetching Helpers --- */
 function getTickets($conn, $activePubId) {
     $query = "
         SELECT 
@@ -84,7 +86,7 @@ function getTickets($conn, $activePubId) {
     return mysqli_fetch_all($result, MYSQLI_ASSOC);
 }
 
-// --- LOGIC: FETCH SUMMARY FUNCTION ---
+/* 4. Summary Aggregation */
 function getSummary($conn, $activePubId) {
     $query = "
         SELECT m.name, COUNT(*) as count
@@ -105,7 +107,7 @@ foreach ($summary as $summaryItem) {
     $summaryTotal += (int) ($summaryItem['count'] ?? 0);
 }
 
-// --- AJAX HANDLER ---
+/* --- 5. AJAX Partial Renderer --- */
 if (isset($_GET['fetch_view'])) {
     $tickets = getTickets($conn, $activePubId);
     
@@ -183,6 +185,7 @@ if (isset($_GET['fetch_view'])) {
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
+        /* --- 6. Layout & Theme --- */
         :root {
             /* Light Mode Palette */
             --bg: #f3f4f6;          /* Light gray background */

@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Bar Display View Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
@@ -10,7 +12,7 @@ if (!$conn) {
 $pubTracking = ensure_pub_tracking($conn);
 $activePubId = (int) $pubTracking['active_pub_id'];
 
-// --- DATA FETCHING & AJAX ---
+/* --- 2. Data Fetching + AJAX Partial --- */
 if (isset($_GET['fetch_view'])) {
     
     // Fetch orders with their item statuses from the last 12 hours
@@ -76,7 +78,7 @@ if (isset($_GET['fetch_view'])) {
         }
     }
 
-    // --- RENDER HTML FRAGMENTS ---
+    /* --- 3. Render HTML Fragments --- */
     
     // 1. PREPARING COLUMN
     echo '<div id="col-preparing">';
@@ -147,6 +149,7 @@ if (isset($_GET['fetch_view'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Display</title>
     <style>
+        /* --- 4. Layout & Theme --- */
         :root {
             /* Light Mode Palette */
             --bg: #f3f4f6;          /* Light Grey Background */
@@ -258,7 +261,7 @@ if (isset($_GET['fetch_view'])) {
         
         .status-pill { font-size: 0.75rem; text-transform: uppercase; font-weight: bold; padding: 4px 10px; border-radius: 99px; }
 
-        /* --- Specific Styles per status --- */
+        /* --- 5. Specific Styles per status --- */
 
         /* 1. Preparing (Received / Preparing) */
         .card-preparing { border-left: 4px solid var(--color-prep); }

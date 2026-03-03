@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Inventory Manager (Admin Action) Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
@@ -18,7 +20,7 @@ $activePubId = (int) $pubTracking['active_pub_id'];
 $activePubName = $pubTracking['active_pub_name'];
 ensure_pub_menu_links($conn, $activePubId);
 
-// --- FORM HANDLING ---
+/* --- 2. Form Actions --- */
 
 // Add milkshake
 if (isset($_POST['add-milkshake'])) {
@@ -43,7 +45,6 @@ if (isset($_POST['add-milkshake'])) {
     }
 }
 
-// Add toast
 if (isset($_POST['add-toast'])) {
     $toastName = trim($_POST['name'] ?? '');
     $description = trim($_POST['description'] ?? '');
@@ -104,7 +105,7 @@ if (isset($_POST['reactivate-toast'])) {
     }
 }
 
-// --- DATA FETCHING ---
+/* --- 3. Data Fetching --- */
 
 $totalToastSales = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM order_toasts"))['c'] ?? 0);
 
@@ -172,6 +173,7 @@ mysqli_close($conn);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lagerhanterare</title>
     <style>
+        /* --- 4. Layout & Theme --- */
         :root {
             --bg: #f3f4f6;
             --card-bg: #ffffff;

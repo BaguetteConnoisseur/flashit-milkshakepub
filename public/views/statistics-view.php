@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Statistics View Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
@@ -18,6 +20,7 @@ $activePubName = $pubTracking['active_pub_name'];
 
 $feedback = null;
 
+/* 2. Actions (Delete Historical Pub) */
 if (isset($_POST['delete_pub'])) {
     $targetPubId = (int) ($_POST['target_pub_id'] ?? 0);
     $confirmation = trim($_POST['confirm_delete_pub'] ?? '');
@@ -46,6 +49,7 @@ if (isset($_POST['delete_pub'])) {
     }
 }
 
+/* 3. Data Fetching */
 $allPubs = mysqli_fetch_all(mysqli_query(
     $conn,
     "SELECT
@@ -103,6 +107,7 @@ mysqli_close($conn);
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
+        /* --- 4. Layout & Theme --- */
         :root {
             --bg: #f3f4f6;
             --surface: #ffffff;

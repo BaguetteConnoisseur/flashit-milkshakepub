@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Toast Station View Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
@@ -27,7 +29,7 @@ function localize_status_label($status) {
     return $map[$status] ?? $status;
 }
 
-// --- LOGIC: HANDLE ACTIONS (POST) ---
+/* --- 2. Actions (POST) --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // 1. Next Step Button
@@ -70,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// --- LOGIC: FETCH DATA FUNCTION ---
+/* --- 3. Data Fetching Helpers --- */
 function getTickets($conn, $activePubId) {
     // 1. Get the Toasts (Primary Items)
     $query = "
@@ -134,7 +136,7 @@ function getTickets($conn, $activePubId) {
     return $tickets;
 }
 
-// --- LOGIC: FETCH SUMMARY FUNCTION ---
+/* 4. Summary Aggregation */
 function getSummary($conn, $activePubId) {
     $query = "
         SELECT t.name, COUNT(*) as count
@@ -151,7 +153,7 @@ function getSummary($conn, $activePubId) {
 
 $summary = getSummary($conn, $activePubId);
 
-// --- AJAX HANDLER ---
+/* --- 5. AJAX Partial Renderer --- */
 if (isset($_GET['fetch_view'])) {
     $tickets = getTickets($conn, $activePubId);
     
@@ -241,6 +243,7 @@ if (isset($_GET['fetch_view'])) {
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
+        /* --- 6. Layout & Theme --- */
         :root {
             /* Light Mode Palette */
             --bg: #f3f4f6;          /* Light gray background */

@@ -1,7 +1,10 @@
 <?php
 
+/* --- 1. Pub Schema Bootstrap --- */
+
 if (!function_exists('ensure_pub_tracking')) {
     function ensure_pub_tracking($conn) {
+        /* 1. Core Pub/Event Schema */
         mysqli_query($conn, "
             CREATE TABLE IF NOT EXISTS sales_events (
                 event_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -12,6 +15,7 @@ if (!function_exists('ensure_pub_tracking')) {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci
         ");
 
+        /* 2. Orders Table Compatibility + Indexes */
         $columnResult = mysqli_query($conn, "SHOW COLUMNS FROM orders LIKE 'event_id'");
         if (!$columnResult || mysqli_num_rows($columnResult) === 0) {
             mysqli_query($conn, "ALTER TABLE orders ADD COLUMN event_id INT UNSIGNED NULL");
@@ -57,6 +61,7 @@ if (!function_exists('ensure_pub_tracking')) {
             mysqli_query($conn, "CREATE UNIQUE INDEX uq_orders_event_pub_order_number ON orders(event_id, pub_order_number)");
         }
 
+        /* 3. Resolve Active Pub Context */
         $activePubRow = mysqli_fetch_assoc(mysqli_query(
             $conn,
             "SELECT event_id, event_name FROM sales_events WHERE is_active = 1 ORDER BY event_id DESC LIMIT 1"
@@ -76,6 +81,7 @@ if (!function_exists('ensure_pub_tracking')) {
 
         mysqli_query($conn, "UPDATE orders SET event_id = $activePubId WHERE event_id IS NULL");
 
+    /* 4. Item Table Performance Indexes */
         $hasOrderMilkshakesTable = mysqli_fetch_assoc(mysqli_query($conn, "SHOW TABLES LIKE 'order_milkshakes'"));
         if ($hasOrderMilkshakesTable) {
             $milkshakeOrderIdIndexResult = mysqli_query($conn, "SHOW INDEX FROM order_milkshakes WHERE Key_name = 'idx_order_milkshakes_order_id'");
@@ -112,6 +118,7 @@ if (!function_exists('ensure_pub_tracking')) {
             }
         }
 
+        /* 5. Pub Menu Link Tables */
         mysqli_query($conn, "
             CREATE TABLE IF NOT EXISTS pub_milkshakes (
                 event_id INT UNSIGNED NOT NULL,
@@ -143,8 +150,12 @@ if (!function_exists('ensure_pub_tracking')) {
 
 if (!function_exists('ensure_pub_menu_links')) {
     function ensure_pub_menu_links($conn, $activePubId) {
+        /* --- 2. Ensure Active Pub Menu Links --- */
+
+        /* 1. Normalize Input */
         $activePubId = (int) $activePubId;
 
+        /* 2. Seed Milkshake Links if Missing */
         $hasMilkshakeRows = mysqli_fetch_assoc(mysqli_query(
             $conn,
             "SELECT COUNT(*) AS c FROM pub_milkshakes WHERE event_id = $activePubId"
@@ -158,6 +169,7 @@ if (!function_exists('ensure_pub_menu_links')) {
             );
         }
 
+        /* 3. Seed Toast Links if Missing */
         $hasToastRows = mysqli_fetch_assoc(mysqli_query(
             $conn,
             "SELECT COUNT(*) AS c FROM pub_toasts WHERE event_id = $activePubId"

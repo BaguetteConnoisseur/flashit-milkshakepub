@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Edit Milkshake (Admin Action) Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 
@@ -11,6 +13,7 @@ if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
 
+/* 2. Resolve Target Item */
 $itemId = intval($_GET['id'] ?? $_POST['milkshake-id'] ?? 0);
 if ($itemId <= 0) {
     header("Location: " . WWW_ROOT . "/admin_action/inventory_manager.php");
@@ -19,6 +22,7 @@ if ($itemId <= 0) {
 
 $feedback = null;
 
+/* 3. Handle Save Action */
 if (isset($_POST['save-milkshake'])) {
     $milkshakeName = trim($_POST['milkshake-name'] ?? '');
     $description = trim($_POST['description'] ?? '');
@@ -45,6 +49,7 @@ if (isset($_POST['save-milkshake'])) {
     }
 }
 
+/* 4. Fetch Existing Item */
 $result = mysqli_query(
     $conn,
     "SELECT m.milkshake_id AS item_id, m.name, m.description, m.ingredients, m.color
@@ -71,6 +76,7 @@ mysqli_close($conn);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redigera milkshake</title>
     <style>
+        /* --- 5. Layout & Theme --- */
         :root {
             --bg: #f3f4f6;
             --card-bg: #ffffff;

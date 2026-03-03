@@ -1,4 +1,6 @@
 <?php
+/* --- 1. Startup View Bootstrap --- */
+
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
@@ -12,6 +14,7 @@ if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
 
+/* 2. Helpers */
 function escape($conn, $string) {
     return mysqli_real_escape_string($conn, $string);
 }
@@ -21,6 +24,7 @@ $activePubId = (int) $pubTracking['active_pub_id'];
 $activePubName = $pubTracking['active_pub_name'];
 ensure_pub_menu_links($conn, $activePubId);
 
+/* 3. Open Order Guard */
 function get_open_order_count($conn, $activePubId) {
     $query = "
         SELECT COUNT(*) AS open_count
@@ -36,6 +40,7 @@ function get_open_order_count($conn, $activePubId) {
 
 $feedback = null;
 
+/* 4. Actions (Start New Pub) */
 if (isset($_POST['start_new_pub'])) {
     $pubName = trim($_POST['new_pub_name'] ?? '');
 
@@ -83,6 +88,7 @@ mysqli_close($conn);
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
+        /* --- 5. Layout & Theme --- */
         :root {
             --bg: #f3f4f6;
             --surface: #ffffff;
