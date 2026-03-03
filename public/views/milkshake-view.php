@@ -93,7 +93,7 @@ function getSummary($conn, $activePubId) {
         FROM order_milkshakes om
         JOIN milkshakes m ON om.milkshake_id = m.milkshake_id
         JOIN orders o ON o.order_id = om.order_id
-        WHERE om.status != 'Delivered' AND o.event_id = $activePubId
+        WHERE om.status IN ('Pending', 'Received') AND o.event_id = $activePubId
         GROUP BY m.name
         ORDER BY count DESC
     ";
@@ -372,7 +372,7 @@ if (isset($_GET['fetch_view'])) {
             <?php if (!empty($summary)): ?>
                 <div class="summary-panel">
                     <div class="summary-head">
-                        <span>Nuvarande beställningar</span>
+                        <span>Ej påbörjade beställningar</span>
                         <span class="summary-total">Totalt: <?= $summaryTotal ?></span>
                     </div>
                     <div class="summary">

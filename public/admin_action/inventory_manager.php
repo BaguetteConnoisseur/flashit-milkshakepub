@@ -420,7 +420,7 @@ mysqli_close($conn);
         </section>
 
         <section class="card toast-section">
-            <h2>Aktiva toasts (denna pub)</h2>
+            <h2>Aktiva toasts</h2>
             <div class="table-wrapper">
                 <?php if (empty($toastInventory)): ?>
                     <p style="color:var(--text-sub); text-align:center;">Inga aktiva toasts för denna pub.</p>
@@ -507,7 +507,7 @@ mysqli_close($conn);
         </section>
 
         <section class="card milkshake-section">
-            <h2>Tidigare milkshakes (inaktiva i denna pub)</h2>
+            <h2>Tidigare milkshakes (inaktiva i denna MSP)</h2>
             <div class="table-wrapper">
                 <?php if (empty($inactiveMilkshakeInventory)): ?>
                     <p style="color:var(--text-sub); text-align:center;">Inga tidigare milkshakes tillgängliga.</p>
@@ -545,7 +545,7 @@ mysqli_close($conn);
         </section>
 
         <section class="card toast-section">
-            <h2>Tidigare toasts (inaktiva i denna pub)</h2>
+            <h2>Tidigare toasts (inaktiva i denna MSP)</h2>
             <div class="table-wrapper">
                 <?php if (empty($inactiveToastInventory)): ?>
                     <p style="color:var(--text-sub); text-align:center;">Inga tidigare toasts tillgängliga.</p>

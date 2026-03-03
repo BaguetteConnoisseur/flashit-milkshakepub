@@ -121,8 +121,14 @@ mysqli_close($conn);
             font-size: 2rem;
         }
 
+        h2 {
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+            font-size: 1.35rem;
+        }
+
         .subtitle {
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
             color: var(--text-sub);
         }
 
@@ -130,8 +136,9 @@ mysqli_close($conn);
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
         .row {
@@ -177,6 +184,14 @@ mysqli_close($conn);
             background: #eef2ff;
             color: #1e3a8a;
             border: 1px solid #c7d2fe;
+            transition: all 0.2s;
+        }
+
+        .link-btn:hover {
+            background: #dbeafe;
+            border-color: #93c5fd;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .feedback {
@@ -201,7 +216,7 @@ mysqli_close($conn);
     <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
 
     <div class="container">
-        <h1>Uppstart</h1>
+        <h1>Guide: Kom igång</h1>
         <p class="subtitle">Aktiv pub: <strong><?= htmlspecialchars($activePubName) ?></strong></p>
 
         <?php if ($feedback): ?>
@@ -210,23 +225,66 @@ mysqli_close($conn);
             </div>
         <?php endif; ?>
 
+        <!-- Steg 1: Starta Event -->
         <section class="card">
-            <h2>Starta ny pub</h2>
+            <h2>📋 Steg 1: Starta ett nytt event</h2>
+            <p style="color: var(--text-sub); margin-bottom: 1rem;">Börja med att skapa ett nytt pub-event när ni ska sälja. Detta håller ordning på alla beställningar för kvällen.</p>
             <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
                 <div class="row">
-                    <input type="text" name="new_pub_name" placeholder="MSP namn" required>
-                    <button type="submit" name="start_new_pub" class="btn-primary">Starta</button>
+                    <input type="text" name="new_pub_name" placeholder="Namn på eventet (t.ex. Pub 2026-03-03)" required>
+                    <button type="submit" name="start_new_pub" class="btn-primary">Starta event</button>
                 </div>
             </form>
         </section>
 
+        <!-- Steg 2: Hantera Lager -->
         <section class="card">
-            <h2>Snabbval</h2>
+            <h2>🏪 Steg 2: Hantera lagret</h2>
+            <p style="color: var(--text-sub); margin-bottom: 1rem;">Aktivera de milkshakes och toasts ni vill sälja idag. Här kan ni också lägga till nya smaker och redigera befintliga.</p>
             <div class="quick-links">
-                <a class="link-btn" href="../admin_action/inventory_manager.php">Lagerhanterare</a>
-                <a class="link-btn" href="cashier-view.php">Kassörsvy</a>
-                <a class="link-btn" href="bar-view.php">Barvy</a>
-                <a class="link-btn" href="statistics-view.php">Statistik</a>
+                <a class="link-btn" href="../admin_action/inventory_manager.php">Öppna Lagerhanterare</a>
+            </div>
+        </section>
+
+        <!-- Steg 3: Huvudvyer -->
+        <section class="card">
+            <h2>🎯 Steg 3: Använda huvudvyerna</h2>
+            <p style="color: var(--text-sub); margin-bottom: 1rem;">Dessa vyer används under själva försäljningen. Öppna dem på separata skärmar/flikar för olika roller:</p>
+            <div class="quick-links">
+                <a class="link-btn" href="cashier-view.php">💰 Kassörsvy</a>
+                <a class="link-btn" href="milkshake-view.php">🥤 Milkshake-vy</a>
+                <a class="link-btn" href="toast-view.php">🍞 Toast-vy</a>
+                <a class="link-btn" href="bar-view.php">🍺 Barvy</a>
+                <a class="link-btn" href="delivery-view.php">📦 Leveransvy</a>
+            </div>
+            <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.9rem;">
+                <strong>Tips:</strong> Kassören tar emot beställningar, köket gör milkshakes/toasts, och baren levererar färdiga produkter till kunder.
+            </div>
+        </section>
+
+        <!-- Steg 4: Övriga sidor -->
+        <section class="card">
+            <h2>📊 Andra användbara sidor</h2>
+            <p style="color: var(--text-sub); margin-bottom: 1rem;">Ytterligare funktioner för uppföljning och redigering:</p>
+            <div style="display: grid; gap: 0.75rem;">
+                <div style="padding: 0.75rem; background: #f9fafb; border-radius: 6px; border-left: 3px solid var(--primary);">
+                    <strong>📈 Statistik</strong> - Översikt av försäljning och orderstatistik för aktivt event
+                    <div style="margin-top: 0.5rem;">
+                        <a class="link-btn" href="statistics-view.php" style="font-size: 0.85rem; padding: 0.5rem 0.7rem;">Öppna Statistik</a>
+                    </div>
+                </div>
+                <div style="padding: 0.75rem; background: #f9fafb; border-radius: 6px; border-left: 3px solid var(--primary);">
+                    <strong>🏆 Leaderboard</strong> - Topplista över mest sålda produkter för aktivt event
+                    <div style="margin-top: 0.5rem;">
+                        <a class="link-btn" href="leaderboard-view.php" style="font-size: 0.85rem; padding: 0.5rem 0.7rem;">Öppna Leaderboard</a>
+                    </div>
+                </div>
+                <div style="padding: 0.75rem; background: #f9fafb; border-radius: 6px; border-left: 3px solid var(--primary);">
+                    <strong>✏️ Redigera Milkshake</strong> - Ändra namn, ingredienser och färg på befintliga milkshakes
+                    <div style="margin-top: 0.5rem;">
+                        <a class="link-btn" href="../admin_action/edit_milkshake.php" style="font-size: 0.85rem; padding: 0.5rem 0.7rem;">Öppna Editor</a>
+                    </div>
+                </div>
             </div>
         </section>
     </div>
