@@ -319,21 +319,30 @@ mysqli_close($conn);
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
-            background-color: var(--bg-light);
+            background: linear-gradient(180deg, #eef2ff 0%, var(--bg-light) 30%, #eef2ff 100%);
             color: var(--text-main);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
+            min-height: 100vh;
+            overflow-x: hidden;
         }
 
         /* Navigation */
         .page-nav {
-            position: absolute;
-            top: 1rem;
-            left: 1rem;
+            position: fixed;
+            top: 1.25rem;
+            left: 1.25rem;
             z-index: 100;
+        }
+
+        .cashier-shell {
+            width: calc(100% - 10rem);
+            max-width: 100%;
+            margin: 4.25rem auto 1.25rem;
+            display: grid;
+            grid-template-columns: 380px minmax(0, 2.4fr);
+            gap: 1rem;
+            align-items: start;
         }
 
         .home-btn {
@@ -366,17 +375,34 @@ mysqli_close($conn);
 
         /* --- 5. Left Column: Create --- */
         .col-create {
-            width: 350px;
             background: var(--surface);
-            border-right: 1px solid var(--border);
-            padding: 4rem 2rem 2rem 2rem;
-            overflow-y: auto;
-            flex-shrink: 0;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.02);
+            border: 1px solid var(--border);
+            padding: 1.25rem;
+            overflow: visible;
+            box-shadow: 0 12px 28px rgba(31, 41, 55, 0.08);
+            border-radius: 16px;
+            max-height: none;
+            position: static;
         }
 
         h1, h2, h3 { margin-top: 0; font-weight: 600; }
         h2 { font-size: 1.25rem; margin-bottom: 1rem; }
+
+        .panel-kicker {
+            margin: 0 0 0.4rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--primary);
+            text-transform: uppercase;
+        }
+
+        .panel-subtext {
+            margin: -0.5rem 0 1rem;
+            color: var(--text-sub);
+            font-size: 0.88rem;
+            line-height: 1.35;
+        }
 
         .form-group { margin-bottom: 1rem; }
         label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
@@ -388,51 +414,99 @@ mysqli_close($conn);
             font-size: 0.9rem;
             box-sizing: border-box;
         }
+
+        .menu-section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.45rem;
+        }
         
         .quantity-group {
             border: 1px solid var(--border);
-            border-radius: 6px;
-            max-height: 200px;
-            overflow-y: auto;
+            border-radius: 10px;
+            max-height: none;
+            overflow: visible;
             padding: 0.5rem;
+            background: #fbfcff;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.5rem;
         }
         .quantity-item { 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            padding: 0.75rem 0; 
-            border-bottom: 1px solid #f0f0f0; 
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.55rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #ffffff;
         }
-        .quantity-item:last-child { border-bottom: none; }
+
+        .quantity-item label {
+            margin: 0;
+            font-weight: 500;
+            line-height: 1.25;
+        }
+
+        .quantity-item .item-detail-trigger {
+            font-size: 0.88rem;
+            line-height: 1.2;
+            text-decoration: none;
+            display: block;
+            width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .quantity-item .item-detail-trigger:hover {
+            text-decoration: underline;
+        }
         
         .quantity-controls {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.45rem;
+            justify-content: center;
         }
         
         .qty-btn {
             width: 30px;
             height: 30px;
-            border: 2px solid var(--border);
+            border: 1px solid var(--border);
             background: white;
             color: var(--text-main);
             border-radius: 8px;
             cursor: pointer;
-            font-size: 1.2rem;
-            font-weight: bold;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
             user-select: none;
         }
+
+        .qty-minus {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+
+        .qty-plus {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+        }
         
         .qty-btn:hover {
             background: var(--primary);
             color: white;
             border-color: var(--primary);
-            transform: scale(1.05);
+            transform: scale(1.02);
         }
         
         .qty-btn:active {
@@ -443,62 +517,81 @@ mysqli_close($conn);
             background: #ef4444;
             border-color: #ef4444;
         }
+
+        .qty-plus:hover {
+            background: #2563eb;
+            border-color: #2563eb;
+        }
         
         .quantity-input { 
-            width: 30px; 
-            height: 10px;
-            padding: 0.5rem; 
-            border: 2px solid var(--border); 
-            border-radius: 6px; 
+            width: 34px; 
+            height: 30px;
+            padding: 0; 
+            border: 1px solid var(--border); 
+            border-radius: 8px; 
             text-align: center; 
-            font-size: 0.8rem;
-            font-weight: 600;
-            background: #f9fafb;
+            font-size: 0.9rem;
+            font-weight: 700;
+            line-height: 30px;
+            background: #ffffff;
             color: var(--text-main);
+            box-sizing: border-box;
+            appearance: textfield;
+            -moz-appearance: textfield;
+        }
+
+        .quantity-input::-webkit-outer-spin-button,
+        .quantity-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
         }
 
         .btn {
             background-color: var(--primary);
             color: white;
             border: none;
-            padding: 0.75rem 1rem;
-            border-radius: 6px;
+            padding: 0.85rem 1rem;
+            border-radius: 10px;
             cursor: pointer;
             width: 100%;
             font-size: 1rem;
-            font-weight: 500;
-            transition: opacity 0.2s;
+            font-weight: 600;
+            transition: opacity 0.2s, transform 0.15s;
         }
-        .btn:hover { opacity: 0.9; }
+        .btn:hover { opacity: 0.95; transform: translateY(-1px); }
         .btn-danger { background-color: #ef4444; margin-top: 1rem; }
 
         /* --- 6. Right Column: Order List --- */
         .col-list {
-            flex-grow: 1;
-            padding: 2rem;
-            overflow-y: auto;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 12px 28px rgba(31, 41, 55, 0.08);
+            padding: 1.25rem;
+            overflow: visible;
+            max-height: none;
         }
 
         .order-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 1rem;
         }
 
         .order-card {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 1.25rem;
             cursor: pointer;
-            transition: transform 0.1s, box-shadow 0.1s;
+            transition: transform 0.14s, box-shadow 0.14s;
             text-decoration: none;
             color: inherit;
             display: block;
         }
         .order-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            box-shadow: 0 12px 16px rgba(31, 41, 55, 0.08);
             border-color: var(--primary);
         }
 
@@ -514,6 +607,8 @@ mysqli_close($conn);
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
         }
 
         .view-toggle {
@@ -524,9 +619,9 @@ mysqli_close($conn);
         .view-btn {
             padding: 0.5rem 1rem;
             border: 1px solid var(--border);
-            background: white;
+            background: #f8fafc;
             color: var(--text-sub);
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 0.9rem;
             transition: all 0.2s;
@@ -637,7 +732,7 @@ mysqli_close($conn);
             border-top: 1px solid var(--border);
             display: flex; justify-content: space-between;
         }
-        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-sub); }
+        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-sub); text-decoration: none; }
 
         .item-row {
             background: #f9fafb;
@@ -650,6 +745,123 @@ mysqli_close($conn);
         .row-split { display: flex; gap: 1rem; }
         .row-split > div { flex: 1; }
 
+        .item-detail-trigger {
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0;
+            color: inherit;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .item-detail-trigger:hover {
+            color: var(--primary);
+        }
+
+        .detail-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1100;
+        }
+
+        .detail-modal-overlay.open {
+            display: flex;
+        }
+
+        .detail-modal-content {
+            background: var(--surface);
+            width: 520px;
+            max-width: 90%;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .detail-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9fafb;
+        }
+
+        .detail-body {
+            padding: 1rem 1.25rem 1.25rem;
+        }
+
+        .detail-type {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.5rem;
+        }
+
+        .detail-section {
+            margin-bottom: 0.85rem;
+        }
+
+        .detail-section h4 {
+            margin: 0 0 0.35rem 0;
+            font-size: 0.9rem;
+        }
+
+        .detail-section p {
+            margin: 0;
+            color: var(--text-main);
+            line-height: 1.45;
+        }
+
+        @media (max-width: 1100px) {
+            .cashier-shell {
+                grid-template-columns: 1fr;
+                margin-top: 4.75rem;
+            }
+
+            .col-create,
+            .col-list {
+                max-height: none;
+                position: static;
+            }
+
+            .page-nav {
+                top: 0.75rem;
+                left: 0.75rem;
+            }
+        }
+
+        @media (max-width: 1600px) {
+            .order-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 1350px) {
+            .order-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 800px) {
+            .order-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quantity-group {
+                grid-template-columns: 1fr;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -657,25 +869,42 @@ mysqli_close($conn);
     <nav class="page-nav">
         <a href="<?= WWW_ROOT ?>/index.php" class="home-btn">
             <span class="home-icon">🏠</span>
-            Home
+            Hem
         </a>
     </nav>
 
+    <main class="cashier-shell">
+
     <section class="col-create">
-        <h2>New Order</h2>
+        <p class="panel-kicker">Kassaarbetsyta</p>
+        <h2>Ny beställning</h2>
+        <p class="panel-subtext">Skapa beställningar snabbt, tryck på artikelnamn för detaljer och skicka vidare till stationerna.</p>
         <form action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="POST">
             <?= csrf_token_input() ?>
             <div class="form-group">
-                <label>Customer Name</label>
-                <input type="text" name="customer_name" required placeholder="e.g. Fillidutten">
+                <label>Kundnamn</label>
+                <input type="text" name="customer_name" required placeholder="t.ex. Fillidutten">
             </div>
 
             <div class="form-group">
-                <label>Milkshakes</label>
+                <div class="menu-section-header">
+                    <label>Milkshakes</label>
+                </div>
                 <div class="quantity-group">
                     <?php foreach($inv_milkshakes as $m): ?>
                         <div class="quantity-item">
-                            <label for="m_<?= $m['milkshake_id'] ?>" style="margin:0; font-weight:400; flex:1;"><?= htmlspecialchars($m['name']) ?></label>
+                            <label for="m_<?= $m['milkshake_id'] ?>">
+                                <button
+                                    type="button"
+                                    class="item-detail-trigger"
+                                    data-item-name="<?= htmlspecialchars($m['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                    data-item-type="Milkshake"
+                                    data-item-description="<?= htmlspecialchars($m['description'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-item-ingredients="<?= htmlspecialchars($m['ingredients'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                >
+                                    <?= htmlspecialchars($m['name']) ?>
+                                </button>
+                            </label>
                             <div class="quantity-controls">
                                 <button type="button" class="qty-btn qty-minus" onclick="adjustQuantity('m_<?= $m['milkshake_id'] ?>', -1)">−</button>
                                 <input type="number" name="milkshakes[<?= $m['milkshake_id'] ?>]" value="0" min="0" id="m_<?= $m['milkshake_id'] ?>" class="quantity-input" readonly>
@@ -687,11 +916,24 @@ mysqli_close($conn);
             </div>
 
             <div class="form-group">
-                <label>Toasts</label>
+                <div class="menu-section-header">
+                    <label>Toast</label>
+                </div>
                 <div class="quantity-group">
                     <?php foreach($inv_toasts as $t): ?>
                         <div class="quantity-item">
-                            <label for="t_<?= $t['toast_id'] ?>" style="margin:0; font-weight:400; flex:1;"><?= htmlspecialchars($t['name']) ?></label>
+                            <label for="t_<?= $t['toast_id'] ?>">
+                                <button
+                                    type="button"
+                                    class="item-detail-trigger"
+                                    data-item-name="<?= htmlspecialchars($t['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                    data-item-type="Toast"
+                                    data-item-description="<?= htmlspecialchars($t['description'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-item-ingredients="<?= htmlspecialchars($t['ingredients'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                >
+                                    <?= htmlspecialchars($t['name']) ?>
+                                </button>
+                            </label>
                             <div class="quantity-controls">
                                 <button type="button" class="qty-btn qty-minus" onclick="adjustQuantity('t_<?= $t['toast_id'] ?>', -1)">−</button>
                                 <input type="number" name="toasts[<?= $t['toast_id'] ?>]" value="0" min="0" id="t_<?= $t['toast_id'] ?>" class="quantity-input" readonly>
@@ -703,20 +945,23 @@ mysqli_close($conn);
             </div>
 
             <div class="form-group">
-                <label>General Order Comment</label>
-                <textarea name="order_comment" rows="3" placeholder="General notes..."></textarea>
+                <label>Allmän kommentar</label>
+                <textarea name="order_comment" rows="3" placeholder="Allmänna anteckningar..."></textarea>
             </div>
 
-            <button type="submit" name="create_order" class="btn">Create Order</button>
+            <button type="submit" name="create_order" class="btn">Skapa beställning</button>
         </form>
     </section>
 
     <section class="col-list">
         <div class="section-header">
-            <h2>Current Orders</h2>
+            <div>
+                <p class="panel-kicker" style="margin-bottom:0.2rem;">Aktiv kö</p>
+                <h2 style="margin-bottom:0;">Pågående beställningar</h2>
+            </div>
             <div class="view-toggle">
-                <button id="card-view-btn" class="view-btn active" onclick="setView('card')">Card View</button>
-                <button id="list-view-btn" class="view-btn" onclick="setView('list')">List View</button>
+                <button id="card-view-btn" class="view-btn active" onclick="setView('card')">Kortvy</button>
+                <button id="list-view-btn" class="view-btn" onclick="setView('list')">Listvy</button>
             </div>
         </div>
         <div id="order-container" class="order-grid">
@@ -726,19 +971,21 @@ mysqli_close($conn);
             ?>
                 <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
                     <div class="card-header">
-                        <span class="order-number">Order: #<?= htmlspecialchars($order['pub_order_number'] ?? $order['order_number'] ?? $order['order_id']) ?></span>
+                        <span class="order-number">Beställning: #<?= htmlspecialchars($order['pub_order_number'] ?? $order['order_number'] ?? $order['order_id']) ?></span>
                         <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
                     </div>
                     <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
                     <div class="order-time"><?= date("M j, g:i a", strtotime($order['created_at'])) ?></div>
                     <hr style="border: 0; border-top: 1px solid var(--border); margin: 0.5rem 0;">
                     <div class="order-summary">
-                        <?= $order['summary'] ? htmlspecialchars(substr($order['summary'], 0, 50)) . (strlen($order['summary']) > 50 ? '...' : '') : 'No items' ?>
+                        <?= $order['summary'] ? htmlspecialchars(substr($order['summary'], 0, 50)) . (strlen($order['summary']) > 50 ? '...' : '') : 'Inga artiklar' ?>
                     </div>
                 </a>
             <?php endforeach; ?>
         </div>
     </section>
+
+    </main>
 
     <?php if ($modal_order): ?>
     <div class="modal-overlay">
@@ -758,39 +1005,51 @@ mysqli_close($conn);
                 <div class="modal-body">
                     <div class="row-split" style="margin-bottom: 2rem;">
                         <div class="form-group">
-                            <label>Order Status</label>
+                            <label>Beställningsstatus</label>
                             <select name="main_status">
                                 <?php $s = $modal_order['status']; ?>
-                                <option value="Pending" <?= $s=='Pending'?'selected':'' ?>>Pending</option>
-                                <option value="In Progress" <?= $s=='In Progress'?'selected':'' ?>>In Progress</option>
-                                <option value="Done" <?= $s=='Done'?'selected':'' ?>>Done</option>
-                                <option value="Delivered" <?= $s=='Delivered'?'selected':'' ?>>Delivered</option>
+                                <option value="Pending" <?= $s=='Pending'?'selected':'' ?>>Väntar</option>
+                                <option value="In Progress" <?= $s=='In Progress'?'selected':'' ?>>Pågår</option>
+                                <option value="Done" <?= $s=='Done'?'selected':'' ?>>Klar</option>
+                                <option value="Delivered" <?= $s=='Delivered'?'selected':'' ?>>Levererad</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Main Comment</label>
+                            <label>Huvudkommentar</label>
                             <input type="text" name="main_comment" value="<?= htmlspecialchars($modal_order['order_comment']) ?>">
                         </div>
                     </div>
 
-                    <h3 style="border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">Items</h3>
+                    <h3 style="border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">Artiklar</h3>
 
                     <?php foreach($modal_items_m as $item): ?>
                         <div class="item-row">
-                            <h4>🥤 <?= htmlspecialchars($item['name']) ?></h4>
+                            <h4>
+                                🥤
+                                <button
+                                    type="button"
+                                    class="item-detail-trigger"
+                                    data-item-name="<?= htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                    data-item-type="Milkshake"
+                                    data-item-description="<?= htmlspecialchars($item['description'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-item-ingredients="<?= htmlspecialchars($item['ingredients'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                >
+                                    <?= htmlspecialchars($item['name']) ?>
+                                </button>
+                            </h4>
                             <div class="row-split">
                                 <div>
                                     <label>Status</label>
                                     <select name="om_status[<?= $item['order_milkshake_id'] ?>]" style="padding:0.25rem;">
-                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Pending</option>
-                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>In Progress</option>
-                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Done</option>
-                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Delivered</option>
+                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Väntar</option>
+                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>Pågår</option>
+                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Klar</option>
+                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Levererad</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label>Note</label>
-                                    <input type="text" name="om_comment[<?= $item['order_milkshake_id'] ?>]" value="<?= htmlspecialchars($item['comment']) ?>" placeholder="Add note...">
+                                    <label>Notering</label>
+                                    <input type="text" name="om_comment[<?= $item['order_milkshake_id'] ?>]" value="<?= htmlspecialchars($item['comment']) ?>" placeholder="Lägg till notering...">
                                 </div>
                             </div>
                         </div>
@@ -798,20 +1057,32 @@ mysqli_close($conn);
 
                     <?php foreach($modal_items_t as $item): ?>
                         <div class="item-row">
-                            <h4>🥪 <?= htmlspecialchars($item['name']) ?></h4>
+                            <h4>
+                                🥪
+                                <button
+                                    type="button"
+                                    class="item-detail-trigger"
+                                    data-item-name="<?= htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                    data-item-type="Toast"
+                                    data-item-description="<?= htmlspecialchars($item['description'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-item-ingredients="<?= htmlspecialchars($item['ingredients'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                >
+                                    <?= htmlspecialchars($item['name']) ?>
+                                </button>
+                            </h4>
                             <div class="row-split">
                                 <div>
                                     <label>Status</label>
                                     <select name="ot_status[<?= $item['order_toast_id'] ?>]" style="padding:0.25rem;">
-                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Pending</option>
-                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>In Progress</option>
-                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Done</option>
-                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Delivered</option>
+                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Väntar</option>
+                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>Pågår</option>
+                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Klar</option>
+                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Levererad</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label>Note</label>
-                                    <input type="text" name="ot_comment[<?= $item['order_toast_id'] ?>]" value="<?= htmlspecialchars($item['comment']) ?>" placeholder="Add note...">
+                                    <label>Notering</label>
+                                    <input type="text" name="ot_comment[<?= $item['order_toast_id'] ?>]" value="<?= htmlspecialchars($item['comment']) ?>" placeholder="Lägg till notering...">
                                 </div>
                             </div>
                         </div>
@@ -819,15 +1090,54 @@ mysqli_close($conn);
                 </div>
 
                 <div class="modal-footer">
-                    <button type="submit" name="delete_order" class="btn btn-danger" style="width:auto; margin:0;" onclick="return confirm('Delete this entire order?');">Delete Order</button>
-                    <button type="submit" name="update_order" class="btn" style="width:auto; margin:0;">Save Changes</button>
+                    <button type="submit" name="delete_order" class="btn btn-danger" style="width:auto; margin:0;" onclick="return confirm('Radera hela beställningen?');">Radera beställning</button>
+                    <button type="submit" name="update_order" class="btn" style="width:auto; margin:0;">Spara ändringar</button>
                 </div>
             </form>
         </div>
     </div>
     <?php endif; ?>
+
+    <div id="item-detail-modal" class="detail-modal-overlay" aria-hidden="true">
+        <div class="detail-modal-content" role="dialog" aria-modal="true" aria-labelledby="detail-item-name">
+            <div class="detail-header">
+                <h3 id="detail-item-name" style="margin:0;"></h3>
+                <button type="button" id="item-detail-close" class="close-btn" aria-label="Stäng artikeldetaljer">&times;</button>
+            </div>
+            <div class="detail-body">
+                <div id="detail-item-type" class="detail-type"></div>
+
+                <div class="detail-section">
+                    <h4>Beskrivning</h4>
+                    <p id="detail-item-description">Ingen beskrivning tillgänglig.</p>
+                </div>
+
+                <div class="detail-section">
+                    <h4>Ingredienser</h4>
+                    <p id="detail-item-ingredients">Inga ingredienser angivna.</p>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <script>
+        function openItemDetail(data) {
+            const modal = document.getElementById('item-detail-modal');
+            document.getElementById('detail-item-name').textContent = data.name || 'Artikel';
+            document.getElementById('detail-item-type').textContent = data.type || 'Menyartikel';
+            document.getElementById('detail-item-description').textContent = data.description || 'Ingen beskrivning tillgänglig.';
+            document.getElementById('detail-item-ingredients').textContent = data.ingredients || 'Inga ingredienser angivna.';
+
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeItemDetail() {
+            const modal = document.getElementById('item-detail-modal');
+            modal.classList.remove('open');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
         function setView(viewType) {
             const container = document.getElementById('order-container');
             const cardBtn = document.getElementById('card-view-btn');
@@ -861,6 +1171,49 @@ mysqli_close($conn);
         document.addEventListener('DOMContentLoaded', function() {
             const savedView = localStorage.getItem('cashierViewPreference') || 'card';
             setView(savedView);
+
+            document.addEventListener('click', function(event) {
+                const trigger = event.target.closest('.item-detail-trigger');
+                if (!trigger) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                openItemDetail({
+                    name: trigger.dataset.itemName || '',
+                    type: trigger.dataset.itemType || '',
+                    description: trigger.dataset.itemDescription || '',
+                    ingredients: trigger.dataset.itemIngredients || ''
+                });
+            });
+
+            const detailModal = document.getElementById('item-detail-modal');
+            const closeButton = document.getElementById('item-detail-close');
+            const orderModal = document.querySelector('.modal-overlay');
+            const orderModalClose = orderModal ? orderModal.querySelector('.close-btn') : null;
+
+            closeButton.addEventListener('click', closeItemDetail);
+            detailModal.addEventListener('click', function(event) {
+                if (event.target === detailModal) {
+                    closeItemDetail();
+                }
+            });
+
+            document.addEventListener('keydown', function(event) {
+                if (event.key !== 'Escape') {
+                    return;
+                }
+
+                if (detailModal.classList.contains('open')) {
+                    closeItemDetail();
+                    return;
+                }
+
+                if (orderModalClose) {
+                    window.location.href = orderModalClose.getAttribute('href');
+                }
+            });
         });
     </script>
     

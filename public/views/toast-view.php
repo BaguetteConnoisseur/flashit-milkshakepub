@@ -240,6 +240,7 @@ if (isset($_GET['fetch_view'])) {
         :root {
             /* Light Mode Palette */
             --bg: #f3f4f6;          /* Light gray background */
+            --bg-light: #f3f4f6;
             --card-bg: #ffffff;     /* White cards */
             --text-main: #1f2937;   /* Dark gray text */
             --text-sub: #6b7280;    /* Lighter gray text */
@@ -259,9 +260,9 @@ if (isset($_GET['fetch_view'])) {
         }
 
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; 
             margin: 0; 
-            background-color: var(--bg); 
+            background: linear-gradient(180deg, #eef2ff 0%, var(--bg-light) 30%, #eef2ff 100%); 
             color: var(--text-main); 
             padding: 1rem; 
         }

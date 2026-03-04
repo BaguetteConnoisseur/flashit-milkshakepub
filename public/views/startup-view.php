@@ -91,6 +91,7 @@ mysqli_close($conn);
         /* --- 5. Layout & Theme --- */
         :root {
             --bg: #f3f4f6;
+            --bg-light: #f3f4f6;
             --surface: #ffffff;
             --border: #e5e7eb;
             --text-main: #1f2937;
@@ -104,9 +105,9 @@ mysqli_close($conn);
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
-            background: var(--bg);
+            background: linear-gradient(180deg, #eef2ff 0%, var(--bg-light) 30%, #eef2ff 100%);
             color: var(--text-main);
         }
 

@@ -168,15 +168,15 @@ function getOrders($conn, $activePubId) {
     $types = str_repeat('i', count($order_ids) + 1);
 
     // 2. Fetch Milkshakes for these orders
-    $stmt = mysqli_prepare($conn, "SELECT om.*, m.name FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id JOIN orders o ON o.order_id = om.order_id WHERE om.order_id IN ($placeholders) AND o.event_id = ?");
-    mysqli_stmt_bind_param($stmt, $types, ...$order_ids, $activePubId);
+    $stmt = mysqli_prepare($conn, "SELECT om.*, m.name FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = ? AND om.order_id IN ($placeholders)");
+    mysqli_stmt_bind_param($stmt, $types, $activePubId, ...$order_ids);
     mysqli_stmt_execute($stmt);
     $milkshakes = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
     mysqli_stmt_close($stmt);
 
     // 3. Fetch Toasts for these orders
-    $stmt = mysqli_prepare($conn, "SELECT ot.*, t.name FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id JOIN orders o ON o.order_id = ot.order_id WHERE ot.order_id IN ($placeholders) AND o.event_id = ?");
-    mysqli_stmt_bind_param($stmt, $types, ...$order_ids, $activePubId);
+    $stmt = mysqli_prepare($conn, "SELECT ot.*, t.name FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = ? AND ot.order_id IN ($placeholders)");
+    mysqli_stmt_bind_param($stmt, $types, $activePubId, ...$order_ids);
     mysqli_stmt_execute($stmt);
     $toasts = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
     mysqli_stmt_close($stmt);
@@ -358,6 +358,7 @@ if (isset($_GET['fetch_view'])) {
         /* --- 5. Layout & Theme --- */
         :root {
             --bg: #f3f4f6; 
+            --bg-light: #f3f4f6;
             --card-bg: #ffffff;
             --text-main: #1f2937;
             --text-sub: #6b7280;
@@ -373,7 +374,7 @@ if (isset($_GET['fetch_view'])) {
             --note-order-text: #1e40af;
         }
 
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: var(--bg); color: var(--text-main); padding: 1rem; }
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; background: linear-gradient(180deg, #eef2ff 0%, var(--bg-light) 30%, #eef2ff 100%); color: var(--text-main); padding: 1rem; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 1rem; }
         
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem; }

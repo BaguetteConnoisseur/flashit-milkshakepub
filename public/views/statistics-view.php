@@ -167,6 +167,52 @@ while (mysqli_stmt_fetch($stmtToastSales)) {
 }
 mysqli_stmt_close($stmtToastSales);
 
+$eventProductBreakdown = [];
+$eventBreakdownResult = mysqli_query(
+    $conn,
+    "SELECT
+        b.event_id,
+        b.product_type,
+        b.product_name,
+        b.sold
+     FROM (
+        SELECT
+            o.event_id,
+            'Milkshake' AS product_type,
+            m.name AS product_name,
+            COUNT(*) AS sold
+        FROM order_milkshakes om
+        JOIN orders o ON o.order_id = om.order_id
+        JOIN milkshakes m ON m.milkshake_id = om.milkshake_id
+        GROUP BY o.event_id, m.milkshake_id, m.name
+
+        UNION ALL
+
+        SELECT
+            o.event_id,
+            'Toast' AS product_type,
+            t.name AS product_name,
+            COUNT(*) AS sold
+        FROM order_toasts ot
+        JOIN orders o ON o.order_id = ot.order_id
+        JOIN toasts t ON t.toast_id = ot.toast_id
+        GROUP BY o.event_id, t.toast_id, t.name
+     ) b
+     ORDER BY b.event_id, b.sold DESC, b.product_name ASC"
+);
+
+if ($eventBreakdownResult) {
+    while ($row = mysqli_fetch_assoc($eventBreakdownResult)) {
+        $eventId = (int) $row['event_id'];
+        $eventProductBreakdown[$eventId][] = [
+            'type' => $row['product_type'],
+            'name' => $row['product_name'],
+            'sold' => (int) $row['sold'],
+        ];
+    }
+    mysqli_free_result($eventBreakdownResult);
+}
+
 mysqli_close($conn);
 ?>
 
@@ -182,6 +228,7 @@ mysqli_close($conn);
         /* --- 4. Layout & Theme --- */
         :root {
             --bg: #f3f4f6;
+            --bg-light: #f3f4f6;
             --surface: #ffffff;
             --border: #e5e7eb;
             --text-main: #1f2937;
@@ -195,9 +242,9 @@ mysqli_close($conn);
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
-            background: var(--bg);
+            background: linear-gradient(180deg, #eef2ff 0%, var(--bg-light) 30%, #eef2ff 100%);
             color: var(--text-main);
         }
 
@@ -367,6 +414,84 @@ mysqli_close($conn);
             font-weight: 700;
         }
 
+        .event-breakdown {
+            margin-top: 0.45rem;
+        }
+
+        .event-breakdown summary {
+            cursor: pointer;
+            color: var(--primary);
+            font-size: 0.84rem;
+            font-weight: 600;
+            list-style: none;
+        }
+
+        .event-breakdown summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .event-breakdown summary::before {
+            content: '▸';
+            display: inline-block;
+            margin-right: 0.35rem;
+            transition: transform 0.15s ease;
+        }
+
+        .event-breakdown[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        .breakdown-list {
+            margin: 0.5rem 0 0;
+            padding-left: 1rem;
+        }
+
+        .breakdown-list li {
+            margin: 0.2rem 0;
+            font-size: 0.85rem;
+        }
+
+        .breakdown-type {
+            color: var(--text-sub);
+            margin-right: 0.35rem;
+        }
+
+        .expand-list {
+            margin-top: 0.6rem;
+        }
+
+        .expand-list summary {
+            display: inline-block;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.35rem 0.6rem;
+            font-size: 0.84rem;
+            font-weight: 600;
+            color: var(--primary);
+            background: #eff6ff;
+            list-style: none;
+        }
+
+        .expand-list summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .expand-list summary::before {
+            content: '▸';
+            display: inline-block;
+            margin-right: 0.35rem;
+            transition: transform 0.15s ease;
+        }
+
+        .expand-list[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        .expand-list[open] summary {
+            margin-bottom: 0.45rem;
+        }
+
         @media (max-width: 900px) {
             .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .grid-2 { grid-template-columns: 1fr; }
@@ -410,11 +535,26 @@ mysqli_close($conn);
                 <?php if (empty($milkshakeSales)): ?>
                     <p class="empty">Ingen milkshake-försäljning ännu.</p>
                 <?php else: ?>
+                    <?php
+                        $visibleMilkshakeSales = array_slice($milkshakeSales, 0, 7);
+                        $hiddenMilkshakeSales = array_slice($milkshakeSales, 7);
+                    ?>
                     <ol class="list">
-                        <?php foreach ($milkshakeSales as $row): ?>
+                        <?php foreach ($visibleMilkshakeSales as $row): ?>
                             <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_active'] ?> pub<?= (int) $row['num_pubs_active'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
+
+                    <?php if (!empty($hiddenMilkshakeSales)): ?>
+                        <details class="expand-list">
+                            <summary>Visa fler milkshakes (<?= count($hiddenMilkshakeSales) ?>)</summary>
+                            <ol class="list" start="8">
+                                <?php foreach ($hiddenMilkshakeSales as $row): ?>
+                                    <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_active'] ?> pub<?= (int) $row['num_pubs_active'] !== 1 ? 'ar' : '' ?>)</span></li>
+                                <?php endforeach; ?>
+                            </ol>
+                        </details>
+                    <?php endif; ?>
                 <?php endif; ?>
             </section>
 
@@ -450,12 +590,30 @@ mysqli_close($conn);
                     </thead>
                     <tbody>
                         <?php foreach ($allPubs as $pub): ?>
+                            <?php $eventId = (int) $pub['event_id']; ?>
+                            <?php $breakdownItems = $eventProductBreakdown[$eventId] ?? []; ?>
                             <tr>
                                 <td>
                                     <?= htmlspecialchars($pub['event_name']) ?>
                                     <?php if ((int) $pub['is_active'] === 1): ?>
                                         <span class="badge-active">AKTIV</span>
                                     <?php endif; ?>
+
+                                    <details class="event-breakdown">
+                                        <summary>Visa sålda produkter</summary>
+                                        <?php if (empty($breakdownItems)): ?>
+                                            <p class="empty" style="margin-top:0.4rem;">Inga produkter sålda i detta event.</p>
+                                        <?php else: ?>
+                                            <ul class="breakdown-list">
+                                                <?php foreach ($breakdownItems as $item): ?>
+                                                    <li>
+                                                        <span class="breakdown-type"><?= htmlspecialchars($item['type']) ?>:</span>
+                                                        <?= htmlspecialchars($item['name']) ?> — <strong><?= (int) $item['sold'] ?></strong>
+                                                    </li>
+                                                <?php endforeach; ?>
+                                            </ul>
+                                        <?php endif; ?>
+                                    </details>
                                 </td>
                                 <td><?= htmlspecialchars($pub['started_at']) ?></td>
                                 <td><?= htmlspecialchars($pub['ended_at'] ?? '—') ?></td>
