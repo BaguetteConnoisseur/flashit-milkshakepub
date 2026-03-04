@@ -2,24 +2,7 @@
 require_once("../private/initalize.php");
 
 // Handle logout and login actions BEFORE any output
-$showError = false;
-
-if (isset($_POST['login'])) {
-    $username = $_POST['username'] ?? '';
-    $password = $_POST['password'] ?? '';
-
-    $admin_user = getenv('ADMIN_USERNAME') ?: '';
-    $admin_pass = getenv('ADMIN_PASSWORD') ?: '';
-
-    if (!empty($admin_user) && !empty($admin_pass) && $username === $admin_user && $password === $admin_pass) {
-        $_SESSION['absolute-username'] = $username;
-        $_SESSION['absolute-password'] = $password;
-        header("Location: " . $_SERVER['PHP_SELF']);
-        exit;
-    } else {
-        $showError = true;
-    }
-}
+$showError = handle_login_post();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -316,7 +299,8 @@ if (isset($_POST['login'])) {
                     </div>
                 <?php endif; ?>
                 
-                <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
+                <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+                    <?= csrf_token_input() ?>
                     <div class="form-group">
                         <input type="text" name="username" placeholder="Användarnamn" required autocomplete="username">
                     </div>
@@ -334,7 +318,8 @@ if (isset($_POST['login'])) {
             </div>
         <?php else: ?>
             <div class="logout-wrapper">
-                <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>" style="display: inline;">
+                <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" style="display: inline;">
+                    <?= csrf_token_input() ?>
                     <button type="submit" name="logout-account" class="btn-logout">
                         Logga ut
                     </button>
@@ -345,7 +330,7 @@ if (isset($_POST['login'])) {
                 <a href="views/startup-view.php" class="view-card startup">
                     <div class="view-card-icon">🚀</div>
                     <h3>Uppstart</h3>
-                    <p>Starta ny pub och gå direkt till lager eller kassör i ett steg.</p>
+                    <p>Starta ny pub och gå direkt till lagervy eller kassörvy i ett steg.</p>
                 </a>
 
                 <a href="views/cashier-view.php" class="view-card cashier">

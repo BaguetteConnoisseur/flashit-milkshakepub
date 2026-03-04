@@ -69,10 +69,11 @@ if (!function_exists('ensure_pub_tracking')) {
 
         if (!$activePubRow) {
             $defaultPubName = 'Pub ' . date('Y-m-d');
-            $safeDefaultPub = mysqli_real_escape_string($conn, $defaultPubName);
-            mysqli_query($conn, "INSERT INTO sales_events (event_name, is_active) VALUES ('$safeDefaultPub', 1)");
-
+            $stmt = mysqli_prepare($conn, "INSERT INTO sales_events (event_name, is_active) VALUES (?, 1)");
+            mysqli_stmt_bind_param($stmt, 's', $defaultPubName);
+            mysqli_stmt_execute($stmt);
             $activePubId = (int) mysqli_insert_id($conn);
+            mysqli_stmt_close($stmt);
             $activePubName = $defaultPubName;
         } else {
             $activePubId = (int) $activePubRow['event_id'];

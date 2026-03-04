@@ -5,17 +5,10 @@ require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
-if (!$loggedIn) {
-    header("Location: " . WWW_ROOT . "/index.php");
-    exit;
-}
+require_login();
 
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
-}
-
-function escape($conn, $string) {
-    return mysqli_real_escape_string($conn, $string);
 }
 
 /* 2. Ensure Pub Schema Context */

@@ -5,20 +5,13 @@ require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
-if (!$loggedIn) {
-    header("Location: " . WWW_ROOT . "/index.php");
-    exit;
-}
+require_login();
 
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
 
 /* 2. Helpers */
-function escape($conn, $string) {
-    return mysqli_real_escape_string($conn, $string);
-}
-
 $pubTracking = ensure_pub_tracking($conn);
 $activePubId = (int) $pubTracking['active_pub_id'];
 $activePubName = $pubTracking['active_pub_name'];
@@ -26,23 +19,25 @@ ensure_pub_menu_links($conn, $activePubId);
 
 /* 3. Open Order Guard */
 function get_open_order_count($conn, $activePubId) {
-    $query = "
-        SELECT COUNT(*) AS open_count
-        FROM orders
-        WHERE event_id = $activePubId
-          AND status <> 'Delivered'
-    ";
-    $result = mysqli_query($conn, $query);
+    $stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS open_count FROM orders WHERE event_id = ? AND status <> 'Delivered'");
+    mysqli_stmt_bind_param($stmt, 'i', $activePubId);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
     $row = $result ? mysqli_fetch_assoc($result) : ['open_count' => 0];
+    mysqli_stmt_close($stmt);
 
     return (int) ($row['open_count'] ?? 0);
 }
 
 $feedback = null;
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf_token();
+}
+
 /* 4. Actions (Start New Pub) */
 if (isset($_POST['start_new_pub'])) {
-    $pubName = trim($_POST['new_pub_name'] ?? '');
+    $pubName = trim($_POST['new_msp_name'] ?? '');
 
     if ($pubName === '') {
         $feedback = ['type' => 'error', 'message' => 'MSP namn är obligatoriskt.'];
@@ -58,11 +53,16 @@ if (isset($_POST['start_new_pub'])) {
             mysqli_begin_transaction($conn);
 
             try {
-                mysqli_query($conn, "UPDATE sales_events SET is_active = 0, ended_at = NOW() WHERE is_active = 1");
-                $safePubName = escape($conn, $pubName);
-                mysqli_query($conn, "INSERT INTO sales_events (event_name, is_active) VALUES ('$safePubName', 1)");
-
+                $stmt = mysqli_prepare($conn, "UPDATE sales_events SET is_active = 0, ended_at = NOW() WHERE is_active = 1");
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+                
+                $stmt = mysqli_prepare($conn, "INSERT INTO sales_events (event_name, is_active) VALUES (?, 1)");
+                mysqli_stmt_bind_param($stmt, 's', $pubName);
+                mysqli_stmt_execute($stmt);
                 $activePubId = (int) mysqli_insert_id($conn);
+                mysqli_stmt_close($stmt);
+                
                 ensure_pub_menu_links($conn, $activePubId);
 
                 mysqli_commit($conn);
@@ -227,19 +227,20 @@ mysqli_close($conn);
 
         <!-- Steg 1: Starta Event -->
         <section class="card">
-            <h2>📋 Steg 1: Starta ett nytt event</h2>
+            <h2>📋 Steg 1: Starta ett nytt MSP event</h2>
             <p style="color: var(--text-sub); margin-bottom: 1rem;">Börja med att skapa ett nytt pub-event när ni ska sälja. Detta håller ordning på alla beställningar för kvällen.</p>
-            <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
+            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+                <?= csrf_token_input() ?>
                 <div class="row">
-                    <input type="text" name="new_pub_name" placeholder="Namn på eventet (t.ex. Pub 2026-03-03)" required>
-                    <button type="submit" name="start_new_pub" class="btn-primary">Starta event</button>
+                    <input type="text" name="new_msp_name" placeholder="Namn på MSP (t.ex. MSP LP4 2026)" required>
+                    <button type="submit" name="start_new_pub" class="btn-primary">Starta MSP</button>
                 </div>
             </form>
         </section>
 
         <!-- Steg 2: Hantera Lager -->
         <section class="card">
-            <h2>🏪 Steg 2: Hantera lagret</h2>
+            <h2>🏪 Steg 2: Hantera smaker</h2>
             <p style="color: var(--text-sub); margin-bottom: 1rem;">Aktivera de milkshakes och toasts ni vill sälja idag. Här kan ni också lägga till nya smaker och redigera befintliga.</p>
             <div class="quick-links">
                 <a class="link-btn" href="../admin_action/inventory_manager.php">Öppna Lagerhanterare</a>

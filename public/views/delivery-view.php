@@ -5,10 +5,7 @@ require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
-if (!$loggedIn) {
-    header("Location: " . WWW_ROOT . "/index.php");
-    exit;
-}
+require_login();
 
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
@@ -31,24 +28,37 @@ function localize_status_label($status) {
 
 /* --- 2. Actions (POST) --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
+    require_csrf_token();
+
     // 1. Deliver Entire Order
     if (isset($_POST['deliver_all'])) {
         $order_id = intval($_POST['order_id']);
 
         mysqli_begin_transaction($conn);
         try {
-            if (!mysqli_query($conn, "UPDATE orders SET status = 'Delivered' WHERE order_id = $order_id AND event_id = $activePubId")) {
+            $stmt = mysqli_prepare($conn, "UPDATE orders SET status = 'Delivered' WHERE order_id = ? AND event_id = ?");
+            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
+            if (!mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
                 throw new Exception(mysqli_error($conn));
             }
+            mysqli_stmt_close($stmt);
 
-            if (!mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_id = $order_id AND o.event_id = $activePubId")) {
+            $stmt = mysqli_prepare($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_id = ? AND o.event_id = ?");
+            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
+            if (!mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
                 throw new Exception(mysqli_error($conn));
             }
+            mysqli_stmt_close($stmt);
 
-            if (!mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_id = $order_id AND o.event_id = $activePubId")) {
+            $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_id = ? AND o.event_id = ?");
+            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
+            if (!mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
                 throw new Exception(mysqli_error($conn));
             }
+            mysqli_stmt_close($stmt);
 
             mysqli_commit($conn);
         } catch (Throwable $e) {
@@ -62,26 +72,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 2. Deliver Individual Milkshake
     if (isset($_POST['deliver_milkshake'])) {
         $id = intval($_POST['item_id']);
-        mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_milkshake_id = $id AND o.event_id = $activePubId");
-        mysqli_query($conn, "
-            UPDATE orders o
-            SET o.status = 'Delivered'
-            WHERE o.order_id = (
-                SELECT om.order_id
-                FROM order_milkshakes om
-                JOIN orders ox ON ox.order_id = om.order_id
-                WHERE om.order_milkshake_id = $id AND ox.event_id = $activePubId
-                LIMIT 1
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM order_milkshakes om2
-                WHERE om2.order_id = o.order_id AND om2.status <> 'Delivered'
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM order_toasts ot2
-                WHERE ot2.order_id = o.order_id AND ot2.status <> 'Delivered'
-            )
-        ");
+        
+        $stmt = mysqli_prepare($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_milkshake_id = ? AND o.event_id = ?");
+        mysqli_stmt_bind_param($stmt, 'ii', $id, $activePubId);
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_close($stmt);
+        
+        $stmt = mysqli_prepare($conn, "UPDATE orders o SET o.status = 'Delivered' WHERE o.order_id = (SELECT om.order_id FROM order_milkshakes om JOIN orders ox ON ox.order_id = om.order_id WHERE om.order_milkshake_id = ? AND ox.event_id = ? LIMIT 1) AND NOT EXISTS (SELECT 1 FROM order_milkshakes om2 WHERE om2.order_id = o.order_id AND om2.status <> 'Delivered') AND NOT EXISTS (SELECT 1 FROM order_toasts ot2 WHERE ot2.order_id = o.order_id AND ot2.status <> 'Delivered')");
+        mysqli_stmt_bind_param($stmt, 'ii', $id, $activePubId);
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_close($stmt);
+        
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
@@ -89,26 +90,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 3. Deliver Individual Toast
     if (isset($_POST['deliver_toast'])) {
         $id = intval($_POST['item_id']);
-        mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_toast_id = $id AND o.event_id = $activePubId");
-        mysqli_query($conn, "
-            UPDATE orders o
-            SET o.status = 'Delivered'
-            WHERE o.order_id = (
-                SELECT ot.order_id
-                FROM order_toasts ot
-                JOIN orders ox ON ox.order_id = ot.order_id
-                WHERE ot.order_toast_id = $id AND ox.event_id = $activePubId
-                LIMIT 1
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM order_milkshakes om2
-                WHERE om2.order_id = o.order_id AND om2.status <> 'Delivered'
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM order_toasts ot2
-                WHERE ot2.order_id = o.order_id AND ot2.status <> 'Delivered'
-            )
-        ");
+        
+        $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_toast_id = ? AND o.event_id = ?");
+        mysqli_stmt_bind_param($stmt, 'ii', $id, $activePubId);
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_close($stmt);
+        
+        $stmt = mysqli_prepare($conn, "UPDATE orders o SET o.status = 'Delivered' WHERE o.order_id = (SELECT ot.order_id FROM order_toasts ot JOIN orders ox ON ox.order_id = ot.order_id WHERE ot.order_toast_id = ? AND ox.event_id = ? LIMIT 1) AND NOT EXISTS (SELECT 1 FROM order_milkshakes om2 WHERE om2.order_id = o.order_id AND om2.status <> 'Delivered') AND NOT EXISTS (SELECT 1 FROM order_toasts ot2 WHERE ot2.order_id = o.order_id AND ot2.status <> 'Delivered')");
+        mysqli_stmt_bind_param($stmt, 'ii', $id, $activePubId);
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_close($stmt);
+        
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
@@ -119,17 +111,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         mysqli_begin_transaction($conn);
         try {
-            if (!mysqli_query($conn, "UPDATE orders SET status = 'Done' WHERE order_id = $order_id AND event_id = $activePubId")) {
+            $stmt = mysqli_prepare($conn, "UPDATE orders SET status = 'Done' WHERE order_id = ? AND event_id = ?");
+            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
+            if (!mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
                 throw new Exception(mysqli_error($conn));
             }
+            mysqli_stmt_close($stmt);
 
-            if (!mysqli_query($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Done' WHERE om.order_id = $order_id AND o.event_id = $activePubId")) {
+            $stmt = mysqli_prepare($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Done' WHERE om.order_id = ? AND o.event_id = ?");
+            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
+            if (!mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
                 throw new Exception(mysqli_error($conn));
             }
+            mysqli_stmt_close($stmt);
 
-            if (!mysqli_query($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Done' WHERE ot.order_id = $order_id AND o.event_id = $activePubId")) {
+            $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Done' WHERE ot.order_id = ? AND o.event_id = ?");
+            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
+            if (!mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
                 throw new Exception(mysqli_error($conn));
             }
+            mysqli_stmt_close($stmt);
 
             mysqli_commit($conn);
         } catch (Throwable $e) {
@@ -145,42 +149,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 function getOrders($conn, $activePubId) {
     // 1. Fetch ALL Orders (Active first, then Delivered. Within those groups, oldest first)
     // We add a limit (e.g., 50) to prevent the page from crashing after a year of usage.
-    $query = "
-        SELECT * FROM orders
-        WHERE event_id = $activePubId
-        ORDER BY 
-            CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END, 
-            created_at ASC
-        LIMIT 50
-    ";
-    $result = mysqli_query($conn, $query);
-    $orders = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    $stmt = mysqli_prepare($conn, "SELECT * FROM orders WHERE event_id = ? ORDER BY CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END, created_at ASC LIMIT 50");
+    mysqli_stmt_bind_param($stmt, 'i', $activePubId);
+    mysqli_stmt_execute($stmt);
+    $orders = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
+    mysqli_stmt_close($stmt);
 
     if (empty($orders)) return [];
 
     // Get IDs for fetching items
     $order_ids = array_column($orders, 'order_id');
-    $id_list = implode(',', array_map('intval', $order_ids));
+    $order_ids = array_map('intval', $order_ids);
 
-    if (empty($id_list)) return [];
+    if (empty($order_ids)) return [];
+
+    // Create placeholders for IN clause
+    $placeholders = implode(',', array_fill(0, count($order_ids), '?'));
+    $types = str_repeat('i', count($order_ids) + 1);
 
     // 2. Fetch Milkshakes for these orders
-    $sql_m = "SELECT om.*, m.name 
-              FROM order_milkshakes om
-              JOIN milkshakes m ON om.milkshake_id = m.milkshake_id 
-              JOIN orders o ON o.order_id = om.order_id
-              WHERE om.order_id IN ($id_list) AND o.event_id = $activePubId";
-    $res_m = mysqli_query($conn, $sql_m);
-    $milkshakes = mysqli_fetch_all($res_m, MYSQLI_ASSOC);
+    $stmt = mysqli_prepare($conn, "SELECT om.*, m.name FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id JOIN orders o ON o.order_id = om.order_id WHERE om.order_id IN ($placeholders) AND o.event_id = ?");
+    mysqli_stmt_bind_param($stmt, $types, ...$order_ids, $activePubId);
+    mysqli_stmt_execute($stmt);
+    $milkshakes = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
+    mysqli_stmt_close($stmt);
 
     // 3. Fetch Toasts for these orders
-    $sql_t = "SELECT ot.*, t.name 
-              FROM order_toasts ot
-              JOIN toasts t ON ot.toast_id = t.toast_id 
-              JOIN orders o ON o.order_id = ot.order_id
-              WHERE ot.order_id IN ($id_list) AND o.event_id = $activePubId";
-    $res_t = mysqli_query($conn, $sql_t);
-    $toasts = mysqli_fetch_all($res_t, MYSQLI_ASSOC);
+    $stmt = mysqli_prepare($conn, "SELECT ot.*, t.name FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id JOIN orders o ON o.order_id = ot.order_id WHERE ot.order_id IN ($placeholders) AND o.event_id = ?");
+    mysqli_stmt_bind_param($stmt, $types, ...$order_ids, $activePubId);
+    mysqli_stmt_execute($stmt);
+    $toasts = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
+    mysqli_stmt_close($stmt);
 
     $milkshakesByOrder = [];
     foreach ($milkshakes as $m) {
@@ -299,6 +298,7 @@ if (isset($_GET['fetch_view'])) {
                                     
                                     <?php if ($isItemReady && !$isDelivered): ?>
                                         <form method="POST" style="display:inline;">
+                                            <?= csrf_token_input() ?>
                                             <input type="hidden" name="item_id" value="<?= $item['type'] == 'milkshake' ? $item['order_milkshake_id'] : $item['order_toast_id'] ?>">
                                             <button type="submit" name="deliver_<?= $item['type'] ?>" class="btn-mini">✓</button>
                                         </form>
@@ -314,6 +314,7 @@ if (isset($_GET['fetch_view'])) {
                 <?php if (!$isDelivered): ?>
                     <div class="card-footer">
                         <form method="POST">
+                            <?= csrf_token_input() ?>
                             <input type="hidden" name="order_id" value="<?= $o['order_id'] ?>">
                             <?php if ($isReady): ?>
                                 <button type="submit" name="deliver_all" class="btn-main btn-success">
@@ -329,6 +330,7 @@ if (isset($_GET['fetch_view'])) {
                 <?php else: ?>
                     <div class="card-footer">
                         <form method="POST" style="display: flex; justify-content: flex-end;">
+                            <?= csrf_token_input() ?>
                             <input type="hidden" name="order_id" value="<?= $o['order_id'] ?>">
                             <button type="submit" name="take_back_order" class="btn-take-back" title="Återta denna beställning">
                                 ↶

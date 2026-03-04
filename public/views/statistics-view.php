@@ -5,10 +5,7 @@ require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
-if (!$loggedIn) {
-    header("Location: " . WWW_ROOT . "/index.php");
-    exit;
-}
+require_login();
 
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
@@ -19,6 +16,10 @@ $activePubId = (int) $pubTracking['active_pub_id'];
 $activePubName = $pubTracking['active_pub_name'];
 
 $feedback = null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf_token();
+}
 
 /* 2. Actions (Delete Historical Pub) */
 if (isset($_POST['delete_pub'])) {
@@ -35,10 +36,46 @@ if (isset($_POST['delete_pub'])) {
         mysqli_begin_transaction($conn);
 
         try {
-            mysqli_query($conn, "DELETE om FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = $targetPubId");
-            mysqli_query($conn, "DELETE ot FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = $targetPubId");
-            mysqli_query($conn, "DELETE FROM orders WHERE event_id = $targetPubId");
-            mysqli_query($conn, "DELETE FROM sales_events WHERE event_id = $targetPubId AND is_active = 0");
+            $stmtDeleteMilkshakes = mysqli_prepare($conn, "DELETE om FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = ?");
+            if (!$stmtDeleteMilkshakes) {
+                throw new Exception(mysqli_error($conn));
+            }
+            mysqli_stmt_bind_param($stmtDeleteMilkshakes, 'i', $targetPubId);
+            if (!mysqli_stmt_execute($stmtDeleteMilkshakes)) {
+                throw new Exception(mysqli_stmt_error($stmtDeleteMilkshakes));
+            }
+            mysqli_stmt_close($stmtDeleteMilkshakes);
+
+            $stmtDeleteToasts = mysqli_prepare($conn, "DELETE ot FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = ?");
+            if (!$stmtDeleteToasts) {
+                throw new Exception(mysqli_error($conn));
+            }
+            mysqli_stmt_bind_param($stmtDeleteToasts, 'i', $targetPubId);
+            if (!mysqli_stmt_execute($stmtDeleteToasts)) {
+                throw new Exception(mysqli_stmt_error($stmtDeleteToasts));
+            }
+            mysqli_stmt_close($stmtDeleteToasts);
+
+            $stmtDeleteOrders = mysqli_prepare($conn, "DELETE FROM orders WHERE event_id = ?");
+            if (!$stmtDeleteOrders) {
+                throw new Exception(mysqli_error($conn));
+            }
+            mysqli_stmt_bind_param($stmtDeleteOrders, 'i', $targetPubId);
+            if (!mysqli_stmt_execute($stmtDeleteOrders)) {
+                throw new Exception(mysqli_stmt_error($stmtDeleteOrders));
+            }
+            mysqli_stmt_close($stmtDeleteOrders);
+
+            $inactiveFlag = 0;
+            $stmtDeleteEvent = mysqli_prepare($conn, "DELETE FROM sales_events WHERE event_id = ? AND is_active = ?");
+            if (!$stmtDeleteEvent) {
+                throw new Exception(mysqli_error($conn));
+            }
+            mysqli_stmt_bind_param($stmtDeleteEvent, 'ii', $targetPubId, $inactiveFlag);
+            if (!mysqli_stmt_execute($stmtDeleteEvent)) {
+                throw new Exception(mysqli_stmt_error($stmtDeleteEvent));
+            }
+            mysqli_stmt_close($stmtDeleteEvent);
 
             mysqli_commit($conn);
             $feedback = ['type' => 'success', 'message' => 'Vald pub och dess orderhistorik togs bort.'];
@@ -68,9 +105,29 @@ $allPubs = mysqli_fetch_all(mysqli_query(
 $selectedPubId = $activePubId;
 $selectedPubName = $activePubName;
 
-$totalOrders = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM orders WHERE event_id = $selectedPubId"))['c'] ?? 0);
-$totalMilkshakesSold = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = $selectedPubId"))['c'] ?? 0);
-$totalToastsSold = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = $selectedPubId"))['c'] ?? 0);
+$stmtTotalOrders = mysqli_prepare($conn, "SELECT COUNT(*) AS c FROM orders WHERE event_id = ?");
+mysqli_stmt_bind_param($stmtTotalOrders, 'i', $selectedPubId);
+mysqli_stmt_execute($stmtTotalOrders);
+mysqli_stmt_bind_result($stmtTotalOrders, $totalOrdersCount);
+mysqli_stmt_fetch($stmtTotalOrders);
+mysqli_stmt_close($stmtTotalOrders);
+$totalOrders = (int) ($totalOrdersCount ?? 0);
+
+$stmtTotalMilkshakes = mysqli_prepare($conn, "SELECT COUNT(*) AS c FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = ?");
+mysqli_stmt_bind_param($stmtTotalMilkshakes, 'i', $selectedPubId);
+mysqli_stmt_execute($stmtTotalMilkshakes);
+mysqli_stmt_bind_result($stmtTotalMilkshakes, $totalMilkshakesCount);
+mysqli_stmt_fetch($stmtTotalMilkshakes);
+mysqli_stmt_close($stmtTotalMilkshakes);
+$totalMilkshakesSold = (int) ($totalMilkshakesCount ?? 0);
+
+$stmtTotalToasts = mysqli_prepare($conn, "SELECT COUNT(*) AS c FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = ?");
+mysqli_stmt_bind_param($stmtTotalToasts, 'i', $selectedPubId);
+mysqli_stmt_execute($stmtTotalToasts);
+mysqli_stmt_bind_result($stmtTotalToasts, $totalToastsCount);
+mysqli_stmt_fetch($stmtTotalToasts);
+mysqli_stmt_close($stmtTotalToasts);
+$totalToastsSold = (int) ($totalToastsCount ?? 0);
 $totalItemsSold = $totalMilkshakesSold + $totalToastsSold;
 
 $milkshakeSales = mysqli_fetch_all(mysqli_query(
@@ -91,16 +148,24 @@ foreach ($milkshakeSales as &$item) {
 }
 unset($item);
 
-$toastSales = mysqli_fetch_all(mysqli_query(
+$toastSales = [];
+$stmtToastSales = mysqli_prepare(
     $conn,
     "SELECT t.name, COUNT(*) AS sold
      FROM order_toasts ot
      JOIN orders o ON o.order_id = ot.order_id
      JOIN toasts t ON t.toast_id = ot.toast_id
-    WHERE o.event_id = $selectedPubId
+     WHERE o.event_id = ?
      GROUP BY t.toast_id, t.name
      ORDER BY sold DESC, t.name ASC"
-), MYSQLI_ASSOC);
+);
+mysqli_stmt_bind_param($stmtToastSales, 'i', $selectedPubId);
+mysqli_stmt_execute($stmtToastSales);
+mysqli_stmt_bind_result($stmtToastSales, $toastName, $toastSold);
+while (mysqli_stmt_fetch($stmtToastSales)) {
+    $toastSales[] = ['name' => $toastName, 'sold' => (int) $toastSold];
+}
+mysqli_stmt_close($stmtToastSales);
 
 mysqli_close($conn);
 ?>
@@ -408,6 +473,7 @@ mysqli_close($conn);
             <h2>Riskzon: Ta bort vald pub</h2>
             <p>Välj vilken gammal pub som ska tas bort. Den aktiva puben visas inte i listan och kan inte tas bort.</p>
             <form method="post" class="pub-tools" onsubmit="return confirm('Ta bort vald pub och alla dess beställningar? Detta kan inte ångras.');">
+                <?= csrf_token_input() ?>
                 <select name="target_pub_id" required>
                     <option value="">Välj gammal pub</option>
                     <?php foreach ($allPubs as $pub): ?>

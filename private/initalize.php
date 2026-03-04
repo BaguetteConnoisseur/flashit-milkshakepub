@@ -22,8 +22,8 @@ define("PUBLIC_PATH", PROJECT_PATH . '/public');
 define("SHARED_PATH", PRIVATE_PATH . '/shared');
 
 // Require code libraries
-require("master_code/top-user-check.php");
 require("functions.php");
+require("master_code/top-user-check.php");
 
 if (!headers_sent()) {
     header('Content-Type: text/html; charset=UTF-8');

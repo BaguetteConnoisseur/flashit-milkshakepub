@@ -5,10 +5,7 @@ require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
 require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
 
-if (!$loggedIn) {
-    header("Location: " . WWW_ROOT . "/index.php");
-    exit;
-}
+require_login();
 
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
@@ -31,7 +28,8 @@ function localize_status_label($status) {
 
 /* --- 2. Actions (POST) --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
+    require_csrf_token();
+
     // 1. Next Step Button
     if (isset($_POST['advance_status'])) {
         $ot_id = intval($_POST['order_toast_id']);
@@ -45,12 +43,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($new_status !== $current_status) {
-            mysqli_query($conn, "
-                UPDATE order_toasts ot
-                JOIN orders o ON o.order_id = ot.order_id
-                SET ot.status = '$new_status'
-                WHERE ot.order_toast_id = $ot_id AND o.event_id = $activePubId
-            ");
+            $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = ? WHERE ot.order_toast_id = ? AND o.event_id = ?");
+            mysqli_stmt_bind_param($stmt, 'sii', $new_status, $ot_id, $activePubId);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_close($stmt);
         }
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
@@ -59,13 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 2. Manual Dropdown Change
     if (isset($_POST['update_status_manual'])) {
         $ot_id = intval($_POST['order_toast_id']);
-        $new_status = mysqli_real_escape_string($conn, $_POST['manual_status']);
-        mysqli_query($conn, "
-            UPDATE order_toasts ot
-            JOIN orders o ON o.order_id = ot.order_id
-            SET ot.status = '$new_status'
-            WHERE ot.order_toast_id = $ot_id AND o.event_id = $activePubId
-        ");
+        $new_status = $_POST['manual_status'];
+        
+        $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = ? WHERE ot.order_toast_id = ? AND o.event_id = ?");
+        mysqli_stmt_bind_param($stmt, 'sii', $new_status, $ot_id, $activePubId);
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_close($stmt);
         
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
@@ -75,28 +70,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 /* --- 3. Data Fetching Helpers --- */
 function getTickets($conn, $activePubId) {
     // 1. Get the Toasts (Primary Items)
-    $query = "
-        SELECT 
-            ot.order_toast_id,
-            ot.status,
-            ot.comment AS item_comment,
-            ot.order_id,
-            t.name AS toast_name,
-            o.order_number,
-            o.pub_order_number,
-            o.customer_name,
-            o.created_at,
-            o.order_comment AS main_comment
-        FROM order_toasts ot
-        JOIN toasts t ON ot.toast_id = t.toast_id
-        JOIN orders o ON ot.order_id = o.order_id
-        WHERE ot.status != 'Delivered' AND o.event_id = $activePubId
-        ORDER BY 
-            CASE WHEN ot.status = 'Done' THEN 1 ELSE 0 END,
-            o.created_at ASC
-    ";
-    $result = mysqli_query($conn, $query);
+    $stmt = mysqli_prepare($conn, "SELECT ot.order_toast_id, 
+    ot.status, 
+    ot.comment AS item_comment, 
+    ot.order_id, 
+    t.name AS toast_name, 
+    o.order_number, 
+    o.pub_order_number, 
+    o.customer_name, 
+    o.created_at, 
+    o.order_comment AS main_comment 
+        FROM order_toasts ot 
+        JOIN toasts t ON ot.toast_id = t.toast_id 
+        JOIN orders o ON ot.order_id = o.order_id 
+        WHERE ot.status != 'Delivered' AND o.event_id = ? 
+        ORDER BY CASE WHEN ot.status = 'Done' THEN 1 ELSE 0 END, 
+        o.created_at ASC");
+    mysqli_stmt_bind_param($stmt, 'i', $activePubId);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
     $tickets = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    mysqli_stmt_close($stmt);
 
     foreach ($tickets as &$ticket) {
         $ticket['linked_milkshakes'] = [];
@@ -107,18 +101,19 @@ function getTickets($conn, $activePubId) {
     if (!empty($tickets)) {
         // Extract all order IDs currently on screen
         $order_ids = array_unique(array_column($tickets, 'order_id'));
-        $id_list = implode(',', array_map('intval', $order_ids));
+        $order_ids = array_map('intval', $order_ids);
 
-        if (!empty($id_list)) {
+        if (!empty($order_ids)) {
             // NOTE: We are fetching Milkshakes here to display as context
-            $milkshake_query = "
-                SELECT om.order_id, m.name AS milkshake_name, om.status
-                FROM order_milkshakes om
-                JOIN milkshakes m ON om.milkshake_id = m.milkshake_id
-                WHERE om.order_id IN ($id_list)
-            ";
-            $ms_result = mysqli_query($conn, $milkshake_query);
+            $placeholders = implode(',', array_fill(0, count($order_ids), '?'));
+            $types = str_repeat('i', count($order_ids));
+            
+            $stmt = mysqli_prepare($conn, "SELECT om.order_id, m.name AS milkshake_name, om.status FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id WHERE om.order_id IN ($placeholders)");
+            mysqli_stmt_bind_param($stmt, $types, ...$order_ids);
+            mysqli_stmt_execute($stmt);
+            $ms_result = mysqli_stmt_get_result($stmt);
             $all_milkshakes = mysqli_fetch_all($ms_result, MYSQLI_ASSOC);
+            mysqli_stmt_close($stmt);
 
             $milkshakesByOrder = [];
             foreach ($all_milkshakes as $ms) {
@@ -138,17 +133,13 @@ function getTickets($conn, $activePubId) {
 
 /* 4. Summary Aggregation */
 function getSummary($conn, $activePubId) {
-    $query = "
-        SELECT t.name, COUNT(*) as count
-        FROM order_toasts ot
-        JOIN toasts t ON ot.toast_id = t.toast_id
-        JOIN orders o ON o.order_id = ot.order_id
-        WHERE ot.status != 'Delivered' AND o.event_id = $activePubId
-        GROUP BY t.name
-        ORDER BY count DESC
-    ";
-    $result = mysqli_query($conn, $query);
-    return mysqli_fetch_all($result, MYSQLI_ASSOC);
+    $stmt = mysqli_prepare($conn, "SELECT t.name, COUNT(*) as count FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id JOIN orders o ON o.order_id = ot.order_id WHERE ot.status != 'Delivered' AND o.event_id = ? GROUP BY t.name ORDER BY count DESC");
+    mysqli_stmt_bind_param($stmt, 'i', $activePubId);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $summary = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    mysqli_stmt_close($stmt);
+    return $summary;
 }
 
 $summary = getSummary($conn, $activePubId);
@@ -205,6 +196,7 @@ if (isset($_GET['fetch_view'])) {
                 </div>
                 <div class="controls">
                     <form method="POST" style="flex-grow:1; display:flex; gap:5px;">
+                        <?= csrf_token_input() ?>
                         <input type="hidden" name="order_toast_id" value="<?= $t['order_toast_id'] ?>">
                         <select name="manual_status" onchange="this.form.submit()">
                             <option value="" hidden>Uppdatera</option>
@@ -217,6 +209,7 @@ if (isset($_GET['fetch_view'])) {
                     </form>
                     <?php if ($t['status'] !== 'Done'): ?>
                         <form method="POST">
+                            <?= csrf_token_input() ?>
                             <input type="hidden" name="order_toast_id" value="<?= $t['order_toast_id'] ?>">
                             <input type="hidden" name="current_status" value="<?= $t['status'] ?>">
                             <?php if($t['status'] == 'Pending' || $t['status'] == 'Received'): ?>

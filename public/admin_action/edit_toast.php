@@ -1,5 +1,5 @@
 <?php
-/* --- 1. Edit Milkshake (Admin Action) Bootstrap --- */
+/* --- 1. Edit Toast (Admin Action) Bootstrap --- */
 
 require_once("../../private/initalize.php");
 require(PRIVATE_PATH . "/master_code/db-conn.php");
@@ -11,7 +11,7 @@ if (!$conn) {
 }
 
 /* 2. Resolve Target Item */
-$itemId = intval($_GET['id'] ?? $_POST['milkshake-id'] ?? 0);
+$itemId = intval($_GET['id'] ?? $_POST['toast-id'] ?? 0);
 if ($itemId <= 0) {
     header("Location: " . WWW_ROOT . "/admin_action/inventory_manager.php");
     exit;
@@ -24,17 +24,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /* 3. Handle Save Action */
-if (isset($_POST['save-milkshake'])) {
-    $milkshakeName = trim($_POST['milkshake-name'] ?? '');
+if (isset($_POST['save-toast'])) {
+    $toastName = trim($_POST['toast-name'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $ingredients = trim($_POST['ingredients'] ?? '');
     $color = trim($_POST['color'] ?? '');
 
-    if ($milkshakeName === '' || $description === '' || $ingredients === '' || $color === '') {
+    if ($toastName === '' || $description === '' || $ingredients === '' || $color === '') {
         $feedback = ['type' => 'error', 'message' => 'Alla fält måste fyllas i.'];
     } else {
-        $stmt = mysqli_prepare($conn, "UPDATE milkshakes SET name = ?, description = ?, ingredients = ?, color = ? WHERE milkshake_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ssssi', $milkshakeName, $description, $ingredients, $color, $itemId);
+        $stmt = mysqli_prepare($conn, "UPDATE toasts SET name = ?, description = ?, ingredients = ?, color = ? WHERE toast_id = ?");
+        mysqli_stmt_bind_param($stmt, 'ssssi', $toastName, $description, $ingredients, $color, $itemId);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_close($stmt);
 
@@ -44,14 +44,14 @@ if (isset($_POST['save-milkshake'])) {
 }
 
 /* 4. Fetch Existing Item */
-$stmt = mysqli_prepare($conn, "SELECT m.milkshake_id AS item_id, m.name, m.description, m.ingredients, m.color FROM milkshakes m WHERE m.milkshake_id = ? LIMIT 1");
+$stmt = mysqli_prepare($conn, "SELECT t.toast_id AS item_id, t.name, t.description, t.ingredients, t.color FROM toasts t WHERE t.toast_id = ? LIMIT 1");
 mysqli_stmt_bind_param($stmt, 'i', $itemId);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
-$milkshake = $result ? mysqli_fetch_assoc($result) : null;
+$toast = $result ? mysqli_fetch_assoc($result) : null;
 mysqli_stmt_close($stmt);
 
-if (!$milkshake) {
+if (!$toast) {
     mysqli_close($conn);
     header("Location: " . WWW_ROOT . "/admin_action/inventory_manager.php");
     exit;
@@ -65,7 +65,7 @@ mysqli_close($conn);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redigera milkshake</title>
+    <title>Redigera toast</title>
     <style>
         /* --- 5. Layout & Theme --- */
         :root {
@@ -196,9 +196,9 @@ mysqli_close($conn);
     <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
 
     <div class="container">
-        <h1>Redigera milkshake</h1>
+        <h1>Redigera toast</h1>
         <p class="subtitle">
-            Du redigerar: <strong><?= htmlspecialchars($milkshake['name']) ?></strong>
+            Du redigerar: <strong><?= htmlspecialchars($toast['name']) ?></strong>
         </p>
 
         <?php if ($feedback): ?>
@@ -208,32 +208,32 @@ mysqli_close($conn);
         <section class="card">
             <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
                 <?= csrf_token_input() ?>
-                <input type="hidden" name="milkshake-id" value="<?= (int) $milkshake['item_id'] ?>">
+                <input type="hidden" name="toast-id" value="<?= (int) $toast['item_id'] ?>">
 
                 <div class="row">
                     <div>
-                        <label for="milkshake-name">Namn</label>
-                        <input id="milkshake-name" type="text" name="milkshake-name" value="<?= htmlspecialchars($milkshake['name']) ?>" required>
+                        <label for="toast-name">Namn</label>
+                        <input id="toast-name" type="text" name="toast-name" value="<?= htmlspecialchars($toast['name']) ?>" required>
                     </div>
 
                     <div>
                         <label for="description">Beskrivning</label>
-                        <textarea id="description" name="description" required><?= htmlspecialchars($milkshake['description']) ?></textarea>
+                        <textarea id="description" name="description" required><?= htmlspecialchars($toast['description']) ?></textarea>
                     </div>
 
                     <div>
                         <label for="ingredients">Ingredienser</label>
-                        <textarea id="ingredients" name="ingredients" required><?= htmlspecialchars($milkshake['ingredients']) ?></textarea>
+                        <textarea id="ingredients" name="ingredients" required><?= htmlspecialchars($toast['ingredients']) ?></textarea>
                     </div>
 
                     <div>
                         <label for="color">Färg</label>
-                        <input id="color" type="color" name="color" value="<?= htmlspecialchars($milkshake['color']) ?>" required>
+                        <input id="color" type="color" name="color" value="<?= htmlspecialchars($toast['color']) ?>" required>
                     </div>
                 </div>
 
                 <div class="actions">
-                    <button type="submit" class="btn btn-primary" name="save-milkshake">Spara</button>
+                    <button type="submit" class="btn btn-primary" name="save-toast">Spara</button>
                     <a class="btn btn-secondary" href="<?= WWW_ROOT ?>/admin_action/inventory_manager.php">Avbryt</a>
                 </div>
             </form>

@@ -95,7 +95,8 @@
         FlashIT
     </a>
     
-    <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>" style="margin: 0;">
+    <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" style="margin: 0;">
+        <?= csrf_token_input() ?>
         <button type="submit" name="logout-account" class="logout-btn">
             Logga ut
         </button>
