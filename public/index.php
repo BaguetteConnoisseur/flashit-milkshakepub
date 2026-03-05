@@ -366,7 +366,7 @@ $showError = handle_login_post();
                 <a href="views/leaderboard-view.php" class="view-card leaderboard">
                     <div class="view-card-icon">🏆</div>
                     <h3>Topplista</h3>
-                    <p>Se topplistor för mest sålda smaker och kunder över alla MSP's.</p>
+                    <p>Se topplistor för mest sålda smaker över alla MSP's.</p>
                 </a>
 
                 <a href="views/statistics-view.php" class="view-card stats">

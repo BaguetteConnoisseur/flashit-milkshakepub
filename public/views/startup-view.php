@@ -56,6 +56,10 @@ if (isset($_POST['start_new_pub'])) {
                 $stmt = mysqli_prepare($conn, "UPDATE sales_events SET is_active = 0, ended_at = NOW() WHERE is_active = 1");
                 mysqli_stmt_execute($stmt);
                 mysqli_stmt_close($stmt);
+
+                $stmt = mysqli_prepare($conn, "UPDATE orders o LEFT JOIN sales_events e ON e.event_id = o.event_id SET o.customer_name = '' WHERE (e.is_active = 0 OR o.event_id IS NULL) AND o.customer_name <> ''");
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
                 
                 $stmt = mysqli_prepare($conn, "INSERT INTO sales_events (event_name, is_active) VALUES (?, 1)");
                 mysqli_stmt_bind_param($stmt, 's', $pubName);

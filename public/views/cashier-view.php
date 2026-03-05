@@ -63,12 +63,13 @@ if (isset($_POST['create_order'])) {
 
         // Process Milkshakes
         if (isset($_POST['milkshakes']) && is_array($_POST['milkshakes'])) {
-            $stmt_m = mysqli_prepare($conn, "INSERT INTO order_milkshakes (order_id, milkshake_id, comment, status) VALUES (?, ?, '', 'Pending')");
+            $stmt_m = mysqli_prepare($conn, "INSERT INTO order_milkshakes (order_id, milkshake_id, comment, status) VALUES (?, ?, ?, 'Pending')");
             foreach ($_POST['milkshakes'] as $m_id => $quantity) {
                 $m_id = intval($m_id);
                 $quantity = intval($quantity);
                 for ($i = 0; $i < $quantity; $i++) {
-                    mysqli_stmt_bind_param($stmt_m, 'ii', $new_order_id, $m_id);
+                    $comment = isset($_POST['milkshake_comments']["m_{$m_id}_{$i}"]) ? trim($_POST['milkshake_comments']["m_{$m_id}_{$i}"]) : '';
+                    mysqli_stmt_bind_param($stmt_m, 'iis', $new_order_id, $m_id, $comment);
                     if (!mysqli_stmt_execute($stmt_m)) {
                         mysqli_stmt_close($stmt_m);
                         throw new Exception(mysqli_error($conn));
@@ -80,12 +81,13 @@ if (isset($_POST['create_order'])) {
 
         // Process Toasts
         if (isset($_POST['toasts']) && is_array($_POST['toasts'])) {
-            $stmt_t = mysqli_prepare($conn, "INSERT INTO order_toasts (order_id, toast_id, comment, status) VALUES (?, ?, '', 'Pending')");
+            $stmt_t = mysqli_prepare($conn, "INSERT INTO order_toasts (order_id, toast_id, comment, status) VALUES (?, ?, ?, 'Pending')");
             foreach ($_POST['toasts'] as $t_id => $quantity) {
                 $t_id = intval($t_id);
                 $quantity = intval($quantity);
                 for ($i = 0; $i < $quantity; $i++) {
-                    mysqli_stmt_bind_param($stmt_t, 'ii', $new_order_id, $t_id);
+                    $comment = isset($_POST['toast_comments']["t_{$t_id}_{$i}"]) ? trim($_POST['toast_comments']["t_{$t_id}_{$i}"]) : '';
+                    mysqli_stmt_bind_param($stmt_t, 'iis', $new_order_id, $t_id, $comment);
                     if (!mysqli_stmt_execute($stmt_t)) {
                         mysqli_stmt_close($stmt_t);
                         throw new Exception(mysqli_error($conn));
@@ -415,6 +417,25 @@ mysqli_close($conn);
             box-sizing: border-box;
         }
 
+        .item-row {
+            background: #f9fafb;
+            border: 1px solid var(--border);
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+        }
+
+        .item-row h4 {
+            margin: 0 0 0.5rem 0;
+            font-size: 0.95rem;
+        }
+
+        .item-comments {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+
         .menu-section-header {
             display: flex;
             align-items: center;
@@ -448,21 +469,6 @@ mysqli_close($conn);
             margin: 0;
             font-weight: 500;
             line-height: 1.25;
-        }
-
-        .quantity-item .item-detail-trigger {
-            font-size: 0.88rem;
-            line-height: 1.2;
-            text-decoration: none;
-            display: block;
-            width: 100%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .quantity-item .item-detail-trigger:hover {
-            text-decoration: underline;
         }
         
         .quantity-controls {
@@ -745,83 +751,6 @@ mysqli_close($conn);
         .row-split { display: flex; gap: 1rem; }
         .row-split > div { flex: 1; }
 
-        .item-detail-trigger {
-            background: none;
-            border: none;
-            padding: 0;
-            margin: 0;
-            color: inherit;
-            font: inherit;
-            text-align: left;
-            cursor: pointer;
-            text-decoration: underline;
-            text-underline-offset: 2px;
-        }
-
-        .item-detail-trigger:hover {
-            color: var(--primary);
-        }
-
-        .detail-modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.45);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1100;
-        }
-
-        .detail-modal-overlay.open {
-            display: flex;
-        }
-
-        .detail-modal-content {
-            background: var(--surface);
-            width: 520px;
-            max-width: 90%;
-            border-radius: 12px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-            border: 1px solid var(--border);
-            overflow: hidden;
-        }
-
-        .detail-header {
-            padding: 1rem 1.25rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f9fafb;
-        }
-
-        .detail-body {
-            padding: 1rem 1.25rem 1.25rem;
-        }
-
-        .detail-type {
-            font-size: 0.8rem;
-            color: var(--text-sub);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            margin-bottom: 0.5rem;
-        }
-
-        .detail-section {
-            margin-bottom: 0.85rem;
-        }
-
-        .detail-section h4 {
-            margin: 0 0 0.35rem 0;
-            font-size: 0.9rem;
-        }
-
-        .detail-section p {
-            margin: 0;
-            color: var(--text-main);
-            line-height: 1.45;
-        }
-
         @media (max-width: 1100px) {
             .cashier-shell {
                 grid-template-columns: 1fr;
@@ -879,78 +808,7 @@ mysqli_close($conn);
         <p class="panel-kicker">Kassaarbetsyta</p>
         <h2>Ny beställning</h2>
         <p class="panel-subtext">Skapa beställningar snabbt, tryck på artikelnamn för detaljer och skicka vidare till stationerna.</p>
-        <form action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="POST">
-            <?= csrf_token_input() ?>
-            <div class="form-group">
-                <label>Kundnamn</label>
-                <input type="text" name="customer_name" required placeholder="t.ex. Fillidutten">
-            </div>
-
-            <div class="form-group">
-                <div class="menu-section-header">
-                    <label>Milkshakes</label>
-                </div>
-                <div class="quantity-group">
-                    <?php foreach($inv_milkshakes as $m): ?>
-                        <div class="quantity-item">
-                            <label for="m_<?= $m['milkshake_id'] ?>">
-                                <button
-                                    type="button"
-                                    class="item-detail-trigger"
-                                    data-item-name="<?= htmlspecialchars($m['name'], ENT_QUOTES, 'UTF-8') ?>"
-                                    data-item-type="Milkshake"
-                                    data-item-description="<?= htmlspecialchars($m['description'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                    data-item-ingredients="<?= htmlspecialchars($m['ingredients'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                >
-                                    <?= htmlspecialchars($m['name']) ?>
-                                </button>
-                            </label>
-                            <div class="quantity-controls">
-                                <button type="button" class="qty-btn qty-minus" onclick="adjustQuantity('m_<?= $m['milkshake_id'] ?>', -1)">−</button>
-                                <input type="number" name="milkshakes[<?= $m['milkshake_id'] ?>]" value="0" min="0" id="m_<?= $m['milkshake_id'] ?>" class="quantity-input" readonly>
-                                <button type="button" class="qty-btn qty-plus" onclick="adjustQuantity('m_<?= $m['milkshake_id'] ?>', 1)">+</button>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <div class="menu-section-header">
-                    <label>Toast</label>
-                </div>
-                <div class="quantity-group">
-                    <?php foreach($inv_toasts as $t): ?>
-                        <div class="quantity-item">
-                            <label for="t_<?= $t['toast_id'] ?>">
-                                <button
-                                    type="button"
-                                    class="item-detail-trigger"
-                                    data-item-name="<?= htmlspecialchars($t['name'], ENT_QUOTES, 'UTF-8') ?>"
-                                    data-item-type="Toast"
-                                    data-item-description="<?= htmlspecialchars($t['description'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                    data-item-ingredients="<?= htmlspecialchars($t['ingredients'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                >
-                                    <?= htmlspecialchars($t['name']) ?>
-                                </button>
-                            </label>
-                            <div class="quantity-controls">
-                                <button type="button" class="qty-btn qty-minus" onclick="adjustQuantity('t_<?= $t['toast_id'] ?>', -1)">−</button>
-                                <input type="number" name="toasts[<?= $t['toast_id'] ?>]" value="0" min="0" id="t_<?= $t['toast_id'] ?>" class="quantity-input" readonly>
-                                <button type="button" class="qty-btn qty-plus" onclick="adjustQuantity('t_<?= $t['toast_id'] ?>', 1)">+</button>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Allmän kommentar</label>
-                <textarea name="order_comment" rows="3" placeholder="Allmänna anteckningar..."></textarea>
-            </div>
-
-            <button type="submit" name="create_order" class="btn">Skapa beställning</button>
-        </form>
+        <button type="button" class="btn" onclick="openCreateOrderModal()">+ Ny beställning</button>
     </section>
 
     <section class="col-list">
@@ -1026,16 +884,7 @@ mysqli_close($conn);
                         <div class="item-row">
                             <h4>
                                 🥤
-                                <button
-                                    type="button"
-                                    class="item-detail-trigger"
-                                    data-item-name="<?= htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8') ?>"
-                                    data-item-type="Milkshake"
-                                    data-item-description="<?= htmlspecialchars($item['description'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                    data-item-ingredients="<?= htmlspecialchars($item['ingredients'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                >
-                                    <?= htmlspecialchars($item['name']) ?>
-                                </button>
+                                <?= htmlspecialchars($item['name']) ?>
                             </h4>
                             <div class="row-split">
                                 <div>
@@ -1059,16 +908,7 @@ mysqli_close($conn);
                         <div class="item-row">
                             <h4>
                                 🥪
-                                <button
-                                    type="button"
-                                    class="item-detail-trigger"
-                                    data-item-name="<?= htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8') ?>"
-                                    data-item-type="Toast"
-                                    data-item-description="<?= htmlspecialchars($item['description'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                    data-item-ingredients="<?= htmlspecialchars($item['ingredients'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                >
-                                    <?= htmlspecialchars($item['name']) ?>
-                                </button>
+                                <?= htmlspecialchars($item['name']) ?>
                             </h4>
                             <div class="row-split">
                                 <div>
@@ -1098,46 +938,153 @@ mysqli_close($conn);
     </div>
     <?php endif; ?>
 
-    <div id="item-detail-modal" class="detail-modal-overlay" aria-hidden="true">
-        <div class="detail-modal-content" role="dialog" aria-modal="true" aria-labelledby="detail-item-name">
-            <div class="detail-header">
-                <h3 id="detail-item-name" style="margin:0;"></h3>
-                <button type="button" id="item-detail-close" class="close-btn" aria-label="Stäng artikeldetaljer">&times;</button>
+    <!-- Create Order Modal -->
+    <div id="create-order-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin: 0;">Ny beställning</h3>
+                <button type="button" class="close-btn" onclick="closeCreateOrderModal()">✕</button>
             </div>
-            <div class="detail-body">
-                <div id="detail-item-type" class="detail-type"></div>
+            <div class="modal-body">
+                <form id="create-order-form" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="POST">
+                    <?= csrf_token_input() ?>
+                    
+                    <div class="form-group">
+                        <label>Kundnamn</label>
+                        <input type="text" name="customer_name" required placeholder="t.ex. Fillidutten">
+                    </div>
 
-                <div class="detail-section">
-                    <h4>Beskrivning</h4>
-                    <p id="detail-item-description">Ingen beskrivning tillgänglig.</p>
-                </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Milkshakes</label>
+                            <div id="milkshakes-container">
+                                <?php foreach($inv_milkshakes as $m): ?>
+                                    <div class="item-row" data-item-type="milkshake" data-item-id="<?= $m['milkshake_id'] ?>">
+                                        <h4><?= htmlspecialchars($m['name']) ?></h4>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
+                                            <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('m_<?= $m['milkshake_id'] ?>', -1)">−</button>
+                                            <input type="number" name="milkshakes[<?= $m['milkshake_id'] ?>]" value="0" min="0" id="m_<?= $m['milkshake_id'] ?>" class="quantity-input" onchange="updateItemComments(this)">
+                                            <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('m_<?= $m['milkshake_id'] ?>', 1)">+</button>
+                                        </div>
+                                        <div id="comments-m_<?= $m['milkshake_id'] ?>" class="item-comments" style="display: none;"></div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
 
-                <div class="detail-section">
-                    <h4>Ingredienser</h4>
-                    <p id="detail-item-ingredients">Inga ingredienser angivna.</p>
-                </div>
+                        <div>
+                            <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Toasts</label>
+                            <div id="toasts-container">
+                                <?php foreach($inv_toasts as $t): ?>
+                                    <div class="item-row" data-item-type="toast" data-item-id="<?= $t['toast_id'] ?>">
+                                        <h4><?= htmlspecialchars($t['name']) ?></h4>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
+                                            <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('t_<?= $t['toast_id'] ?>', -1)">−</button>
+                                            <input type="number" name="toasts[<?= $t['toast_id'] ?>]" value="0" min="0" id="t_<?= $t['toast_id'] ?>" class="quantity-input" onchange="updateItemComments(this)">
+                                            <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('t_<?= $t['toast_id'] ?>', 1)">+</button>
+                                        </div>
+                                        <div id="comments-t_<?= $t['toast_id'] ?>" class="item-comments" style="display: none;"></div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Allmän kommentar</label>
+                        <textarea name="order_comment" rows="2" placeholder="Allmänna anteckningar..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="close-btn" onclick="closeCreateOrderModal()" style="background: none; padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">Avbryt</button>
+                <button type="submit" form="create-order-form" name="create_order" class="btn" style="width: auto; margin: 0;">Skapa beställning</button>
             </div>
         </div>
     </div>
     
     <script>
-        function openItemDetail(data) {
-            const modal = document.getElementById('item-detail-modal');
-            document.getElementById('detail-item-name').textContent = data.name || 'Artikel';
-            document.getElementById('detail-item-type').textContent = data.type || 'Menyartikel';
-            document.getElementById('detail-item-description').textContent = data.description || 'Ingen beskrivning tillgänglig.';
-            document.getElementById('detail-item-ingredients').textContent = data.ingredients || 'Inga ingredienser angivna.';
-
-            modal.classList.add('open');
-            modal.setAttribute('aria-hidden', 'false');
+        function openCreateOrderModal() {
+            document.getElementById('create-order-modal').style.display = 'flex';
         }
 
-        function closeItemDetail() {
-            const modal = document.getElementById('item-detail-modal');
-            modal.classList.remove('open');
-            modal.setAttribute('aria-hidden', 'true');
+        function closeCreateOrderModal() {
+            document.getElementById('create-order-modal').style.display = 'none';
+            document.getElementById('create-order-form').reset();
         }
 
+        function adjustQtyModal(inputId, delta) {
+            const input = document.getElementById(inputId);
+            const currentValue = parseInt(input.value) || 0;
+            const newValue = Math.max(0, currentValue + delta);
+            input.value = newValue;
+            updateItemComments(input);
+        }
+
+        function updateItemComments(input) {
+            // Get the input field's ID and current quantity value
+            const inputId = input.id;
+            const qty = parseInt(input.value) || 0;
+            const commentsContainer = document.getElementById('comments-' + inputId);
+            
+            // Determine if this is milkshake (m) or toast (t)
+            const prefix = inputId.charAt(0);
+            const type = prefix === 'm' ? 'milkshake_comments' : 'toast_comments';
+            const baseId = inputId.substring(2);
+            
+            // Get the item name from the item row heading
+            const itemRow = input.closest('.item-row');
+            const itemName = itemRow ? itemRow.querySelector('h4').textContent : 'Artikel';
+            
+            // Save existing values before clearing
+            const savedValues = {};
+            commentsContainer.querySelectorAll('input[type="text"]').forEach(inp => {
+                const match = inp.name.match(/\[(.*?)\]/);
+                if (match) savedValues[match[1]] = inp.value;
+            });
+            
+            // Clear previous comment fields
+            commentsContainer.innerHTML = '';
+            
+            // If quantity > 0, create note fields for each item
+            if (qty > 0) {
+                commentsContainer.style.display = 'block';
+                // Loop through each unit and create a note field
+                for (let i = 0; i < qty; i++) {
+                    const commentKey = prefix + '_' + baseId + '_' + i;
+                    const div = document.createElement('div');
+                    div.style.marginBottom = '0.5rem';
+                    
+                    // Create input field
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.name = type + '[' + commentKey + ']';
+                    input.value = savedValues[commentKey] || '';
+                    input.placeholder = 'Lägg till notering...';
+                    input.style.cssText = 'width: 100%; padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;';
+                    
+                    // Create label
+                    const label = document.createElement('label');
+                    label.style.cssText = 'font-size: 0.85rem; color: var(--text-sub); display: block; margin-bottom: 0.25rem;';
+                    label.textContent = 'Notering för ' + itemName + ' ' + (i + 1);
+                    
+                    // Add label and input to container
+                    div.appendChild(label);
+                    div.appendChild(input);
+                    commentsContainer.appendChild(div);
+                }
+            } else {
+                // Hide comments container if quantity is 0
+                commentsContainer.style.display = 'none';
+            }
+        }
+
+        // Close modal if clicking on overlay
+        document.getElementById('create-order-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeCreateOrderModal();
+            }
+        });
         function setView(viewType) {
             const container = document.getElementById('order-container');
             const cardBtn = document.getElementById('card-view-btn');
@@ -1171,49 +1118,6 @@ mysqli_close($conn);
         document.addEventListener('DOMContentLoaded', function() {
             const savedView = localStorage.getItem('cashierViewPreference') || 'card';
             setView(savedView);
-
-            document.addEventListener('click', function(event) {
-                const trigger = event.target.closest('.item-detail-trigger');
-                if (!trigger) {
-                    return;
-                }
-
-                event.preventDefault();
-
-                openItemDetail({
-                    name: trigger.dataset.itemName || '',
-                    type: trigger.dataset.itemType || '',
-                    description: trigger.dataset.itemDescription || '',
-                    ingredients: trigger.dataset.itemIngredients || ''
-                });
-            });
-
-            const detailModal = document.getElementById('item-detail-modal');
-            const closeButton = document.getElementById('item-detail-close');
-            const orderModal = document.querySelector('.modal-overlay');
-            const orderModalClose = orderModal ? orderModal.querySelector('.close-btn') : null;
-
-            closeButton.addEventListener('click', closeItemDetail);
-            detailModal.addEventListener('click', function(event) {
-                if (event.target === detailModal) {
-                    closeItemDetail();
-                }
-            });
-
-            document.addEventListener('keydown', function(event) {
-                if (event.key !== 'Escape') {
-                    return;
-                }
-
-                if (detailModal.classList.contains('open')) {
-                    closeItemDetail();
-                    return;
-                }
-
-                if (orderModalClose) {
-                    window.location.href = orderModalClose.getAttribute('href');
-                }
-            });
         });
     </script>
     

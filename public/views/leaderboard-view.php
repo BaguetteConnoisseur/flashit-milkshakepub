@@ -35,51 +35,6 @@ $topToasts = mysqli_fetch_all(mysqli_query(
      LIMIT 10"
 ), MYSQLI_ASSOC);
 
-$topAllItems = mysqli_fetch_all(mysqli_query(
-    $conn,
-    "SELECT item_name, SUM(sold) AS sold
-     FROM (
-         SELECT m.name AS item_name, COUNT(*) AS sold
-         FROM order_milkshakes om
-         JOIN milkshakes m ON m.milkshake_id = om.milkshake_id
-         GROUP BY m.milkshake_id, m.name
-
-         UNION ALL
-
-         SELECT t.name AS item_name, COUNT(*) AS sold
-         FROM order_toasts ot
-         JOIN toasts t ON t.toast_id = ot.toast_id
-         GROUP BY t.toast_id, t.name
-     ) ranked
-     GROUP BY item_name
-     ORDER BY sold DESC, item_name ASC
-     LIMIT 10"
-), MYSQLI_ASSOC);
-
-$topCustomers = mysqli_fetch_all(mysqli_query(
-    $conn,
-    "SELECT o.customer_name, COALESCE(SUM(oi.total_items), 0) AS items_count
-     FROM orders o
-     LEFT JOIN (
-         SELECT order_id, SUM(item_count) AS total_items
-         FROM (
-             SELECT order_id, COUNT(*) AS item_count
-             FROM order_milkshakes
-             GROUP BY order_id
-
-             UNION ALL
-
-             SELECT order_id, COUNT(*) AS item_count
-             FROM order_toasts
-             GROUP BY order_id
-         ) order_item_counts
-         GROUP BY order_id
-     ) oi ON oi.order_id = o.order_id
-     GROUP BY o.customer_name
-     ORDER BY items_count DESC, o.customer_name ASC
-     LIMIT 10"
-), MYSQLI_ASSOC);
-
 mysqli_close($conn);
 ?>
 
@@ -217,7 +172,7 @@ mysqli_close($conn);
 
     <div class="container">
         <h1>Topplista</h1>
-        <p class="subtitle">Mest sålda produkter och kunder genom tiderna.</p>
+        <p class="subtitle">Mest sålda produkter genom tiderna.</p>
 
         <div class="grid">
             <section class="card">
@@ -248,40 +203,6 @@ mysqli_close($conn);
                                 <span class="rank">#<?= $index + 1 ?></span>
                                 <span><?= htmlspecialchars($row['item_name']) ?></span>
                                 <span class="value"><?= (int) $row['sold'] ?></span>
-                            </li>
-                        <?php endforeach; ?>
-                    </ol>
-                <?php endif; ?>
-            </section>
-
-            <section class="card">
-                <h2>Topp produkter (kombinerat)</h2>
-                <?php if (empty($topAllItems)): ?>
-                    <p class="empty">Ingen produktförsäljning ännu.</p>
-                <?php else: ?>
-                    <ol class="board">
-                        <?php foreach ($topAllItems as $index => $row): ?>
-                            <li>
-                                <span class="rank">#<?= $index + 1 ?></span>
-                                <span><?= htmlspecialchars($row['item_name']) ?></span>
-                                <span class="value"><?= (int) $row['sold'] ?></span>
-                            </li>
-                        <?php endforeach; ?>
-                    </ol>
-                <?php endif; ?>
-            </section>
-
-            <section class="card">
-                <h2>Toppkunder (antal köpta produkter)</h2>
-                <?php if (empty($topCustomers)): ?>
-                    <p class="empty">Inga kundbeställningar ännu.</p>
-                <?php else: ?>
-                    <ol class="board">
-                        <?php foreach ($topCustomers as $index => $row): ?>
-                            <li>
-                                <span class="rank">#<?= $index + 1 ?></span>
-                                <span><?= htmlspecialchars($row['customer_name']) ?></span>
-                                <span class="value"><?= (int) $row['items_count'] ?></span>
                             </li>
                         <?php endforeach; ?>
                     </ol>
