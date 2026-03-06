@@ -156,9 +156,9 @@ CREATE TABLE IF NOT EXISTS order_toasts (
 
 INSERT INTO milkshakes (name, description, ingredients, color)
 VALUES
-    ('Oreo milkshake', 'Milkshake med vaniljglass och Oreo', 'Mjölk, Glass, Oreobitar', '#7e4a27'),
-    ('Daim milkshake', 'Milkshake med Daim-karameller', 'Mjölk, Glass, Daim', '#c1af28'),
-    ('Lakris milkshake', 'Milkshake med lakriskarameller', 'Mjölk, Glass, Lakris godis', '#322e2f')
+    ('Oreo milkshake', 'Milkshake med vaniljglass och Oreo', '½ Oreo', '#7e4a27'),
+    ('Daim milkshake', 'Milkshake med Daim-karameller', '5 små bitar Daim', '#c1af28'),
+    ('Lakris milkshake', 'Milkshake med lakriskarameller', '8 Lakris pellets', '#322e2f')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 INSERT INTO toasts (name, description, ingredients, color)

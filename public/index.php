@@ -363,12 +363,6 @@ $showError = handle_login_post();
                     <p>Översikt över alla beställningar och köksstatusvisning för att visa up på bardatorn.</p>
                 </a>
 
-                <a href="views/leaderboard-view.php" class="view-card leaderboard">
-                    <div class="view-card-icon">🏆</div>
-                    <h3>Topplista</h3>
-                    <p>Se topplistor för mest sålda smaker över alla MSP's.</p>
-                </a>
-
                 <a href="views/statistics-view.php" class="view-card stats">
                     <div class="view-card-icon">📈</div>
                     <h3>Statistik</h3>

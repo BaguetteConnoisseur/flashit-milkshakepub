@@ -279,12 +279,6 @@ mysqli_close($conn);
                         <a class="link-btn" href="statistics-view.php" style="font-size: 0.85rem; padding: 0.5rem 0.7rem;">Öppna Statistik</a>
                     </div>
                 </div>
-                <div style="padding: 0.75rem; background: #f9fafb; border-radius: 6px; border-left: 3px solid var(--primary);">
-                    <strong>🏆 Leaderboard</strong> - Topplista över mest sålda produkter för aktivt event
-                    <div style="margin-top: 0.5rem;">
-                        <a class="link-btn" href="leaderboard-view.php" style="font-size: 0.85rem; padding: 0.5rem 0.7rem;">Öppna Leaderboard</a>
-                    </div>
-                </div>
             </div>
         </section>
     </div>

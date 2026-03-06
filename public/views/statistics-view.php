@@ -148,69 +148,89 @@ foreach ($milkshakeSales as &$item) {
 }
 unset($item);
 
-$toastSales = [];
-$stmtToastSales = mysqli_prepare(
-    $conn,
-    "SELECT t.name, COUNT(*) AS sold
-     FROM order_toasts ot
-     JOIN orders o ON o.order_id = ot.order_id
-     JOIN toasts t ON t.toast_id = ot.toast_id
-     WHERE o.event_id = ?
-     GROUP BY t.toast_id, t.name
-     ORDER BY sold DESC, t.name ASC"
-);
-mysqli_stmt_bind_param($stmtToastSales, 'i', $selectedPubId);
-mysqli_stmt_execute($stmtToastSales);
-mysqli_stmt_bind_result($stmtToastSales, $toastName, $toastSold);
-while (mysqli_stmt_fetch($stmtToastSales)) {
-    $toastSales[] = ['name' => $toastName, 'sold' => (int) $toastSold];
-}
-mysqli_stmt_close($stmtToastSales);
-
-$eventProductBreakdown = [];
-$eventBreakdownResult = mysqli_query(
+$toastAverageSales = mysqli_fetch_all(mysqli_query(
     $conn,
     "SELECT
-        b.event_id,
-        b.product_type,
-        b.product_name,
-        b.sold
-     FROM (
-        SELECT
-            o.event_id,
-            'Milkshake' AS product_type,
-            m.name AS product_name,
-            COUNT(*) AS sold
-        FROM order_milkshakes om
-        JOIN orders o ON o.order_id = om.order_id
-        JOIN milkshakes m ON m.milkshake_id = om.milkshake_id
-        GROUP BY o.event_id, m.milkshake_id, m.name
+        t.toast_id,
+        t.name,
+        (SELECT COUNT(*) FROM order_toasts WHERE toast_id = t.toast_id) AS total_sold,
+        (SELECT COUNT(DISTINCT event_id) FROM pub_toasts WHERE toast_id = t.toast_id AND is_active = 1) AS num_pubs_active
+     FROM toasts t
+     WHERE (SELECT COUNT(DISTINCT event_id) FROM pub_toasts WHERE toast_id = t.toast_id AND is_active = 1) > 0
+     ORDER BY total_sold DESC, t.name ASC"
+), MYSQLI_ASSOC);
 
-        UNION ALL
+// Calculate average per pub
+foreach ($toastAverageSales as &$item) {
+    $item['avg_per_pub'] = $item['num_pubs_active'] > 0 ? round($item['total_sold'] / $item['num_pubs_active'], 2) : 0;
+}
+unset($item);
 
-        SELECT
-            o.event_id,
-            'Toast' AS product_type,
-            t.name AS product_name,
-            COUNT(*) AS sold
-        FROM order_toasts ot
-        JOIN orders o ON o.order_id = ot.order_id
-        JOIN toasts t ON t.toast_id = ot.toast_id
-        GROUP BY o.event_id, t.toast_id, t.name
-     ) b
-     ORDER BY b.event_id, b.sold DESC, b.product_name ASC"
-);
+/* 4. Leaderboard Data - Top Lists by Selected Pub */
+$leaderboardPubId = isset($_GET['leaderboard_pub_id']) && $_GET['leaderboard_pub_id'] !== 'all' ? (int) $_GET['leaderboard_pub_id'] : null;
+$leaderboardPubName = 'Alla pubar';
 
-if ($eventBreakdownResult) {
-    while ($row = mysqli_fetch_assoc($eventBreakdownResult)) {
-        $eventId = (int) $row['event_id'];
-        $eventProductBreakdown[$eventId][] = [
-            'type' => $row['product_type'],
-            'name' => $row['product_name'],
-            'sold' => (int) $row['sold'],
-        ];
+if ($leaderboardPubId !== null) {
+    foreach ($allPubs as $pub) {
+        if ((int) $pub['event_id'] === $leaderboardPubId) {
+            $leaderboardPubName = $pub['event_name'];
+            break;
+        }
     }
-    mysqli_free_result($eventBreakdownResult);
+}
+
+if ($leaderboardPubId === null) {
+    // All pubs
+    $topMilkshakes = mysqli_fetch_all(mysqli_query(
+        $conn,
+        "SELECT m.name AS item_name, COUNT(*) AS sold
+         FROM order_milkshakes om
+         JOIN milkshakes m ON m.milkshake_id = om.milkshake_id
+         GROUP BY m.milkshake_id, m.name
+         ORDER BY sold DESC, m.name ASC
+         LIMIT 10"
+    ), MYSQLI_ASSOC);
+
+    $topToasts = mysqli_fetch_all(mysqli_query(
+        $conn,
+        "SELECT t.name AS item_name, COUNT(*) AS sold
+         FROM order_toasts ot
+         JOIN toasts t ON t.toast_id = ot.toast_id
+         GROUP BY t.toast_id, t.name
+         ORDER BY sold DESC, t.name ASC
+         LIMIT 10"
+    ), MYSQLI_ASSOC);
+} else {
+    // Specific pub
+    $stmtTopMilkshakes = mysqli_prepare($conn, 
+        "SELECT m.name AS item_name, COUNT(*) AS sold
+         FROM order_milkshakes om
+         JOIN orders o ON o.order_id = om.order_id
+         JOIN milkshakes m ON m.milkshake_id = om.milkshake_id
+         WHERE o.event_id = ?
+         GROUP BY m.milkshake_id, m.name
+         ORDER BY sold DESC, m.name ASC
+         LIMIT 10"
+    );
+    mysqli_stmt_bind_param($stmtTopMilkshakes, 'i', $leaderboardPubId);
+    mysqli_stmt_execute($stmtTopMilkshakes);
+    $topMilkshakes = mysqli_fetch_all(mysqli_stmt_get_result($stmtTopMilkshakes), MYSQLI_ASSOC);
+    mysqli_stmt_close($stmtTopMilkshakes);
+
+    $stmtTopToasts = mysqli_prepare($conn,
+        "SELECT t.name AS item_name, COUNT(*) AS sold
+         FROM order_toasts ot
+         JOIN orders o ON o.order_id = ot.order_id
+         JOIN toasts t ON t.toast_id = ot.toast_id
+         WHERE o.event_id = ?
+         GROUP BY t.toast_id, t.name
+         ORDER BY sold DESC, t.name ASC
+         LIMIT 10"
+    );
+    mysqli_stmt_bind_param($stmtTopToasts, 'i', $leaderboardPubId);
+    mysqli_stmt_execute($stmtTopToasts);
+    $topToasts = mysqli_fetch_all(mysqli_stmt_get_result($stmtTopToasts), MYSQLI_ASSOC);
+    mysqli_stmt_close($stmtTopToasts);
 }
 
 mysqli_close($conn);
@@ -414,87 +434,88 @@ mysqli_close($conn);
             font-weight: 700;
         }
 
-        .event-breakdown {
-            margin-top: 0.45rem;
+        .leaderboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
         }
 
-        .event-breakdown summary {
-            cursor: pointer;
-            color: var(--primary);
-            font-size: 0.84rem;
-            font-weight: 600;
+        .board {
+            margin: 0;
+            padding: 0;
             list-style: none;
         }
 
-        .event-breakdown summary::-webkit-details-marker {
-            display: none;
+        .board li {
+            display: grid;
+            grid-template-columns: 2.2rem 1fr auto;
+            gap: 0.6rem;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
         }
 
-        .event-breakdown summary::before {
-            content: '▸';
-            display: inline-block;
-            margin-right: 0.35rem;
-            transition: transform 0.15s ease;
+        .board li:last-child {
+            border-bottom: none;
         }
 
-        .event-breakdown[open] summary::before {
-            transform: rotate(90deg);
-        }
-
-        .breakdown-list {
-            margin: 0.5rem 0 0;
-            padding-left: 1rem;
-        }
-
-        .breakdown-list li {
-            margin: 0.2rem 0;
-            font-size: 0.85rem;
-        }
-
-        .breakdown-type {
+        .rank {
+            font-weight: 800;
             color: var(--text-sub);
-            margin-right: 0.35rem;
+            text-align: center;
         }
 
-        .expand-list {
-            margin-top: 0.6rem;
+        .value {
+            font-weight: 800;
         }
 
-        .expand-list summary {
-            display: inline-block;
-            cursor: pointer;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 0.35rem 0.6rem;
-            font-size: 0.84rem;
-            font-weight: 600;
-            color: var(--primary);
-            background: #eff6ff;
-            list-style: none;
+        .leaderboard-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1rem;
         }
 
-        .expand-list summary::-webkit-details-marker {
-            display: none;
+        .leaderboard-title {
+            margin: 0;
         }
 
-        .expand-list summary::before {
-            content: '▸';
-            display: inline-block;
-            margin-right: 0.35rem;
-            transition: transform 0.15s ease;
+        .leaderboard-subtitle {
+            color: var(--text-sub);
+            font-size: 0.9rem;
+            margin: 0.35rem 0 0;
         }
 
-        .expand-list[open] summary::before {
-            transform: rotate(90deg);
+        .leaderboard-filter {
+            margin-left: auto;
+            flex-wrap: nowrap;
+            gap: 0.5rem;
         }
 
-        .expand-list[open] summary {
-            margin-bottom: 0.45rem;
+        .leaderboard-filter label {
+            white-space: nowrap;
+            color: var(--text-sub);
+            font-size: 0.9rem;
+        }
+
+        .leaderboard-filter select {
+            min-width: 190px;
+            max-width: 260px;
+        }
+
+        #leaderboard-section.is-loading {
+            opacity: 0.65;
+            transition: opacity 0.15s ease;
         }
 
         @media (max-width: 900px) {
             .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .grid-2 { grid-template-columns: 1fr; }
+            .leaderboard-grid { grid-template-columns: 1fr; }
+            .leaderboard-header { flex-direction: column; align-items: stretch; }
+            .leaderboard-filter { margin-left: 0; }
+            .leaderboard-filter select { width: 100%; max-width: none; }
         }
     </style>
 </head>
@@ -531,49 +552,97 @@ mysqli_close($conn);
         <div class="grid-2">
             <section class="card">
                 <h2>Milkshakeförsäljning per smak</h2>
-                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub</p>
+                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
                 <?php if (empty($milkshakeSales)): ?>
                     <p class="empty">Ingen milkshake-försäljning ännu.</p>
                 <?php else: ?>
-                    <?php
-                        $visibleMilkshakeSales = array_slice($milkshakeSales, 0, 7);
-                        $hiddenMilkshakeSales = array_slice($milkshakeSales, 7);
-                    ?>
+                    <?php $topMilkshakeAverageSales = array_slice($milkshakeSales, 0, 5); ?>
                     <ol class="list">
-                        <?php foreach ($visibleMilkshakeSales as $row): ?>
+                        <?php foreach ($topMilkshakeAverageSales as $row): ?>
                             <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_active'] ?> pub<?= (int) $row['num_pubs_active'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
-
-                    <?php if (!empty($hiddenMilkshakeSales)): ?>
-                        <details class="expand-list">
-                            <summary>Visa fler milkshakes (<?= count($hiddenMilkshakeSales) ?>)</summary>
-                            <ol class="list" start="8">
-                                <?php foreach ($hiddenMilkshakeSales as $row): ?>
-                                    <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_active'] ?> pub<?= (int) $row['num_pubs_active'] !== 1 ? 'ar' : '' ?>)</span></li>
-                                <?php endforeach; ?>
-                            </ol>
-                        </details>
-                    <?php endif; ?>
                 <?php endif; ?>
             </section>
 
             <section class="card">
                 <h2>Toastförsäljning per smak</h2>
-                <?php if (empty($toastSales)): ?>
+                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
+                <?php if (empty($toastAverageSales)): ?>
                     <p class="empty">Ingen toast-försäljning ännu.</p>
                 <?php else: ?>
+                    <?php $topToastAverageSales = array_slice($toastAverageSales, 0, 5); ?>
                     <ol class="list">
-                        <?php foreach ($toastSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= (int) $row['sold'] ?></strong></li>
+                        <?php foreach ($topToastAverageSales as $row): ?>
+                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_active'] ?> pub<?= (int) $row['num_pubs_active'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
                 <?php endif; ?>
             </section>
         </div>
 
+        <section id="leaderboard-section" class="card" style="margin-top: 1rem;">
+            <div class="leaderboard-header">
+                <div>
+                    <h2 class="leaderboard-title">Topplista</h2>
+                    <p class="leaderboard-subtitle">Mest sålda produkter<?= $leaderboardPubId !== null ? ' för ' . htmlspecialchars($leaderboardPubName) : ' genom tiderna' ?>.</p>
+                </div>
+
+                <form method="get" class="pub-tools leaderboard-filter">
+                    <label for="leaderboard_pub_id">Välj pub:</label>
+                    <select name="leaderboard_pub_id" id="leaderboard_pub_id">
+                        <option value="all" <?= $leaderboardPubId === null ? 'selected' : '' ?>>Alla pubar</option>
+                        <?php foreach ($allPubs as $pub): ?>
+                            <option value="<?= (int) $pub['event_id'] ?>" <?= $leaderboardPubId === (int) $pub['event_id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($pub['event_name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <noscript>
+                        <button type="submit">Visa</button>
+                    </noscript>
+                </form>
+            </div>
+
+            <div class="leaderboard-grid" style="margin-top: 1rem;">
+                <div>
+                    <h3 style="margin: 0 0 0.8rem; font-size: 1.05rem;">Topp milkshakes</h3>
+                    <?php if (empty($topMilkshakes)): ?>
+                        <p class="empty">Inga milkshake-försäljningar ännu.</p>
+                    <?php else: ?>
+                        <ol class="board">
+                            <?php foreach ($topMilkshakes as $index => $row): ?>
+                                <li>
+                                    <span class="rank">#<?= $index + 1 ?></span>
+                                    <span><?= htmlspecialchars($row['item_name']) ?></span>
+                                    <span class="value"><?= (int) $row['sold'] ?></span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ol>
+                    <?php endif; ?>
+                </div>
+
+                <div>
+                    <h3 style="margin: 0 0 0.8rem; font-size: 1.05rem;">Topp toasts</h3>
+                    <?php if (empty($topToasts)): ?>
+                        <p class="empty">Inga toast-försäljningar ännu.</p>
+                    <?php else: ?>
+                        <ol class="board">
+                            <?php foreach ($topToasts as $index => $row): ?>
+                                <li>
+                                    <span class="rank">#<?= $index + 1 ?></span>
+                                    <span><?= htmlspecialchars($row['item_name']) ?></span>
+                                    <span class="value"><?= (int) $row['sold'] ?></span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ol>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </section>
+
         <section class="card" style="margin-bottom: 1.5rem;">
-            <h2>Översikt över pubhistorik</h2>
+            <h2>Pubhistorik</h2>
             <?php if (empty($allPubs)): ?>
                 <p class="empty">Inga pubar skapade ännu.</p>
             <?php else: ?>
@@ -590,30 +659,12 @@ mysqli_close($conn);
                     </thead>
                     <tbody>
                         <?php foreach ($allPubs as $pub): ?>
-                            <?php $eventId = (int) $pub['event_id']; ?>
-                            <?php $breakdownItems = $eventProductBreakdown[$eventId] ?? []; ?>
                             <tr>
                                 <td>
                                     <?= htmlspecialchars($pub['event_name']) ?>
                                     <?php if ((int) $pub['is_active'] === 1): ?>
                                         <span class="badge-active">AKTIV</span>
                                     <?php endif; ?>
-
-                                    <details class="event-breakdown">
-                                        <summary>Visa sålda produkter</summary>
-                                        <?php if (empty($breakdownItems)): ?>
-                                            <p class="empty" style="margin-top:0.4rem;">Inga produkter sålda i detta event.</p>
-                                        <?php else: ?>
-                                            <ul class="breakdown-list">
-                                                <?php foreach ($breakdownItems as $item): ?>
-                                                    <li>
-                                                        <span class="breakdown-type"><?= htmlspecialchars($item['type']) ?>:</span>
-                                                        <?= htmlspecialchars($item['name']) ?> — <strong><?= (int) $item['sold'] ?></strong>
-                                                    </li>
-                                                <?php endforeach; ?>
-                                            </ul>
-                                        <?php endif; ?>
-                                    </details>
                                 </td>
                                 <td><?= htmlspecialchars($pub['started_at']) ?></td>
                                 <td><?= htmlspecialchars($pub['ended_at'] ?? '—') ?></td>
@@ -661,5 +712,79 @@ mysqli_close($conn);
             <?php endif; ?>
         </section>
     </div>
+
+    <script>
+        (function () {
+            const leaderboardSectionSelector = '#leaderboard-section';
+            let activeRequest = null;
+
+            document.addEventListener('change', async function (event) {
+                const target = event.target;
+                if (!(target instanceof HTMLSelectElement) || target.id !== 'leaderboard_pub_id') {
+                    return;
+                }
+
+                const leaderboardSection = document.querySelector(leaderboardSectionSelector);
+                if (!leaderboardSection) {
+                    return;
+                }
+
+                const selectedPubId = target.value;
+                const url = new URL(window.location.href);
+
+                if (selectedPubId === 'all') {
+                    url.searchParams.delete('leaderboard_pub_id');
+                } else {
+                    url.searchParams.set('leaderboard_pub_id', selectedPubId);
+                }
+
+                if (activeRequest) {
+                    activeRequest.abort();
+                }
+
+                activeRequest = new AbortController();
+                leaderboardSection.classList.add('is-loading');
+                target.disabled = true;
+
+                try {
+                    const response = await fetch(url.toString(), {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        signal: activeRequest.signal,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to load leaderboard section');
+                    }
+
+                    const html = await response.text();
+                    const parser = new DOMParser();
+                    const fetchedDocument = parser.parseFromString(html, 'text/html');
+                    const nextLeaderboardSection = fetchedDocument.querySelector(leaderboardSectionSelector);
+
+                    if (!nextLeaderboardSection) {
+                        window.location.href = url.toString();
+                        return;
+                    }
+
+                    leaderboardSection.innerHTML = nextLeaderboardSection.innerHTML;
+                    window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        window.location.href = url.toString();
+                    }
+                } finally {
+                    activeRequest = null;
+                    const currentLeaderboardSection = document.querySelector(leaderboardSectionSelector);
+                    if (currentLeaderboardSection) {
+                        currentLeaderboardSection.classList.remove('is-loading');
+                        const currentSelect = currentLeaderboardSection.querySelector('#leaderboard_pub_id');
+                        if (currentSelect) {
+                            currentSelect.disabled = false;
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

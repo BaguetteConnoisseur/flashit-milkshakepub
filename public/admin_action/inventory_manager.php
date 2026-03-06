@@ -372,7 +372,6 @@ mysqli_close($conn);
                                 <th>Beskrivning</th>
                                 <th>Ingredienser</th>
                                 <th>Färg</th>
-                                <th>Sålda</th>
                                 <th>Åtgärd</th>
                             </tr>
                         </thead>
@@ -384,7 +383,6 @@ mysqli_close($conn);
                                 <td><?= htmlspecialchars($item['description']) ?></td>
                                 <td><?= htmlspecialchars($item['ingredients']) ?></td>
                                 <td style="text-align: center;"><div style="width: 30px; height: 30px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto;"></div></td>
-                                <td><?= (int) ($item['sold_count'] ?? 0) ?></td>
                                 <td>
                                     <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
                                         <?= csrf_token_input() ?>
@@ -414,7 +412,6 @@ mysqli_close($conn);
                                 <th>Beskrivning</th>
                                 <th>Ingredienser</th>
                                 <th>Färg</th>
-                                <th>Sålda</th>
                                 <th>Åtgärd</th>
                             </tr>
                         </thead>
@@ -426,7 +423,6 @@ mysqli_close($conn);
                                 <td><?= htmlspecialchars($item['description']) ?></td>
                                 <td><?= htmlspecialchars($item['ingredients']) ?></td>
                                 <td style="text-align: center;"><div style="width: 30px; height: 30px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto;"></div></td>
-                                <td><?= (int) ($item['sold_count'] ?? 0) ?></td>
                                 <td>
                                     <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
                                         <?= csrf_token_input() ?>
