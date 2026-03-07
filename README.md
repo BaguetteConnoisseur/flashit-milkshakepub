@@ -2,12 +2,11 @@
 
 A lightweight order sheet web app for FlashIT's MilkshakePub, containerized with Docker Compose.
 
-## Original Creators
+## Contributors
 
 This project was originally created by:
 - Filur - (https://www.github.com/Filuren123)
 - Ponky - (https://www.github.com/BaguetteConnoisseur)
-
 From FlashIT'25.
 
 ## Stack
