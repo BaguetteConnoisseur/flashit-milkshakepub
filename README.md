@@ -43,20 +43,6 @@ Run `quick-start.bat`.
 4. Open:
    - `http://localhost:8080`
 
-## Deploy under a Subpath (`/milkshakepub`)
-
-1. Set in `.env`:
-   ```bash
-   BASE_PATH=/milkshakepub
-   ```
-
-2. Keep this app running via Docker (`localhost:8080`).
-
-3. Add reverse proxy config on the main web server:
-
-4. Reload nginx and browse:
-   - `https://www.flashit.chalmers.it/milkshakepub`
-
 ## Security
 
 Before deployment:
