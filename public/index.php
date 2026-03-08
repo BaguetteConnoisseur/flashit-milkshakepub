@@ -1,5 +1,5 @@
 <?php
-require_once("../private/initalize.php");
+require_once("../private/initialize.php");
 
 // Handle logout and login actions BEFORE any output
 $showError = handle_login_post();

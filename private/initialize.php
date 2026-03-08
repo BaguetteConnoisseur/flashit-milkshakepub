@@ -23,7 +23,7 @@ define("SHARED_PATH", PRIVATE_PATH . '/shared');
 
 // Require code libraries
 require("functions.php");
-require("master_code/top-user-check.php");
+require("core/auth.php");
 
 if (!headers_sent()) {
     header('Content-Type: text/html; charset=UTF-8');

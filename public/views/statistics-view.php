@@ -1,9 +1,9 @@
 <?php
 /* --- 1. Statistics View Bootstrap --- */
 
-require_once("../../private/initalize.php");
-require(PRIVATE_PATH . "/master_code/db-conn.php");
-require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
+require_once("../../private/initialize.php");
+require(PRIVATE_PATH . "/core/db-connection.php");
+require(PRIVATE_PATH . "/core/schema-bootstrap.php");
 
 require_login();
 

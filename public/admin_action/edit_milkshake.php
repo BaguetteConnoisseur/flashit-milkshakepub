@@ -1,8 +1,8 @@
 <?php
 /* --- 1. Edit Milkshake (Admin Action) Bootstrap --- */
 
-require_once("../../private/initalize.php");
-require(PRIVATE_PATH . "/master_code/db-conn.php");
+require_once("../../private/initialize.php");
+require(PRIVATE_PATH . "/core/db-connection.php");
 
 require_login();
 

@@ -1,9 +1,9 @@
 <?php
 /* --- 1. Toast Station View Bootstrap --- */
 
-require_once("../../private/initalize.php");
-require(PRIVATE_PATH . "/master_code/db-conn.php");
-require(PRIVATE_PATH . "/master_code/pub-schema-bootstrap.php");
+require_once("../../private/initialize.php");
+require(PRIVATE_PATH . "/core/db-connection.php");
+require(PRIVATE_PATH . "/core/schema-bootstrap.php");
 
 require_login();
 
@@ -104,7 +104,7 @@ function getTickets($conn, $activePubId) {
         $order_ids = array_map('intval', $order_ids);
 
         if (!empty($order_ids)) {
-            // NOTE: We are fetching Milkshakes here to display as context
+            // Fetch related milkshakes only for visible orders to give kitchen context without extra full-table scans.
             $placeholders = implode(',', array_fill(0, count($order_ids), '?'));
             $types = str_repeat('i', count($order_ids));
             
