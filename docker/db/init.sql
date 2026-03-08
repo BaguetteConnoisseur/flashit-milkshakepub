@@ -166,7 +166,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 INSERT INTO toasts (name, description, ingredients, color)
 VALUES
     ('Standard toast', 'Toast med skinka och ost', 'Skinka, Ost, Pesto, Tomatpuré, Oregano, Smör', '#F7C87D'),
-    ('Chilicheese toast', 'Chilicheese på rostatbröd', 'chillicheese', '#B8D98B'),
+    ('Chilicheese toast', 'Chilicheese på rostatbröd', 'Chillicheese', '#B8D98B'),
     ('Desert toast', 'Efterrätts toast med choklad och banan', 'Choklad, Banan', '#ce915c')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
