@@ -372,21 +372,23 @@ if (isset($_GET['fetch_view'])) {
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
     </div>
     <?php include(SHARED_PATH . "/public_footer.php"); ?>
+    <script src="../js/live-poller.js"></script>
     <script>
-        function loadTickets() {
-            fetch('?fetch_view=1')
-                .then(response => response.text())
-                .then(html => {
-                    document.getElementById('ticket-grid').innerHTML = html;
-                    document.getElementById('connection-status').style.color = '#10b981';
-                })
-                .catch(err => {
-                    console.error('Kunde inte hämta beställningar:', err);
-                    document.getElementById('connection-status').style.color = '#ef4444';
-                });
-        }
-        loadTickets();
-        setInterval(loadTickets, 5000);
+        createLivePoller({
+            endpoint: '?fetch_view=1',
+            statusSelector: '#connection-status',
+            statusLabels: {
+                live: '● Live',
+                offline: '● Offline',
+                sleeping: '● Sover (inaktiv 24h)',
+            },
+            onData: function (html) {
+                document.getElementById('ticket-grid').innerHTML = html;
+            },
+            onError: function (err) {
+                console.error('Kunde inte hämta beställningar:', err);
+            },
+        });
     </script>
 </body>
 </html>

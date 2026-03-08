@@ -14,33 +14,62 @@ $activePubId = (int) $pubTracking['active_pub_id'];
 
 /* --- 2. Data Fetching + AJAX Partial --- */
 if (isset($_GET['fetch_view'])) {
-    
-    // Fetch orders with their item statuses from the last 12 hours
+    // Fetch orders with pre-aggregated item status counters (avoids per-order follow-up queries).
     $query = "
-        SELECT 
-            o.order_id, 
-            o.order_number, 
+        SELECT
+            o.order_id,
+            o.order_number,
             o.pub_order_number,
-            o.customer_name, 
-            o.status as order_status,
+            o.customer_name,
+            o.status AS order_status,
             o.created_at,
-            -- Determine overall status based on item statuses
-            CASE 
-                WHEN NOT EXISTS (SELECT 1 FROM order_milkshakes om WHERE om.order_id = o.order_id AND om.status NOT IN ('Done', 'Delivered'))
-                     AND NOT EXISTS (SELECT 1 FROM order_toasts ot WHERE ot.order_id = o.order_id AND ot.status NOT IN ('Done', 'Delivered')) THEN 'Done'
-                WHEN EXISTS (SELECT 1 FROM order_milkshakes om WHERE om.order_id = o.order_id AND om.status = 'In Progress') 
-                     OR EXISTS (SELECT 1 FROM order_toasts ot WHERE ot.order_id = o.order_id AND ot.status = 'In Progress') THEN 'In Progress'
-                WHEN EXISTS (SELECT 1 FROM order_milkshakes om WHERE om.order_id = o.order_id AND om.status = 'Received') 
-                     OR EXISTS (SELECT 1 FROM order_toasts ot WHERE ot.order_id = o.order_id AND ot.status = 'Received') THEN 'Received'
+            COALESCE(om_stats.total_count, 0) AS milkshake_total,
+            COALESCE(om_stats.delivered_count, 0) AS milkshake_delivered,
+            COALESCE(ot_stats.total_count, 0) AS toast_total,
+            COALESCE(ot_stats.delivered_count, 0) AS toast_delivered,
+            CASE
+                WHEN COALESCE(om_stats.not_done_count, 0) = 0
+                     AND COALESCE(ot_stats.not_done_count, 0) = 0 THEN 'Done'
+                WHEN COALESCE(om_stats.in_progress_count, 0) > 0
+                     OR COALESCE(ot_stats.in_progress_count, 0) > 0 THEN 'In Progress'
+                WHEN COALESCE(om_stats.received_count, 0) > 0
+                     OR COALESCE(ot_stats.received_count, 0) > 0 THEN 'Received'
                 ELSE 'Pending'
-            END as calculated_status
+            END AS calculated_status
         FROM orders o
-        WHERE o.event_id = $activePubId AND o.created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
+        LEFT JOIN (
+            SELECT
+                order_id,
+                COUNT(*) AS total_count,
+                SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) AS delivered_count,
+                SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) AS in_progress_count,
+                SUM(CASE WHEN status = 'Received' THEN 1 ELSE 0 END) AS received_count,
+                SUM(CASE WHEN status NOT IN ('Done', 'Delivered') THEN 1 ELSE 0 END) AS not_done_count
+            FROM order_milkshakes
+            GROUP BY order_id
+        ) om_stats ON om_stats.order_id = o.order_id
+        LEFT JOIN (
+            SELECT
+                order_id,
+                COUNT(*) AS total_count,
+                SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) AS delivered_count,
+                SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) AS in_progress_count,
+                SUM(CASE WHEN status = 'Received' THEN 1 ELSE 0 END) AS received_count,
+                SUM(CASE WHEN status NOT IN ('Done', 'Delivered') THEN 1 ELSE 0 END) AS not_done_count
+            FROM order_toasts
+            GROUP BY order_id
+        ) ot_stats ON ot_stats.order_id = o.order_id
+        WHERE o.event_id = ?
+          AND o.created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
         ORDER BY o.created_at DESC
     ";
-    
-    $result = mysqli_query($conn, $query);
+
+    $stmt = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($stmt, 'i', $activePubId);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
     $orders = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    mysqli_stmt_close($stmt);
 
     // Buckets
     $preparing = [];    // Will hold 'Pending' and 'Received'
@@ -57,22 +86,8 @@ if (isset($_GET['fetch_view'])) {
             $o['display_status'] = 'In-progress';
             $inProgress[] = $o;
         } elseif ($s === 'done') {
-            // Check if all items are delivered to determine display status
-            $order_id = $o['order_id'];
-            $milkshake_query = "SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) as delivered 
-                               FROM order_milkshakes WHERE order_id = $order_id";
-            $toast_query = "SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) as delivered 
-                           FROM order_toasts WHERE order_id = $order_id";
-            
-            $milkshake_result = mysqli_query($conn, $milkshake_query);
-            $toast_result = mysqli_query($conn, $toast_query);
-            
-            $milkshake_data = mysqli_fetch_assoc($milkshake_result);
-            $toast_data = mysqli_fetch_assoc($toast_result);
-            
-            $total_items = ($milkshake_data['total'] ?? 0) + ($toast_data['total'] ?? 0);
-            $delivered_items = ($milkshake_data['delivered'] ?? 0) + ($toast_data['delivered'] ?? 0);
-            
+            $total_items = ((int) ($o['milkshake_total'] ?? 0)) + ((int) ($o['toast_total'] ?? 0));
+            $delivered_items = ((int) ($o['milkshake_delivered'] ?? 0)) + ((int) ($o['toast_delivered'] ?? 0));
             $o['display_status'] = ($delivered_items == $total_items && $total_items > 0) ? 'Delivered' : 'Done';
             $doneDelivered[] = $o;
         }
@@ -317,6 +332,7 @@ if (isset($_GET['fetch_view'])) {
 
     </div>
 
+    <script src="../js/live-poller.js"></script>
     <script>
         const DELIVERY_HIDE_DELAY_MS = 10000;
         const deliveredFirstSeen = new Map();
@@ -357,24 +373,23 @@ if (isset($_GET['fetch_view'])) {
             }
         }
 
-        function updateBoard() {
-            fetch('?fetch_view=1')
-                .then(response => response.text())
-                .then(html => {
-                    let parser = new DOMParser();
-                    let doc = parser.parseFromString(html, 'text/html');
+        createLivePoller({
+            endpoint: '?fetch_view=1',
+            onData: function (html) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
 
-                    document.getElementById('list-preparing').innerHTML = doc.getElementById('col-preparing').innerHTML;
-                    document.getElementById('list-inprogress').innerHTML = doc.getElementById('col-inprogress').innerHTML;
-                    document.getElementById('list-done-delivered').innerHTML = doc.getElementById('col-done-delivered').innerHTML;
-
-                    applyDeliveredGracePeriod();
-                })
-                .catch(err => console.error('Display update failed', err));
-        }
-
-        updateBoard();
-        setInterval(updateBoard, 5000);
+                document.getElementById('list-preparing').innerHTML = doc.getElementById('col-preparing').innerHTML;
+                document.getElementById('list-inprogress').innerHTML = doc.getElementById('col-inprogress').innerHTML;
+                document.getElementById('list-done-delivered').innerHTML = doc.getElementById('col-done-delivered').innerHTML;
+            },
+            onTick: function () {
+                applyDeliveredGracePeriod();
+            },
+            onError: function (err) {
+                console.error('Display update failed', err);
+            },
+        });
     </script>
 </body>
 </html>

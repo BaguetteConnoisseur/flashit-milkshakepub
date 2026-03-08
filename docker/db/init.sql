@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS order_milkshakes (
     status VARCHAR(50) NOT NULL DEFAULT 'Pending',
     KEY idx_order_milkshakes_order_id (order_id),
     KEY idx_order_milkshakes_order_status (order_id, status),
+    KEY idx_order_milkshakes_status_order_id (status, order_id),
     KEY idx_order_milkshakes_milkshake_id (milkshake_id),
     CONSTRAINT fk_order_milkshakes_order
         FOREIGN KEY (order_id)
@@ -144,6 +145,7 @@ CREATE TABLE IF NOT EXISTS order_toasts (
     status VARCHAR(50) NOT NULL DEFAULT 'Pending',
     KEY idx_order_toasts_order_id (order_id),
     KEY idx_order_toasts_order_status (order_id, status),
+    KEY idx_order_toasts_status_order_id (status, order_id),
     KEY idx_order_toasts_toast_id (toast_id),
     CONSTRAINT fk_order_toasts_order
         FOREIGN KEY (order_id)
@@ -208,6 +210,13 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'order_milkshakes' AND index_name = 'idx_order_milkshakes_status_order_id');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_order_milkshakes_status_order_id ON order_milkshakes(status, order_id)', 'SELECT "idx exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- Ensure order_toasts indexes exist (for upgrades)
 SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
     WHERE table_schema = DATABASE() AND table_name = 'order_toasts' AND index_name = 'idx_order_toasts_order_id');
@@ -226,6 +235,13 @@ DEALLOCATE PREPARE stmt;
 SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
     WHERE table_schema = DATABASE() AND table_name = 'order_toasts' AND index_name = 'idx_order_toasts_toast_id');
 SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_order_toasts_toast_id ON order_toasts(toast_id)', 'SELECT "idx exists"');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = DATABASE() AND table_name = 'order_toasts' AND index_name = 'idx_order_toasts_status_order_id');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_order_toasts_status_order_id ON order_toasts(status, order_id)', 'SELECT "idx exists"');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

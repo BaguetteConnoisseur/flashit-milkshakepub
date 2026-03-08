@@ -463,21 +463,23 @@ if (isset($_GET['fetch_view'])) {
     </div>
     <?php include(SHARED_PATH . "/public_footer.php"); ?>
 
+    <script src="../js/live-poller.js"></script>
     <script>
-        function loadOrders() {
-            fetch('?fetch_view=1')
-                .then(response => response.text())
-                .then(html => {
-                    document.getElementById('ticket-grid').innerHTML = html;
-                    document.getElementById('connection-status').style.color = '#10b981';
-                })
-                .catch(err => {
-                    console.error('Kunde inte hämta beställningar:', err);
-                    document.getElementById('connection-status').style.color = '#ef4444';
-                });
-        }
-        loadOrders();
-        setInterval(loadOrders, 3000); 
+        createLivePoller({
+            endpoint: '?fetch_view=1',
+            statusSelector: '#connection-status',
+            statusLabels: {
+                live: '● Live',
+                offline: '● Offline',
+                sleeping: '● Sleeping',
+            },
+            onData: function (html) {
+                document.getElementById('ticket-grid').innerHTML = html;
+            },
+            onError: function (err) {
+                console.error('Kunde inte hämta beställningar:', err);
+            },
+        });
     </script>
 </body>
 </html>
