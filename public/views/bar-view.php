@@ -27,15 +27,22 @@ if (isset($_GET['fetch_view'])) {
             COALESCE(om_stats.delivered_count, 0) AS milkshake_delivered,
             COALESCE(ot_stats.total_count, 0) AS toast_total,
             COALESCE(ot_stats.delivered_count, 0) AS toast_delivered,
-            CASE
-                WHEN COALESCE(om_stats.not_done_count, 0) = 0
+              CASE
+                 WHEN COALESCE(om_stats.not_done_count, 0) = 0
                      AND COALESCE(ot_stats.not_done_count, 0) = 0 THEN 'Done'
-                WHEN COALESCE(om_stats.in_progress_count, 0) > 0
+                 WHEN (
+                    (COALESCE(om_stats.done_count, 0) > 0 OR COALESCE(ot_stats.done_count, 0) > 0)
+                    AND (
+                        COALESCE(om_stats.not_done_count, 0) > 0
+                        OR COALESCE(ot_stats.not_done_count, 0) > 0
+                    )
+                 ) THEN 'In Progress'
+                 WHEN COALESCE(om_stats.in_progress_count, 0) > 0
                      OR COALESCE(ot_stats.in_progress_count, 0) > 0 THEN 'In Progress'
-                WHEN COALESCE(om_stats.received_count, 0) > 0
+                 WHEN COALESCE(om_stats.received_count, 0) > 0
                      OR COALESCE(ot_stats.received_count, 0) > 0 THEN 'Received'
-                ELSE 'Pending'
-            END AS calculated_status
+                 ELSE 'Pending'
+              END AS calculated_status
         FROM orders o
         LEFT JOIN (
             SELECT
@@ -44,6 +51,7 @@ if (isset($_GET['fetch_view'])) {
                 SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) AS delivered_count,
                 SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) AS in_progress_count,
                 SUM(CASE WHEN status = 'Received' THEN 1 ELSE 0 END) AS received_count,
+                SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) AS done_count,
                 SUM(CASE WHEN status NOT IN ('Done', 'Delivered') THEN 1 ELSE 0 END) AS not_done_count
             FROM order_milkshakes
             GROUP BY order_id
@@ -55,6 +63,7 @@ if (isset($_GET['fetch_view'])) {
                 SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) AS delivered_count,
                 SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) AS in_progress_count,
                 SUM(CASE WHEN status = 'Received' THEN 1 ELSE 0 END) AS received_count,
+                SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) AS done_count,
                 SUM(CASE WHEN status NOT IN ('Done', 'Delivered') THEN 1 ELSE 0 END) AS not_done_count
             FROM order_toasts
             GROUP BY order_id
