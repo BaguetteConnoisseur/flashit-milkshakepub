@@ -132,8 +132,8 @@ function getTickets($conn, $activePubId) {
 }
 
 /* 4. Summary Aggregation */
-function getSummary($conn, $activePubId) {
-    $stmt = mysqli_prepare($conn, "SELECT t.name, COUNT(*) as count FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id JOIN orders o ON o.order_id = ot.order_id WHERE ot.status != 'Delivered' AND o.event_id = ? GROUP BY t.name ORDER BY count DESC");
+function getToastSummary($conn, $activePubId) {
+    $stmt = mysqli_prepare($conn, "SELECT t.name, COUNT(*) as count FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id JOIN orders o ON o.order_id = ot.order_id WHERE ot.status IN ('Pending', 'Received') AND o.event_id = ? GROUP BY t.name ORDER BY count DESC");
     mysqli_stmt_bind_param($stmt, 'i', $activePubId);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
@@ -142,7 +142,11 @@ function getSummary($conn, $activePubId) {
     return $summary;
 }
 
-$summary = getSummary($conn, $activePubId);
+$toastSummary = getToastSummary($conn, $activePubId);
+$toastSummaryTotal = 0;
+foreach ($toastSummary as $summaryItem) {
+    $toastSummaryTotal += (int) ($summaryItem['count'] ?? 0);
+}
 
 /* --- 5. AJAX Partial Renderer --- */
 if (isset($_GET['fetch_view'])) {
@@ -236,6 +240,71 @@ if (isset($_GET['fetch_view'])) {
     <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
+                .summary-panel {
+                    margin-top: 0.75rem;
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 10px;
+                    padding: 0.75rem;
+                    width: fit-content;
+                    max-width: 100%;
+                }
+                .summary-head {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 0.6rem;
+                    color: #6b7280;
+                    font-size: 0.8rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.04em;
+                    font-weight: 700;
+                }
+                .summary-total {
+                    background: #ffffff;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 999px;
+                    padding: 0.2rem 0.55rem;
+                    color: #1f2937;
+                    font-size: 0.8rem;
+                    font-weight: 700;
+                    margin-left: 0.5rem;
+                }
+                .summary {
+                    display: flex;
+                    gap: 0.5rem;
+                    flex-wrap: nowrap;
+                    overflow-x: auto;
+                    padding-bottom: 0.1rem;
+                }
+                .summary-item {
+                    background: #ffffff;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 0.5rem 0.6rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 0.6rem;
+                    flex: 0 0 auto;
+                }
+                .summary-name {
+                    font-size: 0.85rem;
+                    font-weight: 600;
+                    color: #1f2937;
+                    white-space: nowrap;
+                }
+                .summary-count {
+                    min-width: 28px;
+                    text-align: center;
+                    font-size: 0.85rem;
+                    font-weight: 800;
+                    color: #1d4ed8;
+                    background: #eff6ff;
+                    border: 1px solid #bfdbfe;
+                    border-radius: 999px;
+                    padding: 0.1rem 0.4rem;
+                }
         /* --- 6. Layout & Theme --- */
         :root {
             /* Light Mode Palette */
@@ -377,11 +446,20 @@ if (isset($_GET['fetch_view'])) {
     <div class="header">
         <div>
             <h1>🥪 Toast-station</h1>
-            <?php if (!empty($summary)): ?>
-                <div class="summary">
-                    <?php foreach ($summary as $item): ?>
-                        <span class="summary-item"><?= htmlspecialchars($item['name']) ?>: <?= $item['count'] ?></span>
-                    <?php endforeach; ?>
+            <?php if (!empty($toastSummary)): ?>
+                <div class="summary-panel">
+                    <div class="summary-head">
+                        <span>Ej påbörjade beställningar</span>
+                        <span class="summary-total">Totalt: <?= $toastSummaryTotal ?></span>
+                    </div>
+                    <div class="summary">
+                        <?php foreach ($toastSummary as $item): ?>
+                            <div class="summary-item">
+                                <span class="summary-name"><?= htmlspecialchars($item['name']) ?></span>
+                                <span class="summary-count"><?= (int) $item['count'] ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
             <?php endif; ?>
         </div>

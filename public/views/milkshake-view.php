@@ -233,6 +233,7 @@ if (isset($_GET['fetch_view'])) {
             color: var(--text-main);
             font-size: 0.8rem;
             font-weight: 700;
+            margin-left: 0.5rem;
         }
 
         .summary {
