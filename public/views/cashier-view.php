@@ -96,9 +96,8 @@ if (isset($_POST['create_order'])) {
             }
             mysqli_stmt_close($stmt_t);
         }
-
         mysqli_commit($conn);
-
+        broadcast_new_order($conn, $new_order_id, $activeEventId);
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     } catch (Throwable $e) {
@@ -107,6 +106,48 @@ if (isset($_POST['create_order'])) {
     }
 }
 
+    // Broadcast new order payload to WebSocket server
+    function broadcast_new_order($conn, $order_id, $event_id) {
+        // Fetch order with items
+        $stmt = mysqli_prepare($conn, "SELECT o.order_id, o.order_number, o.pub_order_number, o.customer_name, o.status, o.order_comment, o.created_at FROM orders o WHERE o.order_id = ? AND o.event_id = ?");
+        mysqli_stmt_bind_param($stmt, 'ii', $order_id, $event_id);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        $order = mysqli_fetch_assoc($result);
+        mysqli_stmt_close($stmt);
+
+        if ($order) {
+            // Fetch milkshakes
+            $stmt = mysqli_prepare($conn, "SELECT om.order_milkshake_id, om.milkshake_id, m.name AS milkshake_name, om.status, om.comment FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id WHERE om.order_id = ?");
+            mysqli_stmt_bind_param($stmt, 'i', $order_id);
+            mysqli_stmt_execute($stmt);
+            $ms_result = mysqli_stmt_get_result($stmt);
+            $order['milkshakes'] = mysqli_fetch_all($ms_result, MYSQLI_ASSOC);
+            mysqli_stmt_close($stmt);
+
+            // Fetch toasts
+            $stmt = mysqli_prepare($conn, "SELECT ot.order_toast_id, ot.toast_id, t.name AS toast_name, ot.status, ot.comment FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id WHERE ot.order_id = ?");
+            mysqli_stmt_bind_param($stmt, 'i', $order_id);
+            mysqli_stmt_execute($stmt);
+            $ts_result = mysqli_stmt_get_result($stmt);
+            $order['toasts'] = mysqli_fetch_all($ts_result, MYSQLI_ASSOC);
+            mysqli_stmt_close($stmt);
+
+            // Prepare JSON payload
+            $payload = [
+                'type' => 'order_update',
+                'data' => $order
+            ];
+            $json = json_encode($payload);
+
+            // Send JSON to WebSocket server
+            $sock = @fsockopen('127.0.0.1', 8081, $errno, $errstr, 1);
+            if ($sock) {
+                fwrite($sock, $json . "\n");
+                fclose($sock);
+            }
+        }
+    }
 // 2. UPDATE ORDER (FROM MODAL)
 if (isset($_POST['update_order'])) {
     $order_id = intval($_POST['order_id']);

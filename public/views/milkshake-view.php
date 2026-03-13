@@ -373,15 +373,35 @@ if (isset($_GET['fetch_view'])) {
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
     </div>
     <?php include(SHARED_PATH . "/public_footer.php"); ?>
-    <script src="../js/live-poller.js"></script>
     <script>
-        createLivePoller({
-            endpoint: '?fetch_view=1',
+        function loadTickets() {
+            fetch('?fetch_view=1')
+                .then(response => response.text())
+                .then(html => {
+                    document.getElementById('ticket-grid').innerHTML = html;
+                    document.getElementById('connection-status').style.color = '#10b981';
+                })
+                .catch(err => {
+                    console.error('Error fetching orders:', err);
+                    document.getElementById('connection-status').style.color = '#ef4444';
+                });
+        }
+        loadTickets();
+        setInterval(loadTickets, 5000);
+    <script src="../js/live-updater.js"></script>
+    <script>
+        window.createLiveUpdater({
+            wsUrl: window.WS_URL || (function() {
+                var port = window.WS_PORT || '';
+                var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+                var host = location.hostname;
+                return port ? proto + host + ':' + port : proto + host;
+            })(),
             statusSelector: '#connection-status',
             statusLabels: {
-                live: '● Live',
-                offline: '● Offline',
-                sleeping: '● Sover (inaktiv 24h)',
+                live: '\u25cf Live',
+                offline: '\u25cf Offline',
+                sleeping: '\u25cf Sover (inaktiv 24h)',
             },
             onData: function (html) {
                 document.getElementById('ticket-grid').innerHTML = html;

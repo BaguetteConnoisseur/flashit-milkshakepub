@@ -39,6 +39,10 @@ echo To view logs: docker compose logs -f
 echo =====================================
 echo.
 
+REM Open firewall for WebSocket (port from .env)
+for /f "tokens=2 delims==" %%A in ('findstr WS_PORT .env') do set WS_PORT=%%A
+powershell -Command "New-NetFirewallRule -DisplayName 'WebSocket %WS_PORT%' -Direction Inbound -Action Allow -Protocol TCP -LocalPort %WS_PORT%" >nul 2>&1
+
 REM Open browser
 start http://localhost:8080
 

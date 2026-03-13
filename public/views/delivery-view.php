@@ -462,19 +462,137 @@ if (isset($_GET['fetch_view'])) {
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
     </div>
     <?php include(SHARED_PATH . "/public_footer.php"); ?>
-
-    <script src="../js/live-poller.js"></script>
     <script>
-        createLivePoller({
-            endpoint: '?fetch_view=1',
+        function loadOrders() {
+            fetch('?fetch_view=1')
+                .then(response => response.text())
+                .then(html => {
+                    document.getElementById('ticket-grid').innerHTML = html;
+                    document.getElementById('connection-status').style.color = '#10b981';
+                })
+                .catch(err => {
+                    console.error('Error fetching orders:', err);
+                    document.getElementById('connection-status').style.color = '#ef4444';
+                });
+        }
+        loadOrders();
+        setInterval(loadOrders, 3000); 
+    <script src="../js/live-updater.js"></script>
+    <script>
+        window.createLiveUpdater({
+            wsUrl: window.WS_URL || (function() {
+                var port = window.WS_PORT || '';
+                var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+                var host = location.hostname;
+                return port ? proto + host + ':' + port : proto + host;
+            })(),
             statusSelector: '#connection-status',
             statusLabels: {
-                live: '● Live',
-                offline: '● Offline',
-                sleeping: '● Sleeping',
+                live: '\u25cf Live',
+                offline: '\u25cf Offline',
+                sleeping: '\u25cf Sleeping',
+
             },
             onData: function (html) {
                 document.getElementById('ticket-grid').innerHTML = html;
+            },
+            onOrderUpdate: function (order) {
+                // Find the order card by pub_order_number/order_number/order_id
+                var grid = document.getElementById('ticket-grid');
+                var orderId = order.pub_order_number || order.order_number || order.order_id;
+                var cards = grid.querySelectorAll('.ticket-card');
+                var found = false;
+                cards.forEach(function(card) {
+                    var meta = card.querySelector('.meta span');
+                    if (meta && meta.textContent.replace('#', '').trim() == orderId) {
+                        // Re-render the card
+                        var newCard = document.createElement('div');
+                        newCard.className = 'ticket-card';
+                        // Optionally add card-completed/card-ready classes
+                        var isDelivered = order.is_fully_delivered || order.status === 'Delivered';
+                        var isReady = order.ready_to_serve || order.status === 'Done';
+                        if (isDelivered) newCard.classList.add('card-completed');
+                        else if (isReady) newCard.classList.add('card-ready');
+
+                        // Build card header
+                        var header = document.createElement('div');
+                        header.className = 'card-header';
+                        var metaDiv = document.createElement('div');
+                        metaDiv.className = 'meta';
+                        metaDiv.innerHTML = '<span>#' + orderId + '</span><span>' + (order.created_at ? new Date(order.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '') + '</span>';
+                        header.appendChild(metaDiv);
+                        var customerDiv = document.createElement('div');
+                        customerDiv.className = 'customer';
+                        customerDiv.textContent = order.customer_name || '';
+                        if (isDelivered) {
+                            var deliveredSpan = document.createElement('span');
+                            deliveredSpan.style.fontSize = '0.8rem';
+                            deliveredSpan.style.opacity = '0.6';
+                            deliveredSpan.textContent = '(Levererad)';
+                            customerDiv.appendChild(deliveredSpan);
+                        }
+                        header.appendChild(customerDiv);
+                        if (order.main_comment || order.order_comment) {
+                            var noteDiv = document.createElement('div');
+                            noteDiv.className = 'order-note';
+                            noteDiv.textContent = '📝 ' + (order.main_comment || order.order_comment);
+                            header.appendChild(noteDiv);
+                        }
+                        newCard.appendChild(header);
+
+                        // Build card body
+                        var body = document.createElement('div');
+                        body.className = 'card-body';
+                        (order.items || order.linked_milkshakes || []).forEach(function(item) {
+                            var isItemReady = item.status === 'Done';
+                            var isItemDelivered = item.status === 'Delivered';
+                            var itemClass = isItemDelivered ? 'item-delivered' : (isItemReady ? 'item-done' : 'item-pending');
+                            var icon = item.type === 'milkshake' || item.milkshake_name ? '🥤' : '🥪';
+                            var row = document.createElement('div');
+                            row.className = 'item-row ' + itemClass;
+                            var info = document.createElement('div');
+                            info.className = 'item-info';
+                            var iconSpan = document.createElement('span');
+                            iconSpan.className = 'item-icon';
+                            iconSpan.textContent = icon;
+                            info.appendChild(iconSpan);
+                            var nameDiv = document.createElement('div');
+                            var name = document.createElement('div');
+                            name.className = 'item-name';
+                            name.textContent = item.name || item.toast_name || item.milkshake_name || '';
+                            nameDiv.appendChild(name);
+                            if (item.comment || item.item_comment) {
+                                var commentDiv = document.createElement('div');
+                                commentDiv.className = 'item-comment';
+                                commentDiv.textContent = '⚠️ ' + (item.comment || item.item_comment);
+                                nameDiv.appendChild(commentDiv);
+                            }
+                            info.appendChild(nameDiv);
+                            row.appendChild(info);
+                            var statusDiv = document.createElement('div');
+                            statusDiv.className = 'item-status';
+                            if (!isItemDelivered) {
+                                var statusText = document.createElement('span');
+                                statusText.className = 'status-text';
+                                statusText.textContent = item.status;
+                                statusDiv.appendChild(statusText);
+                            } else {
+                                statusDiv.innerHTML = '<span>Levererad</span>';
+                            }
+                            row.appendChild(statusDiv);
+                            body.appendChild(row);
+                        });
+                        newCard.appendChild(body);
+
+                        // Replace the old card
+                        card.parentNode.replaceChild(newCard, card);
+                        found = true;
+                    }
+                });
+                // Optionally, if not found, add new card
+                if (!found) {
+                    // Optionally append new order card
+                }
             },
             onError: function (err) {
                 console.error('Kunde inte hämta beställningar:', err);

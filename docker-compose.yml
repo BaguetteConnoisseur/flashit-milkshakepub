@@ -15,6 +15,7 @@ services:
       - flashit-milkshakepub-network
 
   flashit-milkshakepub-backend:
+
     build:
       context: .
       dockerfile: docker/backend/Dockerfile
@@ -22,6 +23,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./:/var/www
+    env_file:
+      - .env
     environment:
       DB_HOST: flashit-milkshakepub-db
       DB_NAME: ${MYSQL_DATABASE:-flashit_milkshakepub}
@@ -37,10 +40,23 @@ services:
     networks:
       - flashit-milkshakepub-network
 
+  flashit-milkshakepub-websocket:
+    build:
+      context: .
+      dockerfile: docker/websocket/Dockerfile
+    container_name: flashit-milkshakepub-websocket
+    restart: unless-stopped
+    ports:
+      - "${WS_PORT:-8081}:8081"
+      - "8082:8082"
+    networks:
+      - flashit-milkshakepub-network
   flashit-milkshakepub-db:
     image: mysql:8.4
     container_name: flashit-milkshakepub-db
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-flashit_milkshakepub}

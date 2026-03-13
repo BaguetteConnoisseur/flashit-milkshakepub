@@ -27,44 +27,84 @@ function localize_status_label($status) {
 }
 
 /* --- 2. Actions (POST) --- */
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    require_csrf_token();
+$pubTracking = ensure_pub_tracking($conn);
+$activePubId = (int) $pubTracking['active_pub_id'];
 
-    // 1. Next Step Button
-    if (isset($_POST['advance_status'])) {
-        $ot_id = intval($_POST['order_toast_id']);
-        $current_status = $_POST['current_status'];
-        $new_status = $current_status;
+function localize_status_label($status) {
+    $map = [
+        'Pending' => 'Väntar',
+        'Received' => 'Mottagen',
+        'In Progress' => 'Pågår',
+        'Done' => 'Klar',
+        'Delivered' => 'Levererad',
+    ];
 
-        if ($current_status === 'Pending' || $current_status === 'Received') {
-            $new_status = 'In Progress';
-        } elseif ($current_status === 'In Progress') {
-            $new_status = 'Done';
+    return $map[$status] ?? $status;
+}
+
+// Function to broadcast the updated order data as JSON to the WebSocket server
+function broadcast_order_update($conn, $order_toast_id, $activePubId, $new_status) {
+    // Fetch the updated order
+    $stmt = mysqli_prepare($conn, "SELECT ot.order_toast_id, ot.status, ot.comment AS item_comment, ot.order_id, t.name AS toast_name, o.order_number, o.pub_order_number, o.customer_name, o.created_at, o.order_comment AS main_comment FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id JOIN orders o ON ot.order_id = o.order_id WHERE ot.order_toast_id = ? AND o.event_id = ?");
+    mysqli_stmt_bind_param($stmt, 'ii', $order_toast_id, $activePubId);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $order = mysqli_fetch_assoc($result);
+    mysqli_stmt_close($stmt);
+
+    if ($order) {
+        // Optionally fetch linked milkshakes
+        $order_id = (int)$order['order_id'];
+        $stmt = mysqli_prepare($conn, "SELECT m.name AS milkshake_name, om.status FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id WHERE om.order_id = ?");
+        mysqli_stmt_bind_param($stmt, 'i', $order_id);
+        mysqli_stmt_execute($stmt);
+        $ms_result = mysqli_stmt_get_result($stmt);
+        $order['linked_milkshakes'] = mysqli_fetch_all($ms_result, MYSQLI_ASSOC);
+        mysqli_stmt_close($stmt);
+
+        // Prepare JSON payload
+        $payload = [
+            'type' => 'order_update',
+            'order_id' => $order_toast_id,
+            'status' => $new_status,
+            'data' => $order
+        ];
+        $json = json_encode($payload);
+
+        // Use backend HTTP broadcast
+        $ch = curl_init('http://localhost:8082/broadcast');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+        $result = curl_exec($ch);
+        $curl_error = curl_error($ch);
+        curl_close($ch);
+        error_log('Broadcast payload: ' . $json);
+        error_log('Broadcast result: ' . $result);
+        if ($curl_error) {
+            error_log('Broadcast curl error: ' . $curl_error);
         }
-
-        if ($new_status !== $current_status) {
-            $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = ? WHERE ot.order_toast_id = ? AND o.event_id = ?");
-            mysqli_stmt_bind_param($stmt, 'sii', $new_status, $ot_id, $activePubId);
-            mysqli_stmt_execute($stmt);
-            mysqli_stmt_close($stmt);
-        }
-        header("Location: " . $_SERVER['PHP_SELF']);
-        exit;
     }
+}
 
-    // 2. Manual Dropdown Change
-    if (isset($_POST['update_status_manual'])) {
-        $ot_id = intval($_POST['order_toast_id']);
-        $new_status = $_POST['manual_status'];
-        
+/* --- 2. Actions (POST) --- */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+    require_csrf_token();
+    $input = json_decode(file_get_contents('php://input'), true);
+    $ot_id = intval($input['order_id'] ?? 0);
+    $new_status = $input['status'] ?? null;
+    if ($ot_id && $new_status) {
         $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = ? WHERE ot.order_toast_id = ? AND o.event_id = ?");
         mysqli_stmt_bind_param($stmt, 'sii', $new_status, $ot_id, $activePubId);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_close($stmt);
-        
-        header("Location: " . $_SERVER['PHP_SELF']);
+        broadcast_order_update($conn, $ot_id, $activePubId, $new_status);
+        echo json_encode(['success' => true, 'order_id' => $ot_id, 'status' => $new_status]);
         exit;
     }
+    echo json_encode(['success' => false]);
+    exit;
 }
 
 /* --- 3. Data Fetching Helpers --- */
@@ -90,7 +130,24 @@ function getTickets($conn, $activePubId) {
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
     $tickets = mysqli_fetch_all($result, MYSQLI_ASSOC);
+
     mysqli_stmt_close($stmt);
+                    if (isset($_GET['ws_test'])) {
+                        $payload = [
+                            'type' => 'order_update',
+                            'order' => ['test' => 'manual', 'timestamp' => time()]
+                        ];
+                        $json = json_encode($payload);
+                        $sock = @fsockopen('127.0.0.1', 8081, $errno, $errstr, 1);
+                        if ($sock) {
+                            fwrite($sock, $json . "\n");
+                            fclose($sock);
+                            echo 'Test payload sent.';
+                        } else {
+                            echo 'Failed to connect to WebSocket server.';
+                        }
+                        exit;
+                    }
 
     foreach ($tickets as &$ticket) {
         $ticket['linked_milkshakes'] = [];
@@ -199,29 +256,21 @@ if (isset($_GET['fetch_view'])) {
 
                 </div>
                 <div class="controls">
-                    <form method="POST" style="flex-grow:1; display:flex; gap:5px;">
-                        <?= csrf_token_input() ?>
-                        <input type="hidden" name="order_toast_id" value="<?= $t['order_toast_id'] ?>">
-                        <select name="manual_status" onchange="this.form.submit()">
+                    <form style="flex-grow:1; display:flex; gap:5px;" onsubmit="return false;">
+                        <select data-order-status data-order-id="<?= $t['order_toast_id'] ?>">
                             <option value="" hidden>Uppdatera</option>
                             <option value="Pending" <?= ($t['status']=='Pending' || $t['status']=='Received') ? 'selected' : '' ?>>Mottagen</option>
                             <option value="In Progress" <?= $t['status']=='In Progress' ? 'selected' : '' ?>>Pågår</option>
                             <option value="Done" <?= $t['status']=='Done' ? 'selected' : '' ?>>Klar</option>
                             <option value="Delivered">Levererad</option>
                         </select>
-                        <input type="hidden" name="update_status_manual" value="1">
                     </form>
                     <?php if ($t['status'] !== 'Done'): ?>
-                        <form method="POST">
-                            <?= csrf_token_input() ?>
-                            <input type="hidden" name="order_toast_id" value="<?= $t['order_toast_id'] ?>">
-                            <input type="hidden" name="current_status" value="<?= $t['status'] ?>">
-                            <?php if($t['status'] == 'Pending' || $t['status'] == 'Received'): ?>
-                                <button type="submit" name="advance_status" class="btn-next">Starta &rarr;</button>
-                            <?php elseif($t['status'] == 'In Progress'): ?>
-                                <button type="submit" name="advance_status" class="btn-next btn-finish">Klar &#10003;</button>
-                            <?php endif; ?>
-                        </form>
+                        <?php if($t['status'] == 'Pending' || $t['status'] == 'Received'): ?>
+                            <button data-order-action="In Progress" data-order-id="<?= $t['order_toast_id'] ?>" class="btn-next">Starta &rarr;</button>
+                        <?php elseif($t['status'] == 'In Progress'): ?>
+                            <button data-order-action="Done" data-order-id="<?= $t['order_toast_id'] ?>" class="btn-next btn-finish">Klar &#10003;</button>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>
@@ -466,27 +515,34 @@ if (isset($_GET['fetch_view'])) {
         <div id="connection-status">● Live</div>
     </div>
 
+    <div id="grid-refresh-notice" style="display:none;position:fixed;top:20px;right:20px;background:#10b981;color:#fff;padding:12px 24px;border-radius:8px;z-index:9999;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.15);">Grid updated!</div>
+    <div id="ws-debug" style="position:fixed;top:60px;right:20px;background:#2563eb;color:#fff;padding:8px 16px;border-radius:8px;z-index:9999;font-size:0.95em;display:none;">WS: waiting...</div>
     <div id="ticket-grid" class="grid">
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
     </div>
     <?php include(SHARED_PATH . "/public_footer.php"); ?>
 
-    <script src="../js/live-poller.js"></script>
+    <script src="../js/live-updater.js"></script>
+    <script src="../js/order-broadcast.js"></script>
     <script>
-        createLivePoller({
-            endpoint: '?fetch_view=1',
+        window.createLiveUpdater({
+            wsUrl: 'ws://localhost:8081',
             statusSelector: '#connection-status',
             statusLabels: {
-                live: '● Live',
-                offline: '● Offline',
-                sleeping: '● Sover (inaktiv 24h)',
+                live: '\u25cf Live',
+                offline: '\u25cf Offline',
+                sleeping: '\u25cf Sover (inaktiv 24h)',
             },
-            onData: function (html) {
-                document.getElementById('ticket-grid').innerHTML = html;
-            },
+            onOrderUpdate: window.handleOrderUpdate,
             onError: function (err) {
+                var wsDebug = document.getElementById('ws-debug');
+                if (wsDebug) {
+                    wsDebug.style.display = 'block';
+                    wsDebug.textContent = 'WS: error';
+                    setTimeout(function(){ wsDebug.style.display = 'none'; }, 2000);
+                }
                 console.error('Kunde inte hämta beställningar:', err);
-            },
+            }
         });
     </script>
 </body>

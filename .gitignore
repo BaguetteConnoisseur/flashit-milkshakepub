@@ -9,3 +9,27 @@ Thumbs.db
 
 .vscode/
 .idea/
+
+# Ignore Docker volumes
+flashit_milkshakepub_db_data_alias/
+
+# Ignore vendor and build outputs
+vendor/
+node_modules/
+build/
+dist/
+
+# Ignore IDE/editor files
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Ignore coverage
+coverage/
+
+# Ignore other sensitive files
+private/
+
+# Ignore WebSocket server dependencies
+websocket_php/vendor/

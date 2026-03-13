@@ -341,7 +341,7 @@ if (isset($_GET['fetch_view'])) {
 
     </div>
 
-    <script src="../js/live-poller.js"></script>
+    <script src="../js/live-updater.js"></script>
     <script>
         const DELIVERY_HIDE_DELAY_MS = 10000;
         const deliveredFirstSeen = new Map();
@@ -382,17 +382,20 @@ if (isset($_GET['fetch_view'])) {
             }
         }
 
-        createLivePoller({
-            endpoint: '?fetch_view=1',
+        window.createLiveUpdater({
+            wsUrl: window.WS_URL || (function() {
+                var port = window.WS_PORT || '';
+                var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+                var host = location.hostname;
+                return port ? proto + host + ':' + port : proto + host;
+            })(),
+            statusSelector: '#status',
             onData: function (html) {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
-
                 document.getElementById('list-preparing').innerHTML = doc.getElementById('col-preparing').innerHTML;
                 document.getElementById('list-inprogress').innerHTML = doc.getElementById('col-inprogress').innerHTML;
                 document.getElementById('list-done-delivered').innerHTML = doc.getElementById('col-done-delivered').innerHTML;
-            },
-            onTick: function () {
                 applyDeliveredGracePeriod();
             },
             onError: function (err) {
