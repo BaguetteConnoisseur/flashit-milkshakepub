@@ -1,8 +1,9 @@
 <?php
-require_once("../private/initialize.php");
+// index.php
+require_once("/var/www/html/private/initialize.php");
 
-// Handle logout and login actions BEFORE any output
-$showError = handle_login_post();
+// handle_login_post now returns a string error if login fails, or false if nothing happened
+$errorMessage = handle_login_post();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -293,7 +294,7 @@ $showError = handle_login_post();
             <div class="login-card">
                 <h2>Välkommen tillbaka</h2>
                 
-                <?php if ($showError): ?>
+                <?php if ($errorMessage): ?>
                     <div class="error-message">
                         Ogiltiga uppgifter. Försök igen.
                     </div>

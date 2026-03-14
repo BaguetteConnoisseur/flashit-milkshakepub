@@ -1,83 +1,32 @@
 services:
-  flashit-milkshakepub-frontend:
-    image: nginx:1.27-alpine
-    container_name: flashit-milkshakepub-frontend
-    restart: unless-stopped
+  nginx:
+    image: nginx:latest
     ports:
-      - "${APP_PORT:-8080}:80"
+      - "8080:80"
     volumes:
-      - ./:/var/www:ro
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - .:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
-      flashit-milkshakepub-backend:
-        condition: service_started
-    networks:
-      - flashit-milkshakepub-network
+      - backend
+      - db
 
-  flashit-milkshakepub-backend:
-
-    build:
-      context: .
-      dockerfile: docker/backend/Dockerfile
-    container_name: flashit-milkshakepub-backend
-    restart: unless-stopped
+  backend:
+    build: 
+      context: ./docker/backend
     volumes:
-      - ./:/var/www
-    env_file:
-      - .env
+      - .:/var/www/html
     environment:
-      DB_HOST: flashit-milkshakepub-db
-      DB_NAME: ${MYSQL_DATABASE:-flashit_milkshakepub}
-      DB_USER: ${MYSQL_USER:?MYSQL_USER is required}
-      DB_PASS: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME is required}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
-      BASE_PATH: ${BASE_PATH:-}
-      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Stockholm}
-    depends_on:
-      flashit-milkshakepub-db:
-        condition: service_healthy
-    networks:
-      - flashit-milkshakepub-network
+      - MYSQL_DATABASE=flashit_bestallningsark
 
-  flashit-milkshakepub-websocket:
-    build:
-      context: .
-      dockerfile: docker/websocket/Dockerfile
-    container_name: flashit-milkshakepub-websocket
-    restart: unless-stopped
+  websocket:
+    build: ./docker/websocket
     ports:
-      - "${WS_PORT:-8081}:8081"
-      - "8082:8082"
-    networks:
-      - flashit-milkshakepub-network
-  flashit-milkshakepub-db:
-    image: mysql:8.4
-    container_name: flashit-milkshakepub-db
-    restart: unless-stopped
-    env_file:
-      - .env
+      - "8081:8081"
+
+  db:
+    image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-flashit_milkshakepub}
-      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: flashit_bestallningsark
     volumes:
-      - flashit_milkshakepub_db_data_alias:/var/lib/mysql
-      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks:
-      - flashit-milkshakepub-network
-
-volumes:
-  flashit_milkshakepub_db_data_alias:
-    name: flashit_milkshakepub_db_data
-
-networks:
-  flashit-milkshakepub-network:
-    driver: bridge
-
+      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql

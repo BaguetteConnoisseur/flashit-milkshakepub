@@ -1,149 +1,50 @@
 <?php
-/* --- 1. Inventory Manager (Admin Action) Bootstrap --- */
+require_once(__DIR__ . "/../../private/initialize.php");
+require_once(__DIR__ . "/../../src/InventoryManager.php");
 
-require_once("../../private/initialize.php");
-require(PRIVATE_PATH . "/core/db-connection.php");
-require(PRIVATE_PATH . "/core/schema-bootstrap.php");
+// 1. Authenticate
+require_login(); 
 
-require_login();
+// 2. Get the active pub info from the session
+$activePubId = $_SESSION['active_pub_id']; 
+$activePubName = $_SESSION['active_pub_name'];
 
-if (!$conn) {
-    die("Database connection failed: " . mysqli_connect_error());
-}
+// 3. Initialize the Manager
+$pdo = db();
+$inventory = new InventoryManager($pdo, $activePubId);
 
-$pubTracking = ensure_pub_tracking($conn);
-$activePubId = (int) $pubTracking['active_pub_id'];
-$activePubName = $pubTracking['active_pub_name'];
-ensure_pub_menu_links($conn, $activePubId);
-
+/* --- 1. Form Actions --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    require_csrf_token();
-}
+    // Note: ensure initialize.php or auth.php defines require_csrf_token()
+    // require_csrf_token(); 
 
-/* --- 2. Form Actions --- */
+    if (isset($_POST['add-milkshake']) || isset($_POST['add-toast'])) {
+        $category = isset($_POST['add-milkshake']) ? 'milkshake' : 'toast';
+        $inventory->addItem([
+            'category'    => $category,
+            'name'        => trim($_POST['name'] ?? $_POST['milkshake-name']),
+            'description' => trim($_POST['description'] ?? ''),
+            'ingredients' => trim($_POST['ingredients'] ?? ''),
+            'color'       => trim($_POST['color'] ?? '#ffffff')
+        ]);
+        header("Location: inventory_manager.php");
+        exit;
+    }
 
-// Add milkshake
-if (isset($_POST['add-milkshake'])) {
-    $milkshakeName = trim($_POST['milkshake-name'] ?? '');
-    $description = trim($_POST['description'] ?? '');
-    $ingredients = trim($_POST['ingredients'] ?? '');
-    $color = trim($_POST['color'] ?? '');
-
-    if (!empty($milkshakeName) && !empty($description) && !empty($ingredients) && !empty($color)) {
-        $stmt = mysqli_prepare($conn, "INSERT INTO milkshakes (name, description, ingredients, color) VALUES (?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, 'ssss', $milkshakeName, $description, $ingredients, $color);
-        mysqli_stmt_execute($stmt);
-        $newId = (int) mysqli_insert_id($conn);
-        mysqli_stmt_close($stmt);
-        
-        $stmt = mysqli_prepare($conn, "INSERT INTO pub_milkshakes (event_id, milkshake_id, is_active) VALUES (?, ?, 1)");
-        mysqli_stmt_bind_param($stmt, 'ii', $activePubId, $newId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-
-        echo "<script>window.location.href='" . $_SERVER['PHP_SELF'] . "';</script>";
+    if (isset($_POST['toggle-status'])) {
+        $itemId = (int)$_POST['item-id'];
+        $isActive = (int)$_POST['new-status'] === 1;
+        $inventory->toggleActive($itemId, $isActive);
+        header("Location: inventory_manager.php");
         exit;
     }
 }
 
-if (isset($_POST['add-toast'])) {
-    $toastName = trim($_POST['name'] ?? '');
-    $description = trim($_POST['description'] ?? '');
-    $ingredients = trim($_POST['ingredients'] ?? '');
-    $color = trim($_POST['color'] ?? '');
-
-    if (!empty($toastName) && !empty($description) && !empty($ingredients) && !empty($color)) {
-        $stmt = mysqli_prepare($conn, "INSERT INTO toasts (name, description, ingredients, color) VALUES (?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, 'ssss', $toastName, $description, $ingredients, $color);
-        mysqli_stmt_execute($stmt);
-        $newId = (int) mysqli_insert_id($conn);
-        mysqli_stmt_close($stmt);
-        
-        $stmt = mysqli_prepare($conn, "INSERT INTO pub_toasts (event_id, toast_id, is_active) VALUES (?, ?, 1)");
-        mysqli_stmt_bind_param($stmt, 'ii', $activePubId, $newId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-
-        echo "<script>window.location.href='" . $_SERVER['PHP_SELF'] . "';</script>";
-        exit;
-    }
-}
-
-if (isset($_POST['deactivate-milkshake'])) {
-    $itemId = intval($_POST['milkshake-id'] ?? 0);
-    if ($itemId > 0) {
-        $stmt = mysqli_prepare($conn, "UPDATE pub_milkshakes SET is_active = 0 WHERE event_id = ? AND milkshake_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $activePubId, $itemId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        echo "<script>window.location.href='" . $_SERVER['PHP_SELF'] . "';</script>";
-        exit;
-    }
-}
-
-if (isset($_POST['reactivate-milkshake'])) {
-    $itemId = intval($_POST['milkshake-id'] ?? 0);
-    if ($itemId > 0) {
-        $stmt = mysqli_prepare($conn, "INSERT INTO pub_milkshakes (event_id, milkshake_id, is_active) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE is_active = 1");
-        mysqli_stmt_bind_param($stmt, 'ii', $activePubId, $itemId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        echo "<script>window.location.href='" . $_SERVER['PHP_SELF'] . "';</script>";
-        exit;
-    }
-}
-
-if (isset($_POST['deactivate-toast'])) {
-    $itemId = intval($_POST['toast-id'] ?? 0);
-    if ($itemId > 0) {
-        $stmt = mysqli_prepare($conn, "UPDATE pub_toasts SET is_active = 0 WHERE event_id = ? AND toast_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $activePubId, $itemId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        echo "<script>window.location.href='" . $_SERVER['PHP_SELF'] . "';</script>";
-        exit;
-    }
-}
-
-if (isset($_POST['reactivate-toast'])) {
-    $itemId = intval($_POST['toast-id'] ?? 0);
-    if ($itemId > 0) {
-        $stmt = mysqli_prepare($conn, "INSERT INTO pub_toasts (event_id, toast_id, is_active) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE is_active = 1");
-        mysqli_stmt_bind_param($stmt, 'ii', $activePubId, $itemId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        echo "<script>window.location.href='" . $_SERVER['PHP_SELF'] . "';</script>";
-        exit;
-    }
-}
-
-/* --- 3. Data Fetching --- */
-
-$stmt = mysqli_prepare($conn, "SELECT m.milkshake_id AS item_id, m.name, m.description, m.ingredients, m.color, COALESCE(ms.sold_count, 0) AS sold_count FROM milkshakes m JOIN pub_milkshakes pm ON pm.milkshake_id = m.milkshake_id LEFT JOIN (SELECT milkshake_id, COUNT(*) AS sold_count FROM order_milkshakes GROUP BY milkshake_id) ms ON ms.milkshake_id = m.milkshake_id WHERE pm.event_id = ? AND pm.is_active = 1 ORDER BY m.milkshake_id ASC");
-mysqli_stmt_bind_param($stmt, 'i', $activePubId);
-mysqli_stmt_execute($stmt);
-$milkshakeInventory = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-mysqli_stmt_close($stmt);
-
-$stmt = mysqli_prepare($conn, "SELECT m.milkshake_id AS item_id, m.name, m.description, m.ingredients, m.color FROM milkshakes m LEFT JOIN pub_milkshakes pm ON pm.milkshake_id = m.milkshake_id AND pm.event_id = ? WHERE COALESCE(pm.is_active, 0) = 0 ORDER BY m.name ASC");
-mysqli_stmt_bind_param($stmt, 'i', $activePubId);
-mysqli_stmt_execute($stmt);
-$inactiveMilkshakeInventory = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-mysqli_stmt_close($stmt);
-
-$stmt = mysqli_prepare($conn, "SELECT t.toast_id AS item_id, t.name, t.description, t.ingredients, t.color, COALESCE(ts.sold_count, 0) AS sold_count FROM toasts t JOIN pub_toasts pt ON pt.toast_id = t.toast_id LEFT JOIN (SELECT toast_id, COUNT(*) AS sold_count FROM order_toasts GROUP BY toast_id) ts ON ts.toast_id = t.toast_id WHERE pt.event_id = ? AND pt.is_active = 1 ORDER BY t.toast_id ASC");
-mysqli_stmt_bind_param($stmt, 'i', $activePubId);
-mysqli_stmt_execute($stmt);
-$toastInventory = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-mysqli_stmt_close($stmt);
-
-$stmt = mysqli_prepare($conn, "SELECT t.toast_id AS item_id, t.name, t.description, t.ingredients, t.color FROM toasts t LEFT JOIN pub_toasts pt ON pt.toast_id = t.toast_id AND pt.event_id = ? WHERE COALESCE(pt.is_active, 0) = 0 ORDER BY t.name ASC");
-mysqli_stmt_bind_param($stmt, 'i', $activePubId);
-mysqli_stmt_execute($stmt);
-$inactiveToastInventory = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-mysqli_stmt_close($stmt);
-
-mysqli_close($conn);
+/* --- 2. Data Fetching --- */
+$milkshakeInventory = $inventory->getItemsByCategory('milkshake', true);
+$inactiveMilkshakeInventory = $inventory->getItemsByCategory('milkshake', false);
+$toastInventory = $inventory->getItemsByCategory('toast', true);
+$inactiveToastInventory = $inventory->getItemsByCategory('toast', false);
 ?>
 
 <!DOCTYPE html>
@@ -153,7 +54,7 @@ mysqli_close($conn);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lagerhanterare</title>
     <style>
-        /* --- 4. Layout & Theme --- */
+        /* --- 3. Layout & Theme --- */
         :root {
             --bg: #f3f4f6;
             --card-bg: #ffffff;
@@ -263,7 +164,7 @@ mysqli_close($conn);
             text-align: center;
             text-decoration: none;
             border-radius: 6px;
-            padding: 6px 12px;
+            padding: 4px 10px;
             font-size: 0.8rem;
             font-weight: 600;
             border: 1px solid var(--border);
@@ -271,7 +172,7 @@ mysqli_close($conn);
             color: var(--text-main);
             cursor: pointer;
             transition: all 0.2s;
-            min-width: 86px;
+            min-width: 64px;
         }
 
         .btn-add-pub {
@@ -352,9 +253,9 @@ mysqli_close($conn);
     </style>
 </head>
 <body>
-        <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
+    <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
 
-    <h1>Lagerhanterare</h1>
+    <h1>Lagerhanterare: <?= htmlspecialchars($activePubName) ?></h1>
 
     <div class="grid-container">
         
@@ -366,14 +267,7 @@ mysqli_close($conn);
                 <?php else: ?>
                     <table class="inventory-table">
                         <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Namn</th>
-                                <th>Beskrivning</th>
-                                <th>Ingredienser</th>
-                                <th>Färg</th>
-                                <th>Åtgärd</th>
-                            </tr>
+                            <tr><th>ID</th><th>Namn</th><th>Beskrivning</th><th>Ingredienser</th><th>Färg</th><th>Åtgärd</th></tr>
                         </thead>
                         <tbody>
                             <?php foreach ($milkshakeInventory as $item): ?>
@@ -382,12 +276,13 @@ mysqli_close($conn);
                                 <td><?= htmlspecialchars($item['name']) ?></td>
                                 <td><?= htmlspecialchars($item['description']) ?></td>
                                 <td><?= htmlspecialchars($item['ingredients']) ?></td>
-                                <td style="text-align: center;"><div style="width: 30px; height: 30px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto;"></div></td>
+                                <td style="text-align: center;"><div style="width: 25px; height: 25px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto; border-radius:4px;"></div></td>
                                 <td>
-                                    <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <form method="post">
                                         <?= csrf_token_input() ?>
-                                        <input type="hidden" name="milkshake-id" value="<?= $item['item_id'] ?>">
-                                        <input type="submit" name="deactivate-milkshake" class="btn-remove" value="Inaktivera" onclick="return confirm('Inaktivera denna milkshake för denna pub?');">
+                                        <input type="hidden" name="item-id" value="<?= $item['item_id'] ?>">
+                                        <input type="hidden" name="new-status" value="0">
+                                        <input type="submit" name="toggle-status" class="btn-remove" value="Inaktivera">
                                     </form>
                                 </td>
                             </tr>
@@ -406,14 +301,7 @@ mysqli_close($conn);
                 <?php else: ?>
                     <table class="inventory-table">
                         <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Namn</th>
-                                <th>Beskrivning</th>
-                                <th>Ingredienser</th>
-                                <th>Färg</th>
-                                <th>Åtgärd</th>
-                            </tr>
+                            <tr><th>ID</th><th>Namn</th><th>Beskrivning</th><th>Ingredienser</th><th>Färg</th><th>Åtgärd</th></tr>
                         </thead>
                         <tbody>
                             <?php foreach ($toastInventory as $item): ?>
@@ -422,12 +310,13 @@ mysqli_close($conn);
                                 <td><?= htmlspecialchars($item['name']) ?></td>
                                 <td><?= htmlspecialchars($item['description']) ?></td>
                                 <td><?= htmlspecialchars($item['ingredients']) ?></td>
-                                <td style="text-align: center;"><div style="width: 30px; height: 30px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto;"></div></td>
+                                <td style="text-align: center;"><div style="width: 25px; height: 25px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto; border-radius:4px;"></div></td>
                                 <td>
-                                    <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <form method="post">
                                         <?= csrf_token_input() ?>
-                                        <input type="hidden" name="toast-id" value="<?= $item['item_id'] ?>">
-                                        <input type="submit" name="deactivate-toast" class="btn-remove" value="Inaktivera" onclick="return confirm('Inaktivera denna toast för denna pub?');">
+                                        <input type="hidden" name="item-id" value="<?= $item['item_id'] ?>">
+                                        <input type="hidden" name="new-status" value="0">
+                                        <input type="submit" name="toggle-status" class="btn-remove" value="Inaktivera">
                                     </form>
                                 </td>
                             </tr>
@@ -439,10 +328,10 @@ mysqli_close($conn);
         </section>
 
         <section class="card milkshake-section">
-            <h2>Tidigare milkshakes (inaktiva i denna MSP)</h2>
+            <h2>Tidigare milkshakes</h2>
             <div class="table-wrapper">
                 <?php if (empty($inactiveMilkshakeInventory)): ?>
-                    <p style="color:var(--text-sub); text-align:center;">Inga tidigare milkshakes tillgängliga.</p>
+                    <p style="color:var(--text-sub); text-align:center;">Inga inaktiva milkshakes.</p>
                 <?php else: ?>
                     <table class="inactive-milkshake-table">
                         <thead>
@@ -458,15 +347,16 @@ mysqli_close($conn);
                                 <tr>
                                     <td><?= htmlspecialchars($item['name']) ?></td>
                                     <td><?= htmlspecialchars($item['ingredients']) ?></td>
-                                    <td style="text-align: center;"><div class="color-swatch" style="background-color: <?= htmlspecialchars($item['color']) ?>;"></div></td>
+                                    <td><div class="color-swatch" style="background-color: <?= htmlspecialchars($item['color']) ?>;"></div></td>
                                     <td>
                                         <div class="action-stack">
-                                            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+                                            <form method="post">
                                                 <?= csrf_token_input() ?>
-                                                <input type="hidden" name="milkshake-id" value="<?= $item['item_id'] ?>">
-                                                <input type="submit" name="reactivate-milkshake" class="btn-action btn-add-pub" value="Lägg till i pub">
+                                                <input type="hidden" name="item-id" value="<?= $item['item_id'] ?>">
+                                                <input type="hidden" name="new-status" value="1">
+                                                <input type="submit" name="toggle-status" class="btn-action btn-add-pub" value="Lägg till">
                                             </form>
-                                            <a class="btn-action btn-edit-item" href="edit_milkshake.php?id=<?= (int) $item['item_id'] ?>">Redigera</a>
+                                            <a href="edit_milkshake.php?id=<?= $item['item_id'] ?>" class="btn-action btn-edit-item">Redigera</a>
                                         </div>
                                     </td>
                                 </tr>
@@ -478,12 +368,12 @@ mysqli_close($conn);
         </section>
 
         <section class="card toast-section">
-            <h2>Tidigare toasts (inaktiva i denna MSP)</h2>
+            <h2>Tidigare toasts</h2>
             <div class="table-wrapper">
                 <?php if (empty($inactiveToastInventory)): ?>
-                    <p style="color:var(--text-sub); text-align:center;">Inga tidigare toasts tillgängliga.</p>
+                    <p style="color:var(--text-sub); text-align:center;">Inga inaktiva toasts.</p>
                 <?php else: ?>
-                    <table class="inactive-milkshake-table">
+                    <table class="inactive-toast-table">
                         <thead>
                             <tr>
                                 <th>Namn</th>
@@ -497,15 +387,16 @@ mysqli_close($conn);
                                 <tr>
                                     <td><?= htmlspecialchars($item['name']) ?></td>
                                     <td><?= htmlspecialchars($item['ingredients']) ?></td>
-                                    <td style="text-align: center;"><div class="color-swatch" style="background-color: <?= htmlspecialchars($item['color']) ?>;"></div></td>
+                                    <td><div class="color-swatch" style="background-color: <?= htmlspecialchars($item['color']) ?>;"></div></td>
                                     <td>
                                         <div class="action-stack">
-                                            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+                                            <form method="post">
                                                 <?= csrf_token_input() ?>
-                                                <input type="hidden" name="toast-id" value="<?= $item['item_id'] ?>">
-                                                <input type="submit" name="reactivate-toast" class="btn-action btn-add-pub" value="Lägg till i pub">
+                                                <input type="hidden" name="item-id" value="<?= $item['item_id'] ?>">
+                                                <input type="hidden" name="new-status" value="1">
+                                                <input type="submit" name="toggle-status" class="btn-action btn-add-pub" value="Lägg till">
                                             </form>
-                                            <a class="btn-action btn-edit-item" href="edit_toast.php?id=<?= (int) $item['item_id'] ?>">Redigera</a>
+                                            <a href="edit_toast.php?id=<?= $item['item_id'] ?>" class="btn-action btn-edit-item">Redigera</a>
                                         </div>
                                     </td>
                                 </tr>
@@ -518,53 +409,29 @@ mysqli_close($conn);
 
         <section class="card milkshake-section">
             <h2>Lägg till ny milkshake</h2>
-            <form action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="post">
+            <form method="post">
                 <?= csrf_token_input() ?>
-                <div class="form-group">
-                    <label for="milkshake-name">Namn</label>
-                    <input id="milkshake-name" name="milkshake-name" type="text" required maxlength="255" placeholder="e.g. Chocolate Supreme">
-                </div>
-                <div class="form-group">
-                    <label for="m-desc">Beskrivning</label>
-                    <textarea id="m-desc" name="description" rows="3" required placeholder="Short description for the menu..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="m-ing">Ingredienser (separerade med semikolon)</label>
-                    <textarea id="m-ing" name="ingredients" rows="2" required placeholder="e.g. Milk; Chocolate Ice Cream; Cocoa"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="m-color">Färg</label>
-                    <input id="m-color" name="color" type="color" required value="#ffffff">
-                </div>
-                <input name="add-milkshake" type="submit" class="btn-submit btn-milkshake" value="Lägg till milkshake">
+                <div class="form-group"><label>Namn</label><input name="milkshake-name" type="text" required></div>
+                <div class="form-group"><label>Beskrivning</label><textarea name="description" rows="2" required></textarea></div>
+                <div class="form-group"><label>Ingredienser</label><textarea name="ingredients" rows="2" required></textarea></div>
+                <div class="form-group"><label>Färg</label><input name="color" type="color" value="#3b82f6"></div>
+                <input name="add-milkshake" type="submit" class="btn-submit btn-milkshake" value="Spara Milkshake">
             </form>
         </section>
 
         <section class="card toast-section">
             <h2>Lägg till ny toast</h2>
-            <form action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="post">
+            <form method="post">
                 <?= csrf_token_input() ?>
-                <div class="form-group">
-                    <label for="toast-name">Namn</label>
-                    <input id="toast-name" name="name" type="text" required maxlength="255" placeholder="e.g. Ham & Cheese">
-                </div>
-                <div class="form-group">
-                    <label for="t-desc">Beskrivning</label>
-                    <textarea id="t-desc" name="description" rows="3" required placeholder="Short description for the menu..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="t-ing">Ingredienser (separerade med semikolon)</label>
-                    <textarea id="t-ing" name="ingredients" rows="2" required placeholder="e.g. Sourdough; Ham; Cheddar; Butter"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="t-color">Färg</label>
-                    <input id="t-color" name="color" type="color" required value="#ffffff">
-                </div>
-                <input name="add-toast" type="submit" class="btn-submit btn-toast" value="Lägg till toast">
+                <div class="form-group"><label>Namn</label><input name="name" type="text" required></div>
+                <div class="form-group"><label>Beskrivning</label><textarea name="description" rows="2" required></textarea></div>
+                <div class="form-group"><label>Ingredienser</label><textarea name="ingredients" rows="2" required></textarea></div>
+                <div class="form-group"><label>Färg</label><input name="color" type="color" value="#f97316"></div>
+                <input name="add-toast" type="submit" class="btn-submit btn-toast" value="Spara Toast">
             </form>
         </section>
-    </div>
-    <?php include(SHARED_PATH . "/public_footer.php"); ?>
 
+    </div>
+
+    <?php include(SHARED_PATH . "/public_footer.php"); ?>
 </body>
-</html>
