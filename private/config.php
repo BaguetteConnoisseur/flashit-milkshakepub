@@ -1,10 +1,8 @@
 <?php
-// Database Credentials
-define("DB_SERVER", "db"); // Or your Docker service name
-define("DB_USER",   "root");
-define("DB_PASS",   "rootpassword");
-define("DB_NAME",   "flashit_db");
+define("DB_SERVER", "db");
+define("DB_USER",   getenv('MYSQL_USER') ?: 'flashit');
+define("DB_PASS",   getenv('MYSQL_PASSWORD') ?: 'flashit_msp');
+define("DB_NAME",   getenv('MYSQL_DATABASE') ?: 'flashit_milkshakepub');
 
-// Admin Credentials
-define("ADMIN_USER", "d");
-define("ADMIN_PASS", "d");
+define("ADMIN_USER", getenv('ADMIN_USER') ?: 'flashit');
+define("ADMIN_PASS", getenv('ADMIN_PASS') ?: 'flashit_msp');

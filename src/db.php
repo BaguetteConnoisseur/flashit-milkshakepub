@@ -2,17 +2,29 @@
 function db() {
     static $pdo = null;
     if ($pdo === null) {
-        // We add charset=utf8mb4 to handle the 'ä'
-        $dsn = "mysql:host=db;dbname=flashit_bestallningsark;charset=utf8mb4";
+        // Use the absolute path within the Docker container
+        $configPath = '/var/www/html/private/config.php';
+
+        if (!file_exists($configPath)) {
+            // This will tell us exactly where it's looking if it fails
+            header('Content-Type: application/json');
+            echo json_encode(["error" => "Missing config file at: " . $configPath]);
+            exit;
+        }
+
+        require_once($configPath);
+
+        // Now that the file is loaded, these constants will exist
+        $dsn = "mysql:host=" . DB_SERVER . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+        
         try {
-            $pdo = new PDO($dsn, "root", "root", [
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
             ]);
         } catch (PDOException $e) {
-            // This is what's sending the "Connection..." string to your JS
             header('Content-Type: application/json');
-            echo json_encode(["error" => $e->getMessage()]);
+            echo json_encode(["error" => "Database connection failed: " . $e->getMessage()]);
             exit;
         }
     }

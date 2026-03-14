@@ -9,12 +9,16 @@ $showError = handle_login_post();
 
 <script>
 
-function order(){
-
-fetch("/api/create_order.php",{
-method:"POST"
-});
-
+function order() {
+    fetch("/api/create_order.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            customer_name: "Test User", 
+            items: ['oreo-supreme', 'toast-standard']
+        })
+    });
 }
+
 
 </script>
