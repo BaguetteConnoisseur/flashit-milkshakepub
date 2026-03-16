@@ -1,5 +1,5 @@
 <?php
-require_once("/var/www/html/private/initialize.php");
+require_once(__DIR__ . "/../../private/initialize.php");
 
 // Handle logout and login actions BEFORE any output
 $showError = handle_login_post();
@@ -9,13 +9,13 @@ $showError = handle_login_post();
 
 <div id="orders"></div>
 
-<script src="/js/ws.js"></script>
+<script src="/assets/js/ws.js"></script>
 
 <script>
 
 async function loadOrders() {
     try {
-        const r = await fetch("/api/get_orders.php");
+        const r = await fetch("/api/get_current_orders.php");
         const data = await r.json();
 
         // 🛑 THE FIX: Check if data is an array

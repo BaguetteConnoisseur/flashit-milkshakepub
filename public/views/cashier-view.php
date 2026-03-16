@@ -1,5 +1,5 @@
 <?php
-require_once("/var/www/html/private/initialize.php");
+require_once(__DIR__ . "/../../private/initialize.php");
 
 // Handle logout and login actions BEFORE any output
 $showError = handle_login_post();

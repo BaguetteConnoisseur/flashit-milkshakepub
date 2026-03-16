@@ -370,7 +370,7 @@ $errorMessage = handle_login_post();
                     <p>Se försäljning per smak, totaler och hantera rensning av orderhistorik.</p>
                 </a>
 
-                <a href="admin_action/inventory_manager.php" class="view-card inventory">
+                <a href="views/inventory_manager.php" class="view-card inventory">
                     <div class="view-card-icon">📦</div>
                     <h3>Lagerhanterare</h3>
                     <p>Hantera menyalternativ och ingredienser.</p>

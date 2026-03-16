@@ -2,8 +2,8 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
--- 2. SALES EVENTS
-CREATE TABLE IF NOT EXISTS sales_events (
+-- 2. PUB EVENTS
+CREATE TABLE IF NOT EXISTS pub_events (
     event_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     event_name VARCHAR(120) NOT NULL,
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -20,17 +20,16 @@ CREATE TABLE IF NOT EXISTS menu_items (
     description TEXT,
     ingredients TEXT,
     color VARCHAR(7) NOT NULL DEFAULT '#FFFFFF',
-    is_archived TINYINT(1) NOT NULL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_archived TINYINT(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
--- 4. EVENT-ITEM MAPPING
+-- 4. PUB-EVENT-ITEM MAPPING
 CREATE TABLE IF NOT EXISTS event_menu_items (
     event_id INT UNSIGNED NOT NULL,
     item_id INT UNSIGNED NOT NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     PRIMARY KEY (event_id, item_id),
-    CONSTRAINT fk_emi_event FOREIGN KEY (event_id) REFERENCES sales_events(event_id) ON DELETE CASCADE,
+    CONSTRAINT fk_emi_event FOREIGN KEY (event_id) REFERENCES pub_events(event_id) ON DELETE CASCADE,
     CONSTRAINT fk_emi_item FOREIGN KEY (item_id) REFERENCES menu_items(item_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
@@ -44,7 +43,7 @@ CREATE TABLE IF NOT EXISTS orders (
     status ENUM('Pending', 'In Progress', 'Completed', 'Cancelled') DEFAULT 'Pending',
     order_comment TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_orders_event FOREIGN KEY (event_id) REFERENCES sales_events(event_id),
+    CONSTRAINT fk_orders_event FOREIGN KEY (event_id) REFERENCES pub_events(event_id),
     UNIQUE KEY uq_event_pub_num (event_id, pub_order_number),
     INDEX idx_order_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
@@ -61,8 +60,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     INDEX idx_line_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
--- 7. SEED DATA (Updated with Obvious Slugs)
-INSERT INTO sales_events (event_name, is_active) 
+INSERT INTO pub_events (event_name, is_active) 
 VALUES ('Premiärpuben', 1);
 
 INSERT INTO menu_items (slug, category, name, description, ingredients, color) VALUES

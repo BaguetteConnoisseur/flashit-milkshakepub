@@ -1,5 +1,5 @@
 <?php
-require_once("/var/www/html/private/initialize.php");
+require_once(__DIR__ . "/../../private/initialize.php");
 
 // Handle logout and login actions BEFORE any output
 $showError = handle_login_post();
@@ -22,7 +22,7 @@ $showError = handle_login_post();
     <script src="/js/ws.js"></script>
     <script>
         async function loadOrders() {
-            const r = await fetch("/api/get_orders.php");
+            const r = await fetch("/api/get_current_orders.php");
             const data = await r.json();
             if (!Array.isArray(data)) return;
 

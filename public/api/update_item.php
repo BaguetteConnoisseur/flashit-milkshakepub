@@ -1,7 +1,7 @@
 <?php
 
-require "../../src/db.php";
-require "../../src/broadcast.php";
+require "../../private/src/database/db.php";
+require "../../private/src/services/broadcast.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 

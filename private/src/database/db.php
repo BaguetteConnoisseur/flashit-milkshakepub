@@ -3,7 +3,7 @@ function db() {
     static $pdo = null;
     if ($pdo === null) {
         // Use the absolute path within the Docker container
-        $configPath = '/var/www/html/private/config.php';
+        $configPath = __DIR__ . '/../../config.php';
 
         if (!file_exists($configPath)) {
             // This will tell us exactly where it's looking if it fails

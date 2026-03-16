@@ -1,6 +1,6 @@
 <?php
 require_once(__DIR__ . "/../../private/initialize.php");
-require_once(__DIR__ . "/../../src/broadcast.php");
+require_once(__DIR__ . "/../../private/src/services/broadcast.php");
 
 $db = db();
 

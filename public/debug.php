@@ -4,7 +4,7 @@ echo "--- FLASHIT SYSTEM CHECK ---\n";
 
 // 1. Check Database
 try {
-    require_once "../src/db.php";
+    require_once "../private/src/database/db.php";
     $db = db();
     echo "✅ DATABASE: Connected (Flashit_beställnigsark)\n";
 } catch (Exception $e) {

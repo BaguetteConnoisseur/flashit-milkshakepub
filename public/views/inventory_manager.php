@@ -1,15 +1,12 @@
 <?php
 require_once(__DIR__ . "/../../private/initialize.php");
-require_once(__DIR__ . "/../../src/InventoryManager.php");
+require_once(__DIR__ . "/../../private/src/services/InventoryManager.php");
 
-// 1. Authenticate
-require_login(); 
-
-// 2. Get the active pub info from the session
+// 1. Get the active pub info from the session
 $activePubId = $_SESSION['active_pub_id']; 
 $activePubName = $_SESSION['active_pub_name'];
 
-// 3. Initialize the Manager
+// 2. Initialize the Manager
 $pdo = db();
 $inventory = new InventoryManager($pdo, $activePubId);
 
@@ -253,7 +250,7 @@ $inactiveToastInventory = $inventory->getItemsByCategory('toast', false);
     </style>
 </head>
 <body>
-    <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
 
     <h1>Lagerhanterare: <?= htmlspecialchars($activePubName) ?></h1>
 
@@ -433,5 +430,5 @@ $inactiveToastInventory = $inventory->getItemsByCategory('toast', false);
 
     </div>
 
-    <?php include(SHARED_PATH . "/public_footer.php"); ?>
+    <?php include(TEMPLATE_PATH . "/public_footer.php"); ?>
 </body>

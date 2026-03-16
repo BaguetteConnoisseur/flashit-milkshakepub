@@ -6,19 +6,19 @@ define("PRIVATE_PATH", dirname(__FILE__));
 define("PROJECT_PATH", dirname(PRIVATE_PATH));
 define("PUBLIC_PATH", PROJECT_PATH . '/public');
 
-define("SHARED_PATH", PRIVATE_PATH . '/shared');
+define("TEMPLATE_PATH", PRIVATE_PATH . '/templates');
 define("WWW_ROOT", '');
 
 // 2. Load Core Requirements 
 // We load db.php first so everything else can use the db() function
-require_once(PROJECT_PATH . '/src/db.php');
+require_once(PRIVATE_PATH . '/src/database/db.php');
 require_once(PRIVATE_PATH . '/auth.php');
 
 // 3. Event/Pub Tracking Logic
 function ensure_pub_tracking() {
     $db = db(); 
     if (!isset($_SESSION['current_pub_id'])) {
-        $stmt = $db->query("SELECT event_id, event_name FROM sales_events WHERE is_active = 1 LIMIT 1");
+        $stmt = $db->query("SELECT event_id, event_name FROM pub_events WHERE is_active = 1 LIMIT 1");
         $event = $stmt->fetch();
         if ($event) {
             $_SESSION['active_pub_id'] = (int)$event['event_id'];
