@@ -158,8 +158,7 @@ $showError = handle_login_post();
         body.className = 'card-body';
         (order.items || []).forEach(item => {
             const isItemReady = item.status === 'Done';
-            const isItemDelivered = item.status === 'Delivered';
-            const itemClass = isItemDelivered ? 'item-delivered' : (isItemReady ? 'item-done' : 'item-pending');
+            const itemClass = isItemReady ? 'item-done' : 'item-pending';
             const icon = item.type === 'milkshake' ? '🥤' : '🥪';
 
             const row = document.createElement('div');
@@ -173,16 +172,14 @@ $showError = handle_login_post();
                     </div>
                 </div>
                 <div class="item-status">
-                    ${!isItemDelivered ? `
-                        <span class="status-text">${localizeStatusLabel(item.status)}</span>
-                        ${isItemReady && !order.is_fully_delivered ? `
-                            <form method="POST" style="display:inline;">
-                                <!-- CSRF and hidden fields go here -->
-                                <input type="hidden" name="item_id" value="${item.type === 'milkshake' ? item.order_milkshake_id : item.order_toast_id}">
-                                <button type="submit" name="deliver_${item.type}" class="btn-mini">✓</button>
-                            </form>
-                        ` : ''}
-                    ` : '<span>Levererad</span>'}
+                    <span class="status-text">${localizeStatusLabel(item.status)}</span>
+                    ${isItemReady && !order.is_fully_delivered ? `
+                        <form method="POST" style="display:inline;">
+                            <!-- CSRF and hidden fields go here -->
+                            <input type="hidden" name="item_id" value="${item.type === 'milkshake' ? item.order_milkshake_id : item.order_toast_id}">
+                            <button type="submit" name="deliver_${item.type}" class="btn-mini">✓</button>
+                        </form>
+                    ` : ''}
                 </div>
             `;
             body.appendChild(row);
@@ -227,10 +224,9 @@ $showError = handle_login_post();
 
     // --- Utility: Status localization (replace with your own logic if needed) ---
     function localizeStatusLabel(status) {
-        // Example: map status codes to Swedish labels
         switch (status) {
             case 'Pending': return 'Väntar';
-            case 'InProgress': return 'Pågår';
+            case 'In Progress': return 'Pågår';
             case 'Done': return 'Klar';
             case 'Delivered': return 'Levererad';
             default: return status;
@@ -240,7 +236,7 @@ $showError = handle_login_post();
     // --- Main loader: fetch and render orders ---
 
     async function loadOrders() {
-        const r = await fetch("/api/get_current_orders.php");
+        const r = await fetch("/api/get_event_orders.php");
         let data = await r.json();
         const grid = document.getElementById("ticket-grid");
         grid.innerHTML = '';
@@ -258,7 +254,6 @@ $showError = handle_login_post();
         });
     }
 
-    // --- WebSocket will call loadOrders() on update ---
     loadOrders();
     </script>
 </body>

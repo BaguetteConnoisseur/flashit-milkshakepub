@@ -13,7 +13,7 @@ try {
     }
     $sql = "
         SELECT 
-            o.order_id, o.created_at, o.customer_name, o.order_comment, o.order_number,
+            o.order_id, o.created_at, o.customer_name, o.order_comment, o.order_number, o.status,
             COALESCE(JSON_ARRAYAGG(
                 CASE WHEN oi.order_item_id IS NOT NULL THEN
                     JSON_OBJECT(
@@ -37,29 +37,27 @@ try {
     $stmt->execute(['event_id' => $event_id]);
     $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Decode the items JSON for each order
+    // Filter out fully delivered orders
+    $active_orders = [];
     foreach ($orders as &$order) {
         $order['items'] = json_decode($order['items'], true);
-        // Add ready_to_serve and is_fully_delivered flags
-        $order['ready_to_serve'] = true;
-        $order['is_fully_delivered'] = true;
-        $has_items = !empty($order['items']);
-        if (!$has_items) {
-            $order['ready_to_serve'] = false;
-            $order['is_fully_delivered'] = false;
+        $is_fully_delivered = true;
+        if (empty($order['items'])) {
+            $is_fully_delivered = false;
         } else {
             foreach ($order['items'] as $item) {
-                if ($item['status'] !== 'Done' && $item['status'] !== 'Delivered') {
-                    $order['ready_to_serve'] = false;
-                }
-                if ($item['status'] !== 'Delivered') {
-                    $order['is_fully_delivered'] = false;
+                if ($item['status'] !== 'Done') {
+                    $is_fully_delivered = false;
+                    break;
                 }
             }
         }
+        if (!$is_fully_delivered) {
+            $active_orders[] = $order;
+        }
     }
 
-    echo json_encode($orders);
+    echo json_encode($active_orders);
 } catch (Exception $e) {
     echo json_encode(["error" => $e->getMessage()]);
 }

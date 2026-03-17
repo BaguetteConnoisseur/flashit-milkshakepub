@@ -15,7 +15,7 @@ $showError = handle_login_post();
 
 async function loadOrders() {
     try {
-        const r = await fetch("/api/get_current_orders.php");
+        const r = await fetch("/api/get_event_orders.php");
         const data = await r.json();
 
         // 🛑 THE FIX: Check if data is an array

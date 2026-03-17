@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS orders (
     event_id INT UNSIGNED NOT NULL,
     order_number INT UNSIGNED NULL,
     customer_name VARCHAR(100) NOT NULL,
-    status ENUM('Pending', 'In Progress', 'Delivered', 'Cancelled') DEFAULT 'Pending',
+    status ENUM('Pending', 'In Progress', 'Done', 'Delivered', 'Cancelled') DEFAULT 'Pending',
     order_comment TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_orders_event FOREIGN KEY (event_id) REFERENCES pub_events(event_id),
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     order_id INT UNSIGNED NOT NULL,
     item_id INT UNSIGNED NOT NULL,
     item_comment TEXT, 
-    status ENUM('Pending', 'Ready', 'Served') DEFAULT 'Pending',
+    status ENUM('Pending', 'In Progress', 'Done') DEFAULT 'Pending',
     CONSTRAINT fk_items_order FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE,
     CONSTRAINT fk_items_master FOREIGN KEY (item_id) REFERENCES menu_items(item_id),
     INDEX idx_line_status (status)
