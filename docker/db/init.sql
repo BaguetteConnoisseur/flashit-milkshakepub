@@ -37,14 +37,13 @@ CREATE TABLE IF NOT EXISTS event_menu_items (
 CREATE TABLE IF NOT EXISTS orders (
     order_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     event_id INT UNSIGNED NOT NULL,
-    order_number VARCHAR(50) NOT NULL,
-    pub_order_number INT UNSIGNED NULL,
+    order_number INT UNSIGNED NULL,
     customer_name VARCHAR(100) NOT NULL,
-    status ENUM('Pending', 'In Progress', 'Completed', 'Cancelled') DEFAULT 'Pending',
+    status ENUM('Pending', 'In Progress', 'Delivered', 'Cancelled') DEFAULT 'Pending',
     order_comment TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_orders_event FOREIGN KEY (event_id) REFERENCES pub_events(event_id),
-    UNIQUE KEY uq_event_pub_num (event_id, pub_order_number),
+    UNIQUE KEY uq_event_order_num (event_id, order_number),
     INDEX idx_order_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 

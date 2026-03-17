@@ -11,15 +11,55 @@ try {
         echo json_encode(["error" => "No active event found."]);
         exit;
     }
-    $sql = "SELECT oi.order_item_id, oi.status, mi.name, mi.category, oi.order_id
-            FROM order_items oi
-            JOIN menu_items mi ON oi.item_id = mi.item_id
-            JOIN orders o ON oi.order_id = o.order_id
-            WHERE oi.status != 'Served' AND o.event_id = :event_id
-            ORDER BY oi.order_item_id ASC";
+    $sql = "
+        SELECT 
+            o.order_id, o.created_at, o.customer_name, o.order_comment, o.order_number,
+            COALESCE(JSON_ARRAYAGG(
+                CASE WHEN oi.order_item_id IS NOT NULL THEN
+                    JSON_OBJECT(
+                        'order_item_id', oi.order_item_id,
+                        'status', oi.status,
+                        'comment', oi.item_comment,
+                        'item_id', oi.item_id,
+                        'name', mi.name,
+                        'category', mi.category
+                    )
+                END
+            ), JSON_ARRAY()) AS items
+        FROM orders o
+        LEFT JOIN order_items oi ON o.order_id = oi.order_id
+        LEFT JOIN menu_items mi ON oi.item_id = mi.item_id
+        WHERE o.event_id = :event_id
+        GROUP BY o.order_id
+        ORDER BY o.created_at ASC
+    ";
     $stmt = $pdo->prepare($sql);
     $stmt->execute(['event_id' => $event_id]);
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Decode the items JSON for each order
+    foreach ($orders as &$order) {
+        $order['items'] = json_decode($order['items'], true);
+        // Add ready_to_serve and is_fully_delivered flags
+        $order['ready_to_serve'] = true;
+        $order['is_fully_delivered'] = true;
+        $has_items = !empty($order['items']);
+        if (!$has_items) {
+            $order['ready_to_serve'] = false;
+            $order['is_fully_delivered'] = false;
+        } else {
+            foreach ($order['items'] as $item) {
+                if ($item['status'] !== 'Done' && $item['status'] !== 'Delivered') {
+                    $order['ready_to_serve'] = false;
+                }
+                if ($item['status'] !== 'Delivered') {
+                    $order['is_fully_delivered'] = false;
+                }
+            }
+        }
+    }
+
+    echo json_encode($orders);
 } catch (Exception $e) {
     echo json_encode(["error" => $e->getMessage()]);
 }

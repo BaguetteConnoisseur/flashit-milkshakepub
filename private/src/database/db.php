@@ -1,5 +1,7 @@
 <?php
 function db() {
+    // Always use Stockholm time for all date/time functions
+    date_default_timezone_set('Europe/Stockholm');
     static $pdo = null;
     if ($pdo === null) {
         // Use the absolute path within the Docker container

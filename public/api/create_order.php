@@ -12,14 +12,17 @@ try {
     // 2. Use the Active Pub ID from the session (the 'ensure_pub_tracking' logic)
     $activePubId = $_SESSION['active_pub_id'] ?? 1; 
 
-    // 3. Insert into 'orders'
-    $stmt = $db->prepare("INSERT INTO orders (event_id, order_number, customer_name) VALUES (?, ?, ?)");
-    
-    // Use a unique order number (PUB-TIME) or the one from Toast API if syncing
-    $orderNumber = "ORD-" . date('His'); 
+
+    // Get next order_number for this event
+    $stmt = $db->prepare("SELECT COALESCE(MAX(order_number), 0) + 1 AS next_num FROM orders WHERE event_id = ?");
+    $stmt->execute([$activePubId]);
+    $next_order_number = $stmt->fetchColumn();
+
     $customerName = $request['customer_name'] ?? "Guest";
 
-    $stmt->execute([$activePubId, $orderNumber, $customerName]);
+    // Insert order with order_number only
+    $stmt = $db->prepare("INSERT INTO orders (event_id, order_number, customer_name) VALUES (?, ?, ?)");
+    $stmt->execute([$activePubId, $next_order_number, $customerName]);
     $order_id = $db->lastInsertId();
 
     // 4. Process the actual items in the cart
