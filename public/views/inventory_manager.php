@@ -12,8 +12,7 @@ $inventory = new InventoryManager($pdo, $activePubId);
 
 /* --- 1. Form Actions --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Note: ensure initialize.php or auth.php defines require_csrf_token()
-    // require_csrf_token(); 
+    require_csrf_token();
 
     if (isset($_POST['add-milkshake']) || isset($_POST['add-toast'])) {
         $category = isset($_POST['add-milkshake']) ? 'milkshake' : 'toast';

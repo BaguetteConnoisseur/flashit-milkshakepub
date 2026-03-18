@@ -1,12 +1,16 @@
-<?php
-require_once(__DIR__ . "/../../private/initialize.php");
+<?phprequire_once(__DIR__ . "/../../private/initialize.php");
 require_once(__DIR__ . "/../../private/src/services/broadcast.php");
 
 $db = db();
 
 // 1. Grab the JSON data sent from your frontend
-$input = file_get_contents('php://input');
 $request = json_decode($input, true);
+$csrf_token = $request['csrf_token'] ?? '';
+if (!csrf_token_is_valid($csrf_token)) {
+    http_response_code(403);
+    echo json_encode(["error" => "Invalid CSRF token"]);
+    exit;
+}
 
 try {
     // 2. Use the Active Pub ID from the session (the 'ensure_pub_tracking' logic)

@@ -3,6 +3,8 @@ require_once(__DIR__ . "/../../private/initialize.php");
 
 // Handle logout and login actions BEFORE any output
 $showError = handle_login_post();
+
+
 ?>
 <!DOCTYPE html>
 <html lang="sv">
@@ -125,11 +127,17 @@ $showError = handle_login_post();
     <script>
     // --- DOM helpers for card rendering ---
     function createOrderCard(order) {
+        // Determine if all items are Done (ready to deliver)
+        const items = order.items || [];
+        // Allow 'Deliver Order' if all items are either Done or Delivered
+        const allDoneOrDelivered = items.length > 0 && items.every(item => item.status === 'Done' || item.status === 'Delivered');
+        const allDelivered = items.length > 0 && items.every(item => item.status === 'Delivered');
+
         // Card class logic
         let cardClass = '';
-        if (order.is_fully_delivered) {
+        if (order.status === 'Delivered' || allDelivered) {
             cardClass = 'card-delivered';
-        } else if (order.ready_to_serve) {
+        } else if (allDoneOrDelivered) {
             cardClass = 'card-ready';
         }
 
@@ -140,25 +148,26 @@ $showError = handle_login_post();
         // Card header
         const header = document.createElement('div');
         header.className = 'card-header';
-            header.innerHTML = `
-                <div class="meta">
-                    <span>#${order.order_number}</span>
-                    <span>${order.created_at ? new Date(order.created_at).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'}) : ''}</span>
-                </div>
-                <div class="customer">
-                    ${order.customer_name ? escapeHtml(order.customer_name) : ''}
-                    ${order.is_fully_delivered ? '<span style="font-size:0.8rem; opacity:0.6;">(Levererad)</span>' : ''}
-                </div>
-                ${order.order_comment ? `<div class="order-note">📝 ${escapeHtml(order.order_comment)}</div>` : ''}
-            `;
+        header.innerHTML = `
+            <div class="meta">
+                <span>#${order.order_number}</span>
+                <span>${order.created_at ? new Date(order.created_at).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+            </div>
+            <div class="customer">
+                ${order.customer_name ? escapeHtml(order.customer_name) : ''}
+                ${(order.status === 'Delivered' || allDelivered) ? '<span style="font-size:0.8rem; opacity:0.6;">(Levererad)</span>' : ''}
+            </div>
+            ${order.order_comment ? `<div class="order-note">📝 ${escapeHtml(order.order_comment)}</div>` : ''}
+        `;
         card.appendChild(header);
 
         // Card body (items)
         const body = document.createElement('div');
         body.className = 'card-body';
-        (order.items || []).forEach(item => {
+        items.forEach(item => {
             const isItemReady = item.status === 'Done';
-            const itemClass = isItemReady ? 'item-done' : 'item-pending';
+            const isItemDelivered = item.status === 'Delivered';
+            const itemClass = isItemDelivered ? 'item-delivered' : (isItemReady ? 'item-done' : 'item-pending');
             const icon = item.type === 'milkshake' ? '🥤' : '🥪';
 
             const row = document.createElement('div');
@@ -173,12 +182,8 @@ $showError = handle_login_post();
                 </div>
                 <div class="item-status">
                     <span class="status-text">${localizeStatusLabel(item.status)}</span>
-                    ${isItemReady && !order.is_fully_delivered ? `
-                        <form method="POST" style="display:inline;">
-                            <!-- CSRF and hidden fields go here -->
-                            <input type="hidden" name="item_id" value="${item.type === 'milkshake' ? item.order_milkshake_id : item.order_toast_id}">
-                            <button type="submit" name="deliver_${item.type}" class="btn-mini">✓</button>
-                        </form>
+                    ${isItemReady? `
+                        <button class="btn-mini" title="Leverera" onclick="deliverItem(${item.order_item_id}, this)">✓</button>
                     ` : ''}
                 </div>
             `;
@@ -189,32 +194,66 @@ $showError = handle_login_post();
         // Card footer
         const footer = document.createElement('div');
         footer.className = 'card-footer';
-        if (!order.is_fully_delivered) {
-            footer.innerHTML = `
-                <form method="POST">
-                    <!-- CSRF and hidden fields go here -->
-                    <input type="hidden" name="order_id" value="${order.order_id}">
-                    ${order.ready_to_serve ? `
-                        <button type="submit" name="deliver_all" class="btn-main btn-success">LEVERERA BESTÄLLNING</button>
-                    ` : `
-                        <button type="button" class="btn-main btn-disabled" disabled>Väntar på köket...</button>
-                    `}
-                </form>
-            `;
+        if (!(order.status === 'Delivered' || allDelivered)) {
+            if (allDoneOrDelivered) {
+                const btn = document.createElement('button');
+                btn.className = 'btn-main btn-success';
+                btn.textContent = 'LEVERERA BESTÄLLNING';
+                btn.onclick = async () => {
+                    btn.disabled = true;
+                    await updateOrderStatus(order.order_id, 'Delivered');
+                };
+                footer.appendChild(btn);
+            } else {
+                const btn = document.createElement('button');
+                btn.className = 'btn-main btn-disabled';
+                btn.textContent = 'Väntar på köket...';
+                btn.disabled = true;
+                footer.appendChild(btn);
+            }
         } else {
-            footer.innerHTML = `
-                <form method="POST" style="display: flex; justify-content: flex-end;">
-                    <!-- CSRF and hidden fields go here -->
-                    <input type="hidden" name="order_id" value="${order.order_id}">
-                    <button type="submit" name="take_back_order" class="btn-take-back" title="Återta denna beställning">↶</button>
-                </form>
-            `;
+            const btn = document.createElement('button');
+            btn.className = 'btn-take-back';
+            btn.title = 'Återta denna beställning';
+            btn.innerHTML = '↶';
+            btn.onclick = async () => {
+                btn.disabled = true;
+                await updateOrderStatus(order.order_id, 'Done');
+            };
+            footer.appendChild(btn);
         }
         card.appendChild(footer);
 
         return card;
     }
 
+    // --- API: Update order status ---
+    async function updateOrderStatus(orderId, status) {
+        const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
+        try {
+            await fetch('/api/update_order.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_id: orderId, status, csrf_token: csrfToken })
+            });
+        } catch (e) {
+            // Optionally show error
+        }
+        await loadOrders();
+    }
+
+    // --- API: Deliver individual item ---
+    async function deliverItem(orderItemId, btn) {
+        btn.disabled = true;
+        const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
+        await fetch('/api/update_item.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item_id: orderItemId, status: 'Delivered', csrf_token: csrfToken })
+        });
+        await loadOrders();
+    }
+    
     // --- Utility: HTML escaping ---
     function escapeHtml(str) {
         return String(str).replace(/[&<>'"]/g, function (c) {

@@ -150,10 +150,10 @@ $showError = handle_login_post();
             background-color: var(--status-done);
         }
         .bar-ticket-Progress {
-            border: 20px solid var(--status-progress);
+            border: 10px solid var(--status-progress);
         }
         .bar-ticket-Done {
-            border: 20px solid var(--status-done);
+            border: 10px solid var(--status-done);
         }
 
         .card-body {
@@ -274,22 +274,6 @@ $showError = handle_login_post();
             font-size: 0.8rem;
             color: #10b981;
         }
-
-        .card-ready {
-            border: 2px solid var(--status-done);
-            box-shadow: 0 10px 15px -3px rgba(34, 197, 94, 0.2);
-        }
-
-        .card-delivered {
-            opacity: 0.6;
-            background: #f9fafb;
-            border-color: transparent;
-            box-shadow: none;
-            filter: grayscale(80%);
-        }
-        .card-delivered:hover {
-            opacity: 0.8;
-        }
     </style>
 </head>
 <body>
@@ -311,37 +295,13 @@ $showError = handle_login_post();
     // --- 1. Globals & Utility Functions ---
     window.CSRF_TOKEN = '<?php echo $_SESSION['csrf_token'] ?? '' ?>';
 
-    function escapeHtml(str) {
-        return String(str).replace(/[&<>'"]/g, function (c) {
-            return {'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c];
-        });
-    }
-
-    function localizeStatusLabel(status) {
-        switch (status) {
-            case 'Pending': return 'Väntar';
-            case 'In Progress': return 'Pågår';
-            case 'Done': return 'Klar';
-            default: return status;
-        }
-    }
 
     // --- 2. DOM Rendering ---
-    function createToastCard(order) {
-        let cardClass = '';
-        if (order.items.every(i => i.status === 'Done')) {
-            cardClass = 'card-delivered';
-        } else if (order.items.every(i => i.status === 'In Progress')) {
-            cardClass = 'card-ready';
-        }
-
-        const firstToast = (order.items || []).find(i => i.category === 'toast');
-        if (!firstToast) return document.createElement('div');
-
+    function createToastCard(order, toastItem) {
         const card = document.createElement('div');
-        let statusClass = firstToast.status.replace(' ', '');
-        if (firstToast.status === 'In Progress' || firstToast.status === 'InProgress') statusClass = 'Progress';
-        card.className = `ticket-card bar-ticket-${statusClass} ${cardClass}`;
+        let statusClass = toastItem.status.replace(' ', '');
+        if (toastItem.status === 'In Progress' || toastItem.status === 'InProgress') statusClass = 'Progress';
+        card.className = `ticket-card bar-ticket-${statusClass}`;
 
         const statusBar = document.createElement('div');
         statusBar.className = `status-bar bar-${statusClass}`;
@@ -360,13 +320,13 @@ $showError = handle_login_post();
 
         const itemName = document.createElement('div');
         itemName.className = 'item-name';
-        itemName.innerHTML = `🥪 ${escapeHtml(firstToast.name)}`;
+        itemName.innerHTML = `🥪 ${escapeHtml(toastItem.name)}`;
         body.appendChild(itemName);
 
-        if (firstToast.comment) {
+        if (toastItem.comment) {
             const note = document.createElement('div');
             note.className = 'comment-box item-note';
-            note.innerHTML = `<strong>Notering:</strong> ${escapeHtml(firstToast.comment)}`;
+            note.innerHTML = `<strong>Notering:</strong> ${escapeHtml(toastItem.comment)}`;
             body.appendChild(note);
         }
 
@@ -405,24 +365,24 @@ $showError = handle_login_post();
         const csrf = window.CSRF_TOKEN ? `<input type='hidden' name='csrf_token' value='${window.CSRF_TOKEN}'>` : '';
         controls.innerHTML = `
             <form class="manual-status-form" style="flex-grow:1; display:flex; gap:5px;">
-                <input type="hidden" name="order_toast_id" value="${firstToast.order_item_id}">
+                <input type="hidden" name="order_toast_id" value="${toastItem.order_item_id}">
                 <select name="manual_status">
                     <option value="" hidden>Uppdatera</option>
-                    <option value="Pending" ${firstToast.status === 'Pending' ? 'selected' : ''}>Mottagen</option>
-                    <option value="In Progress" ${firstToast.status === 'In Progress' ? 'selected' : ''}>Pågår</option>
-                    <option value="Done" ${firstToast.status === 'Done' ? 'selected' : ''}>Klar</option>
+                    <option value="Pending" ${toastItem.status === 'Pending' ? 'selected' : ''}>Mottagen</option>
+                    <option value="In Progress" ${toastItem.status === 'In Progress' ? 'selected' : ''}>Pågår</option>
+                    <option value="Done" ${toastItem.status === 'Done' ? 'selected' : ''}>Klar</option>
                 </select>
                 <input type="hidden" name="update_status_manual" value="1">
                 ${csrf}
             </form>
-            ${firstToast.status !== 'Done' ? `
+            ${toastItem.status !== 'Done' ? `
                 <form class="advance-status-form">
-                    <input type="hidden" name="order_toast_id" value="${firstToast.order_item_id}">
-                    <input type="hidden" name="current_status" value="${firstToast.status}">
+                    <input type="hidden" name="order_toast_id" value="${toastItem.order_item_id}">
+                    <input type="hidden" name="current_status" value="${toastItem.status}">
                     ${csrf}
-                    ${firstToast.status === 'Pending' ?
+                    ${toastItem.status === 'Pending' ?
                         '<button type="submit" name="advance_status" class="btn-next">Starta &rarr;</button>' :
-                        (firstToast.status === 'In Progress' ? '<button type="submit" name="advance_status" class="btn-next btn-finish">Klar &#10003;</button>' : '')
+                        (toastItem.status === 'In Progress' ? '<button type="submit" name="advance_status" class="btn-next btn-finish">Klar &#10003;</button>' : '')
                     }
                 </form>
             ` : ''}
@@ -498,21 +458,45 @@ $showError = handle_login_post();
         const grid = document.getElementById("ticket-grid");
         grid.innerHTML = '';
 
+        // Handle case where there is no toasts
         if (!Array.isArray(data) || data.length === 0) {
-            
             renderToastSummary([]);
             grid.innerHTML = '<div class="empty-state"><h2>Inga väntande toast.</h2></div>';
             return;
         }
 
-        const toastOrders = data.filter(order => Array.isArray(order.items) && order.items.some(item => item.category === 'toast'));
+        // Fill toasts orders into grid, excluding Delivered
+        const toastOrders = data.filter(order => Array.isArray(order.items) && order.items.some(item => item.category === 'toast' && item.status !== 'Delivered'));
         toastOrders.sort((a, b) => (a.order_number ?? 0) - (b.order_number ?? 0));
-        toastOrders.forEach(order => {
-            grid.appendChild(createToastCard(order));
-        });
 
-        // Render toast summary using PDO for accurate counts
+        if (data.length > 0 && toastOrders.length === 0) {
+            grid.innerHTML = '<div class="empty-state"><h2>Inga väntande toast.</h2></div>';
+        } else {
+            toastOrders.forEach(order => {
+                const toastItems = (order.items || []).filter(i => i.category === 'toast' && i.status !== 'Delivered');
+                toastItems.forEach(toastItem => {
+                    grid.appendChild(createToastCard(order, toastItem));
+                });
+            });
+        }
+
+        // Render toast summary
         renderToastSummary(toastOrders);
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>'"]/g, function (c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c];
+        });
+    }
+
+    function localizeStatusLabel(status) {
+        switch (status) {
+            case 'Pending': return 'Väntar';
+            case 'In Progress': return 'Pågår';
+            case 'Done': return 'Klar';
+            default: return status;
+        }
     }
 
     // --- 6. Event Binding ---

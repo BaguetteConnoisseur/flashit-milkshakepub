@@ -13,6 +13,7 @@ define("WWW_ROOT", '');
 // We load db.php first so everything else can use the db() function
 require_once(PRIVATE_PATH . '/src/database/db.php');
 require_once(PRIVATE_PATH . '/auth.php');
+require_once(PRIVATE_PATH . '/functions.php');
 
 // 3. Event/Pub Tracking Logic
 function ensure_pub_tracking() {
@@ -57,7 +58,4 @@ if (!$loggedIn && !$isPublicPage) {
 }
 
 // 5. Helpers
-function csrf_token_input() {
-    if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
-    return '<input type="hidden" name="csrf_token" value="' . $_SESSION['csrf_token'] . '">';
-}
+// csrf_token_input and related helpers are now in functions.php

@@ -3,8 +3,27 @@ const http = require('http');
 
 const wss = new WebSocket.Server({ port: 8081, host: '0.0.0.0' });
 
-wss.on('connection', (ws) => {
-    console.log('Client connected');
+function heartbeat() {
+  this.isAlive = true;
+}
+
+wss.on('connection', function connection(ws) {
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
+  console.log('Client connected');
+});
+
+const interval = setInterval(function ping() {
+  wss.clients.forEach(function each(ws) {
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    ws.ping();
+  });
+  // console.log('Heartbeat: sent ping to all clients at', new Date().toISOString());
+}, 30000); // 30 seconds
+
+wss.on('close', function close() {
+  clearInterval(interval);
 });
 
 const server = http.createServer((req, res) => {
