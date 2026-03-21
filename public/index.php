@@ -10,7 +10,10 @@ $errorMessage = handle_login_post();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flashit Milkshake Pub - Dashboard</title>    <style>
+    <title>Flashit Milkshake Pub - Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
+    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
+    <style>
         * {
             margin: 0;
             padding: 0;
