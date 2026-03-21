@@ -1,31 +1,19 @@
 <?php
 /* --- 1. Startup View Bootstrap --- */
+require_once(__DIR__ . '/../../private/initialize.php');
 
-require_once("../../private/initialize.php");
-require(PRIVATE_PATH . "/core/db-connection.php");
-require(PRIVATE_PATH . "/core/schema-bootstrap.php");
+$db = db();
 
-require_login();
-
-if (!$conn) {
-    die("Database connection failed: " . mysqli_connect_error());
-}
-
-/* 2. Helpers */
-$pubTracking = ensure_pub_tracking($conn);
-$activePubId = (int) $pubTracking['active_pub_id'];
-$activePubName = $pubTracking['active_pub_name'];
-ensure_pub_menu_links($conn, $activePubId);
+// 2. Helpers
+$pubTracking = ensure_pub_tracking();
+$activePubId = (int) ($_SESSION['active_pub_id'] ?? 0);
+$activePubName = $_SESSION['active_pub_name'] ?? '';
 
 /* 3. Open Order Guard */
-function get_open_order_count($conn, $activePubId) {
-    $stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS open_count FROM orders WHERE event_id = ? AND status <> 'Delivered'");
-    mysqli_stmt_bind_param($stmt, 'i', $activePubId);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
-    $row = $result ? mysqli_fetch_assoc($result) : ['open_count' => 0];
-    mysqli_stmt_close($stmt);
-
+function get_open_order_count($db, $activePubId) {
+    $stmt = $db->prepare("SELECT COUNT(*) AS open_count FROM orders WHERE event_id = :event_id AND status <> 'Delivered'");
+    $stmt->execute(['event_id' => $activePubId]);
+    $row = $stmt->fetch();
     return (int) ($row['open_count'] ?? 0);
 }
 
@@ -42,7 +30,7 @@ if (isset($_POST['start_new_pub'])) {
     if ($pubName === '') {
         $feedback = ['type' => 'error', 'message' => 'MSP namn är obligatoriskt.'];
     } else {
-        $openOrderCount = get_open_order_count($conn, $activePubId);
+        $openOrderCount = get_open_order_count($db, $activePubId);
 
         if ($openOrderCount > 0) {
             $feedback = [
@@ -50,41 +38,34 @@ if (isset($_POST['start_new_pub'])) {
                 'message' => "Du kan inte starta en ny pub förrän alla beställningar är levererade. Kvarvarande beställningar: $openOrderCount.",
             ];
         } else {
-            mysqli_begin_transaction($conn);
-
+            $db->beginTransaction();
             try {
                 // Deactivate the current active event and mark it as ended
-                $stmt = mysqli_prepare($conn, "UPDATE sales_events SET is_active = 0, ended_at = NOW() WHERE is_active = 1");
-                mysqli_stmt_execute($stmt);
-                mysqli_stmt_close($stmt);
+                $stmt = $db->prepare("UPDATE pub_events SET is_active = 0, ended_at = NOW() WHERE is_active = 1");
+                $stmt->execute();
 
                 // Clear customer names from completed orders to follow GDPR
-                $stmt = mysqli_prepare($conn, "UPDATE orders o LEFT JOIN sales_events e ON e.event_id = o.event_id SET o.customer_name = '' WHERE (e.is_active = 0 OR o.event_id IS NULL) AND o.customer_name <> ''");
-                mysqli_stmt_execute($stmt);
-                mysqli_stmt_close($stmt);
-                
-                // Create new sales event with provided pub name
-                $stmt = mysqli_prepare($conn, "INSERT INTO sales_events (event_name, is_active) VALUES (?, 1)");
-                mysqli_stmt_bind_param($stmt, 's', $pubName);
-                mysqli_stmt_execute($stmt);
-                $activePubId = (int) mysqli_insert_id($conn);
-                mysqli_stmt_close($stmt);
-                
-                // Regenerate menu links for the new active pub
-                ensure_pub_menu_links($conn, $activePubId);
+                $stmt = $db->prepare("UPDATE orders o LEFT JOIN pub_events e ON e.event_id = o.event_id SET o.customer_name = '' WHERE (e.is_active = 0 OR o.event_id IS NULL) AND o.customer_name <> ''");
+                $stmt->execute();
 
-                mysqli_commit($conn);
+                // Create new pub event with provided pub name
+                $stmt = $db->prepare("INSERT INTO pub_events (event_name, is_active) VALUES (?, 1)");
+                $stmt->execute([$pubName]);
+                $activePubId = (int) $db->lastInsertId();
+
+                // Regenerate menu links for the new active pub
+                ensure_pub_menu_links($activePubId);
+
+                $db->commit();
                 $activePubName = $pubName;
                 $feedback = ['type' => 'success', 'message' => 'Ny pub startad och menyn är redo.'];
             } catch (Throwable $e) {
-                mysqli_rollback($conn);
-                $feedback = ['type' => 'error', 'message' => 'Kunde inte starta en ny pub.'];
+                $db->rollBack();
+                $feedback = ['type' => 'error', 'message' => 'Kunde inte starta en ny pub: ' . $e->getMessage()];
             }
         }
     }
 }
-
-mysqli_close($conn);
 ?>
 
 <!DOCTYPE html>
@@ -93,8 +74,6 @@ mysqli_close($conn);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Uppstart</title>
-    <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
         /* --- 5. Layout & Theme --- */
         :root {
@@ -222,7 +201,7 @@ mysqli_close($conn);
     </style>
 </head>
 <body>
-    <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
 
     <div class="container">
         <h1>Guide: Kom igång</h1>
@@ -252,7 +231,7 @@ mysqli_close($conn);
             <h2>🏪 Steg 2: Hantera smaker</h2>
             <p style="color: var(--text-sub); margin-bottom: 1rem;">Aktivera de milkshakes och toasts ni vill sälja idag. Här kan ni också lägga till nya smaker och redigera befintliga.</p>
             <div class="quick-links">
-                <a class="link-btn" href="../admin_action/inventory_manager.php">Öppna Lagerhanterare</a>
+                <a class="link-btn" href="inventory_manager.php">Öppna Lagerhanterare</a>
             </div>
         </section>
 

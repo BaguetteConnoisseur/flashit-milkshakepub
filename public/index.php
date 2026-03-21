@@ -1,18 +1,16 @@
 <?php
-require_once("../private/initialize.php");
+// index.php
+require_once("/var/www/html/private/initialize.php");
 
-// Handle logout and login actions BEFORE any output
-$showError = handle_login_post();
+// handle_login_post now returns a string error if login fails, or false if nothing happened
+$errorMessage = handle_login_post();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flashit Milkshake Pub - Dashboard</title>
-    <link rel="icon" href="img/logo/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="img/logo/favicon.png" type="image/png">
-    <style>
+    <title>Flashit Milkshake Pub - Dashboard</title>    <style>
         * {
             margin: 0;
             padding: 0;
@@ -293,7 +291,7 @@ $showError = handle_login_post();
             <div class="login-card">
                 <h2>Välkommen tillbaka</h2>
                 
-                <?php if ($showError): ?>
+                <?php if ($errorMessage): ?>
                     <div class="error-message">
                         Ogiltiga uppgifter. Försök igen.
                     </div>
@@ -301,9 +299,6 @@ $showError = handle_login_post();
                 
                 <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
                     <?= csrf_token_input() ?>
-                    <div class="form-group">
-                        <input type="text" name="username" placeholder="Användarnamn" required autocomplete="username">
-                    </div>
                     <div class="form-group">
                         <input type="password" name="password" placeholder="Lösenord" required autocomplete="current-password">
                     </div>
@@ -369,7 +364,7 @@ $showError = handle_login_post();
                     <p>Se försäljning per smak, totaler och hantera rensning av orderhistorik.</p>
                 </a>
 
-                <a href="admin_action/inventory_manager.php" class="view-card inventory">
+                <a href="views/inventory_manager.php" class="view-card inventory">
                     <div class="view-card-icon">📦</div>
                     <h3>Lagerhanterare</h3>
                     <p>Hantera menyalternativ och ingredienser.</p>

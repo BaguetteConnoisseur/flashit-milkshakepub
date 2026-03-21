@@ -31,8 +31,7 @@ echo.
 echo App URL: http://localhost:8080
 echo.
 echo Login credentials:
-echo   Check your .env file for ADMIN_USERNAME and ADMIN_PASSWORD
-echo   (Default from .env.example: admin / CHANGE_THIS_ADMIN_PASSWORD)
+echo   Check your .env file for ADMIN_PASS
 echo.
 echo To stop: docker compose down
 echo To view logs: docker compose logs -f

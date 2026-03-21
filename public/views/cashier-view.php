@@ -1,304 +1,133 @@
 <?php
-/* --- 1. Cashier View Bootstrap --- */
+require_once(__DIR__ . "/../../private/initialize.php");
+require_once(PRIVATE_PATH . '/src/services/inventoryManager.php');
 
-require_once("../../private/initialize.php");
-require(PRIVATE_PATH . "/core/db-connection.php");
-require(PRIVATE_PATH . "/core/schema-bootstrap.php");
+$pdo = db();
+$activePubId = $_SESSION['active_pub_id'] ?? null;
+$activePubName = $_SESSION['active_pub_name'] ?? '';
 
-require_login();
+// --- 1. Inventory for Create Form ---
+$inventory = new InventoryManager($pdo, $activePubId);
+$milkshakes = $inventory->getItemsByCategory('milkshake', true);
+$toasts = $inventory->getItemsByCategory('toast', true);
 
-if (!$conn) {
-    die("Database connection failed: " . mysqli_connect_error());
-}
-
-/* --- 2. Helper Functions --- */
-function is_valid_order_status($status) {
-    return in_array($status, ['Pending', 'In Progress', 'Done', 'Delivered'], true);
-}
-
-$pubTracking = ensure_pub_tracking($conn);
-$activeEventId = (int) $pubTracking['active_pub_id'];
-ensure_pub_menu_links($conn, $activeEventId);
-
+// --- 2. Handle POST Actions ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf_token();
-}
+    // CREATE ORDER
+    if (isset($_POST['create_order'])) {
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("SELECT COALESCE(MAX(order_number), 0) + 1 AS next_num FROM orders WHERE event_id = ? FOR UPDATE");
+            $stmt->execute([$activePubId]);
+            $order_number = (int)($stmt->fetchColumn() ?: 1);
+            $stmt = $pdo->prepare("INSERT INTO orders (event_id, order_number, customer_name, order_comment, status) VALUES (?, ?, ?, ?, 'Pending')");
+            $stmt->execute([
+                $activePubId,
+                $order_number,
+                trim($_POST['customer_name'] ?? ''),
+                trim($_POST['order_comment'] ?? '')
+            ]);
+            $order_id = $pdo->lastInsertId();
 
-/* --- 3. Form Actions --- */
-
-// 1. CREATE ORDER
-if (isset($_POST['create_order'])) {
-    $customer_name = $_POST['customer_name'];
-    $order_comment = $_POST['order_comment'];
-    $status = "Pending";
-
-    mysqli_begin_transaction($conn);
-
-    try {
-        $stmt = mysqli_prepare($conn, "SELECT COALESCE(MAX(pub_order_number), 0) + 1 AS next_pub_order_number FROM orders WHERE event_id = ? FOR UPDATE");
-        mysqli_stmt_bind_param($stmt, 'i', $activeEventId);
-        mysqli_stmt_execute($stmt);
-        $sequenceResult = mysqli_stmt_get_result($stmt);
-
-        if (!$sequenceResult) {
-            mysqli_stmt_close($stmt);
-            throw new Exception(mysqli_error($conn));
-        }
-
-        $sequenceRow = mysqli_fetch_assoc($sequenceResult);
-        mysqli_stmt_close($stmt);
-        $pubOrderNumber = (int) ($sequenceRow['next_pub_order_number'] ?? 1);
-        $order_number = (string) $pubOrderNumber;
-
-        $stmt = mysqli_prepare($conn, "INSERT INTO orders (order_number, pub_order_number, customer_name, status, order_comment, event_id) VALUES (?, ?, ?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, 'sisssi', $order_number, $pubOrderNumber, $customer_name, $status, $order_comment, $activeEventId);
-
-        if (!mysqli_stmt_execute($stmt)) {
-            mysqli_stmt_close($stmt);
-            throw new Exception(mysqli_error($conn));
-        }
-
-        $new_order_id = mysqli_insert_id($conn);
-        mysqli_stmt_close($stmt);
-
-        // Process Milkshakes
-        if (isset($_POST['milkshakes']) && is_array($_POST['milkshakes'])) {
-            $stmt_m = mysqli_prepare($conn, "INSERT INTO order_milkshakes (order_id, milkshake_id, comment, status) VALUES (?, ?, ?, 'Pending')");
-            foreach ($_POST['milkshakes'] as $m_id => $quantity) {
-                $m_id = intval($m_id);
-                $quantity = intval($quantity);
-                for ($i = 0; $i < $quantity; $i++) {
-                    $comment = isset($_POST['milkshake_comments']["m_{$m_id}_{$i}"]) ? trim($_POST['milkshake_comments']["m_{$m_id}_{$i}"]) : '';
-                    mysqli_stmt_bind_param($stmt_m, 'iis', $new_order_id, $m_id, $comment);
-                    if (!mysqli_stmt_execute($stmt_m)) {
-                        mysqli_stmt_close($stmt_m);
-                        throw new Exception(mysqli_error($conn));
-                    }
+            // Milkshakes
+            foreach ($_POST['milkshakes'] ?? [] as $item_id => $qty) {
+                $qty = (int)$qty;
+                for ($i = 0; $i < $qty; $i++) {
+                    $comment = trim($_POST['milkshake_comments']['m_' . $item_id . '_' . $i] ?? '');
+                    $stmt = $pdo->prepare("INSERT INTO order_items (order_id, item_id, status, item_comment) VALUES (?, ?, 'Pending', ?)");
+                    $stmt->execute([$order_id, $item_id, $comment]);
                 }
             }
-            mysqli_stmt_close($stmt_m);
-        }
-
-        // Process Toasts
-        if (isset($_POST['toasts']) && is_array($_POST['toasts'])) {
-            $stmt_t = mysqli_prepare($conn, "INSERT INTO order_toasts (order_id, toast_id, comment, status) VALUES (?, ?, ?, 'Pending')");
-            foreach ($_POST['toasts'] as $t_id => $quantity) {
-                $t_id = intval($t_id);
-                $quantity = intval($quantity);
-                for ($i = 0; $i < $quantity; $i++) {
-                    $comment = isset($_POST['toast_comments']["t_{$t_id}_{$i}"]) ? trim($_POST['toast_comments']["t_{$t_id}_{$i}"]) : '';
-                    mysqli_stmt_bind_param($stmt_t, 'iis', $new_order_id, $t_id, $comment);
-                    if (!mysqli_stmt_execute($stmt_t)) {
-                        mysqli_stmt_close($stmt_t);
-                        throw new Exception(mysqli_error($conn));
-                    }
+            // Toasts
+            foreach ($_POST['toasts'] ?? [] as $item_id => $qty) {
+                $qty = (int)$qty;
+                for ($i = 0; $i < $qty; $i++) {
+                    $comment = trim($_POST['toast_comments']['t_' . $item_id . '_' . $i] ?? '');
+                    $stmt = $pdo->prepare("INSERT INTO order_items (order_id, item_id, status, item_comment) VALUES (?, ?, 'Pending', ?)");
+                    $stmt->execute([$order_id, $item_id, $comment]);
                 }
             }
-            mysqli_stmt_close($stmt_t);
+            $pdo->commit();
+            header("Location: " . $_SERVER['PHP_SELF']);
+            exit;
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            echo "<div style='color:red'>Fel: " . htmlspecialchars($e->getMessage()) . "</div>";
         }
-
-        mysqli_commit($conn);
-
-        header("Location: " . $_SERVER['PHP_SELF']);
-        exit;
-    } catch (Throwable $e) {
-        mysqli_rollback($conn);
-        echo "Error: " . htmlspecialchars($e->getMessage());
     }
-}
+    // UPDATE ORDER
+    if (isset($_POST['update_order'])) {
+        $order_id = (int)$_POST['order_id'];
+        $main_status = $_POST['main_status'] ?? 'Pending';
+        $main_comment = trim($_POST['main_comment'] ?? '');
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("UPDATE orders SET status = ?, order_comment = ? WHERE order_id = ? AND event_id = ?");
+            $stmt->execute([$main_status, $main_comment, $order_id, $activePubId]);
 
-// 2. UPDATE ORDER (FROM MODAL)
-if (isset($_POST['update_order'])) {
-    $order_id = intval($_POST['order_id']);
-    $main_status_raw = $_POST['main_status'] ?? 'Pending';
-    $main_status = is_valid_order_status($main_status_raw) ? $main_status_raw : 'Pending';
-    $main_comment = $_POST['main_comment'];
-
-    mysqli_begin_transaction($conn);
-
-    try {
-        $stmt = mysqli_prepare($conn, "UPDATE orders SET status = ?, order_comment = ? WHERE order_id = ? AND event_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ssii', $main_status, $main_comment, $order_id, $activeEventId);
-        if (!mysqli_stmt_execute($stmt)) {
-            mysqli_stmt_close($stmt);
-            throw new Exception(mysqli_error($conn));
-        }
-        mysqli_stmt_close($stmt);
-
-        if (isset($_POST['om_status']) && is_array($_POST['om_status'])) {
-            $stmt_om = mysqli_prepare($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = ?, om.comment = ? WHERE om.order_milkshake_id = ? AND o.event_id = ?");
-            foreach ($_POST['om_status'] as $om_id => $status) {
-                $om_id = intval($om_id);
-                $normalizedStatus = is_valid_order_status($status) ? $status : 'Pending';
-                $comment = $_POST['om_comment'][$om_id] ?? '';
-
-                mysqli_stmt_bind_param($stmt_om, 'ssii', $normalizedStatus, $comment, $om_id, $activeEventId);
-                if (!mysqli_stmt_execute($stmt_om)) {
-                    mysqli_stmt_close($stmt_om);
-                    throw new Exception(mysqli_error($conn));
-                }
+            // Update order_items
+            foreach (($_POST['oi_status'] ?? []) as $oi_id => $status) {
+                $comment = $_POST['oi_comment'][$oi_id] ?? '';
+                $stmt = $pdo->prepare("UPDATE order_items SET status = ?, item_comment = ? WHERE order_item_id = ?");
+                $stmt->execute([$status, $comment, $oi_id]);
             }
-            mysqli_stmt_close($stmt_om);
+            $pdo->commit();
+            header("Location: " . $_SERVER['PHP_SELF']);
+            exit;
+        } catch (Throwable $e) {
+            $pdo->rollBack();
         }
-
-        if (isset($_POST['ot_status']) && is_array($_POST['ot_status'])) {
-            $stmt_ot = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = ?, ot.comment = ? WHERE ot.order_toast_id = ? AND o.event_id = ?");
-            foreach ($_POST['ot_status'] as $ot_id => $status) {
-                $ot_id = intval($ot_id);
-                $normalizedStatus = is_valid_order_status($status) ? $status : 'Pending';
-                $comment = $_POST['ot_comment'][$ot_id] ?? '';
-
-                mysqli_stmt_bind_param($stmt_ot, 'ssii', $normalizedStatus, $comment, $ot_id, $activeEventId);
-                if (!mysqli_stmt_execute($stmt_ot)) {
-                    mysqli_stmt_close($stmt_ot);
-                    throw new Exception(mysqli_error($conn));
-                }
-            }
-            mysqli_stmt_close($stmt_ot);
-        }
-
-        mysqli_commit($conn);
-    } catch (Throwable $e) {
-        mysqli_rollback($conn);
     }
-
-    // Redirect back to order list
-    header("Location: " . $_SERVER['PHP_SELF']);
-    exit;
+    // DELETE ORDER
+    if (isset($_POST['delete_order'])) {
+        $order_id = (int)$_POST['order_id'];
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("DELETE FROM order_items WHERE order_id = ?")->execute([$order_id]);
+            $pdo->prepare("DELETE FROM orders WHERE order_id = ? AND event_id = ?")->execute([$order_id, $activePubId]);
+            $pdo->commit();
+            header("Location: " . $_SERVER['PHP_SELF']);
+            exit;
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+        }
+    }
 }
 
-// 3. DELETE ORDER
-if (isset($_POST['delete_order'])) {
-    $order_id = intval($_POST['order_id']);
-
-    mysqli_begin_transaction($conn);
-    try {
-        $stmt = mysqli_prepare($conn, "DELETE om FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE om.order_id = ? AND o.event_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activeEventId);
-        if (!mysqli_stmt_execute($stmt)) {
-            mysqli_stmt_close($stmt);
-            throw new Exception(mysqli_error($conn));
-        }
-        mysqli_stmt_close($stmt);
-
-        $stmt = mysqli_prepare($conn, "DELETE ot FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE ot.order_id = ? AND o.event_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activeEventId);
-        if (!mysqli_stmt_execute($stmt)) {
-            mysqli_stmt_close($stmt);
-            throw new Exception(mysqli_error($conn));
-        }
-        mysqli_stmt_close($stmt);
-
-        $stmt = mysqli_prepare($conn, "DELETE FROM orders WHERE order_id = ? AND event_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activeEventId);
-        if (!mysqli_stmt_execute($stmt)) {
-            mysqli_stmt_close($stmt);
-            throw new Exception(mysqli_error($conn));
-        }
-        mysqli_stmt_close($stmt);
-
-        mysqli_commit($conn);
-    } catch (Throwable $e) {
-        mysqli_rollback($conn);
-    }
-
-    header("Location: " . $_SERVER['PHP_SELF']);
-    exit;
-}
-
-/* --- 4. Data Fetching --- */
-
-// 1. Fetch Inventory for "Create" Form
-$stmt = mysqli_prepare($conn, "SELECT m.* FROM milkshakes m JOIN pub_milkshakes pm ON pm.milkshake_id = m.milkshake_id WHERE pm.event_id = ? AND pm.is_active = 1 ORDER BY m.name ASC");
-mysqli_stmt_bind_param($stmt, 'i', $activeEventId);
-mysqli_stmt_execute($stmt);
-$inv_milkshakes = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-mysqli_stmt_close($stmt);
-
-$stmt = mysqli_prepare($conn, "SELECT t.* FROM toasts t JOIN pub_toasts pt ON pt.toast_id = t.toast_id WHERE pt.event_id = ? AND pt.is_active = 1 ORDER BY t.name ASC");
-mysqli_stmt_bind_param($stmt, 'i', $activeEventId);
-mysqli_stmt_execute($stmt);
-$inv_toasts = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-mysqli_stmt_close($stmt);
-
-// 2. Fetch Order List (Summary)
-$stmt = mysqli_prepare($conn, "SELECT * FROM orders WHERE event_id = ? ORDER BY created_at DESC");
-mysqli_stmt_bind_param($stmt, 'i', $activeEventId);
-mysqli_stmt_execute($stmt);
-$orders_list = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-mysqli_stmt_close($stmt);
-
-// Attach summary items to list for display (Quick preview)
-if (!empty($orders_list)) {
-    $orderIds = array_map('intval', array_column($orders_list, 'order_id'));
-    $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
-    
-    $milkshakeSummaryByOrder = [];
-    $stmt = mysqli_prepare($conn, "SELECT om.order_id, m.name, COUNT(*) as qty FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id WHERE om.order_id IN ($placeholders) GROUP BY om.order_id, m.milkshake_id, m.name");
-    $types = str_repeat('i', count($orderIds));
-    mysqli_stmt_bind_param($stmt, $types, ...$orderIds);
-    mysqli_stmt_execute($stmt);
-    $resMilkshakeSummary = mysqli_stmt_get_result($stmt);
-    while ($row = mysqli_fetch_assoc($resMilkshakeSummary)) {
-        $orderId = (int) $row['order_id'];
-        $milkshakeSummaryByOrder[$orderId][] = $row['name'] . ((int) $row['qty'] > 1 ? " (x{$row['qty']})" : "");
-    }
-    mysqli_stmt_close($stmt);
-
-    $toastSummaryByOrder = [];
-    $stmt = mysqli_prepare($conn, "SELECT ot.order_id, t.name, COUNT(*) as qty FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id WHERE ot.order_id IN ($placeholders) GROUP BY ot.order_id, t.toast_id, t.name");
-    mysqli_stmt_bind_param($stmt, $types, ...$orderIds);
-    mysqli_stmt_execute($stmt);
-    $resToastSummary = mysqli_stmt_get_result($stmt);
-    while ($row = mysqli_fetch_assoc($resToastSummary)) {
-        $orderId = (int) $row['order_id'];
-        $toastSummaryByOrder[$orderId][] = $row['name'] . ((int) $row['qty'] > 1 ? " (x{$row['qty']})" : "");
-    }
-    mysqli_stmt_close($stmt);
-}
-
-foreach ($orders_list as &$ord) {
-    $oid = (int) $ord['order_id'];
-    $mSummaries = $milkshakeSummaryByOrder[$oid] ?? [];
-    $tSummaries = $toastSummaryByOrder[$oid] ?? [];
-    $ord['summary'] = implode(", ", array_merge($mSummaries, $tSummaries));
-}
-unset($ord); // Break reference
-
-// 3. Fetch Specific Order for Modal (if clicked)
+// --- 3. Fetch Orders ---
+$orders = [];
 $modal_order = null;
-$modal_items_m = [];
-$modal_items_t = [];
+$modal_items = [];
+// Fetch all orders for this event
+$stmt = $pdo->prepare("SELECT * FROM orders WHERE event_id = ? ORDER BY created_at DESC");
+$stmt->execute([$activePubId]);
+$orders = $stmt->fetchAll();
 
+// Attach summary for each order
+foreach ($orders as &$order) {
+    $stmt = $pdo->prepare("SELECT mi.name, mi.category, COUNT(*) as qty FROM order_items oi JOIN menu_items mi ON oi.item_id = mi.item_id WHERE oi.order_id = ? GROUP BY mi.item_id, mi.name, mi.category");
+    $stmt->execute([$order['order_id']]);
+    $summary = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $summary[] = $row['name'] . ($row['qty'] > 1 ? " (x{$row['qty']})" : "");
+    }
+    $order['summary'] = implode(", ", $summary);
+}
+unset($order);
+
+// Modal: fetch specific order and its items
 if (isset($_GET['view_order'])) {
-    $view_id = intval($_GET['view_order']);
-    
-    // Get Order Info
-    $stmt = mysqli_prepare($conn, "SELECT * FROM orders WHERE order_id = ? AND event_id = ?");
-    mysqli_stmt_bind_param($stmt, 'ii', $view_id, $activeEventId);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
-    $modal_order = mysqli_fetch_assoc($res);
-    mysqli_stmt_close($stmt);
-
+    $view_id = (int)$_GET['view_order'];
+    $stmt = $pdo->prepare("SELECT * FROM orders WHERE order_id = ? AND event_id = ?");
+    $stmt->execute([$view_id, $activePubId]);
+    $modal_order = $stmt->fetch();
     if ($modal_order) {
-        // Get Milkshake Details (Join to get names)
-        $stmt = mysqli_prepare($conn, "SELECT om.*, m.name, m.description FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id JOIN milkshakes m ON om.milkshake_id = m.milkshake_id WHERE om.order_id = ? AND o.event_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $view_id, $activeEventId);
-        mysqli_stmt_execute($stmt);
-        $modal_items_m = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-        mysqli_stmt_close($stmt);
-
-        // Get Toast Details
-        $stmt = mysqli_prepare($conn, "SELECT ot.*, t.name, t.description FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id JOIN toasts t ON ot.toast_id = t.toast_id WHERE ot.order_id = ? AND o.event_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $view_id, $activeEventId);
-        mysqli_stmt_execute($stmt);
-        $modal_items_t = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-        mysqli_stmt_close($stmt);
+        $stmt = $pdo->prepare("SELECT oi.*, mi.name, mi.category FROM order_items oi JOIN menu_items mi ON oi.item_id = mi.item_id WHERE oi.order_id = ?");
+        $stmt->execute([$view_id]);
+        $modal_items = $stmt->fetchAll();
     }
 }
-
-mysqli_close($conn);
 ?>
 
 <!DOCTYPE html>
@@ -307,8 +136,6 @@ mysqli_close($conn);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order System</title>
-    <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
         :root {
             --primary: #2563eb;
@@ -823,17 +650,17 @@ mysqli_close($conn);
             </div>
         </div>
         <div id="order-container" class="order-grid">
-            <?php foreach($orders_list as $order): 
+            <?php foreach($orders as $order): 
                 $statusClass = strtolower($order['status']) === 'delivered' ? 'status-delivered' : '';
                 $badgeClass = 'badge-' . str_replace(' ', '-', strtolower($order['status']));
             ?>
                 <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
                     <div class="card-header">
-                        <span class="order-number">Beställning: #<?= htmlspecialchars($order['pub_order_number'] ?? $order['order_number'] ?? $order['order_id']) ?></span>
+                        <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?></span>
                         <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
                     </div>
                     <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
-                    <div class="order-time"><?= date("M j, g:i a", strtotime($order['created_at'])) ?></div>
+                    <div class="order-time"><?= isset($order['created_at']) ? date("H:i", strtotime($order['created_at'])) : '' ?></div>
                     <hr style="border: 0; border-top: 1px solid var(--border); margin: 0.5rem 0;">
                     <div class="order-summary">
                         <?= $order['summary'] ? htmlspecialchars(substr($order['summary'], 0, 50)) . (strlen($order['summary']) > 50 ? '...' : '') : 'Inga artiklar' ?>
@@ -880,16 +707,16 @@ mysqli_close($conn);
 
                     <h3 style="border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">Artiklar</h3>
 
-                    <?php foreach($modal_items_m as $item): ?>
+                    <?php foreach($modal_items as $item): ?>
                         <div class="item-row">
                             <h4>
-                                🥤
+                                <?= $item['category'] === 'milkshake' ? '🥤' : '🥪' ?>
                                 <?= htmlspecialchars($item['name']) ?>
                             </h4>
                             <div class="row-split">
                                 <div>
                                     <label>Status</label>
-                                    <select name="om_status[<?= $item['order_milkshake_id'] ?>]" style="padding:0.25rem;">
+                                    <select name="oi_status[<?= $item['order_item_id'] ?>]" style="padding:0.25rem;">
                                         <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Väntar</option>
                                         <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>Pågår</option>
                                         <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Klar</option>
@@ -898,31 +725,7 @@ mysqli_close($conn);
                                 </div>
                                 <div>
                                     <label>Notering</label>
-                                    <input type="text" name="om_comment[<?= $item['order_milkshake_id'] ?>]" value="<?= htmlspecialchars($item['comment']) ?>" placeholder="Lägg till notering...">
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-
-                    <?php foreach($modal_items_t as $item): ?>
-                        <div class="item-row">
-                            <h4>
-                                🥪
-                                <?= htmlspecialchars($item['name']) ?>
-                            </h4>
-                            <div class="row-split">
-                                <div>
-                                    <label>Status</label>
-                                    <select name="ot_status[<?= $item['order_toast_id'] ?>]" style="padding:0.25rem;">
-                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Väntar</option>
-                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>Pågår</option>
-                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Klar</option>
-                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Levererad</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label>Notering</label>
-                                    <input type="text" name="ot_comment[<?= $item['order_toast_id'] ?>]" value="<?= htmlspecialchars($item['comment']) ?>" placeholder="Lägg till notering...">
+                                    <input type="text" name="oi_comment[<?= $item['order_item_id'] ?>]" value="<?= htmlspecialchars($item['item_comment']) ?>" placeholder="Lägg till notering...">
                                 </div>
                             </div>
                         </div>
@@ -958,15 +761,15 @@ mysqli_close($conn);
                         <div>
                             <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Milkshakes</label>
                             <div id="milkshakes-container">
-                                <?php foreach($inv_milkshakes as $m): ?>
-                                    <div class="item-row" data-item-type="milkshake" data-item-id="<?= $m['milkshake_id'] ?>">
+                                <?php foreach($milkshakes as $m): ?>
+                                    <div class="item-row" data-item-type="milkshake" data-item-id="<?= $m['item_id'] ?>">
                                         <h4><?= htmlspecialchars($m['name']) ?></h4>
                                         <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
-                                            <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('m_<?= $m['milkshake_id'] ?>', -1)">−</button>
-                                            <input type="number" name="milkshakes[<?= $m['milkshake_id'] ?>]" value="0" min="0" id="m_<?= $m['milkshake_id'] ?>" class="quantity-input" onchange="updateItemComments(this)">
-                                            <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('m_<?= $m['milkshake_id'] ?>', 1)">+</button>
+                                            <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('m_<?= $m['item_id'] ?>', -1)">−</button>
+                                            <input type="number" name="milkshakes[<?= $m['item_id'] ?>]" value="0" min="0" id="m_<?= $m['item_id'] ?>" class="quantity-input" onchange="updateItemComments(this)">
+                                            <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('m_<?= $m['item_id'] ?>', 1)">+</button>
                                         </div>
-                                        <div id="comments-m_<?= $m['milkshake_id'] ?>" class="item-comments" style="display: none;"></div>
+                                        <div id="comments-m_<?= $m['item_id'] ?>" class="item-comments" style="display: none;"></div>
                                     </div>
                                 <?php endforeach; ?>
                             </div>
@@ -975,15 +778,15 @@ mysqli_close($conn);
                         <div>
                             <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Toasts</label>
                             <div id="toasts-container">
-                                <?php foreach($inv_toasts as $t): ?>
-                                    <div class="item-row" data-item-type="toast" data-item-id="<?= $t['toast_id'] ?>">
+                                <?php foreach($toasts as $t): ?>
+                                    <div class="item-row" data-item-type="toast" data-item-id="<?= $t['item_id'] ?>">
                                         <h4><?= htmlspecialchars($t['name']) ?></h4>
                                         <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
-                                            <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('t_<?= $t['toast_id'] ?>', -1)">−</button>
-                                            <input type="number" name="toasts[<?= $t['toast_id'] ?>]" value="0" min="0" id="t_<?= $t['toast_id'] ?>" class="quantity-input" onchange="updateItemComments(this)">
-                                            <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('t_<?= $t['toast_id'] ?>', 1)">+</button>
+                                            <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('t_<?= $t['item_id'] ?>', -1)">−</button>
+                                            <input type="number" name="toasts[<?= $t['item_id'] ?>]" value="0" min="0" id="t_<?= $t['item_id'] ?>" class="quantity-input" onchange="updateItemComments(this)">
+                                            <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('t_<?= $t['item_id'] ?>', 1)">+</button>
                                         </div>
-                                        <div id="comments-t_<?= $t['toast_id'] ?>" class="item-comments" style="display: none;"></div>
+                                        <div id="comments-t_<?= $t['item_id'] ?>" class="item-comments" style="display: none;"></div>
                                     </div>
                                 <?php endforeach; ?>
                             </div>

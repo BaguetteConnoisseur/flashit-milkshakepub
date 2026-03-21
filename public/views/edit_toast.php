@@ -1,63 +1,49 @@
 <?php
-/* --- 1. Edit Toast (Admin Action) Bootstrap --- */
+/* --- 1. Edit Toast Bootstrap --- */
+require_once(__DIR__ . '/../../private/initialize.php');
+require_once(PRIVATE_PATH . '/src/services/InventoryManager.php');
 
-require_once("../../private/initialize.php");
-require(PRIVATE_PATH . "/core/db-connection.php");
+$pdo = db();
+$activePubId = $_SESSION['active_pub_id'];
+$inventory = new InventoryManager($pdo, $activePubId);
 
-require_login();
-
-if (!$conn) {
-    die("Database connection failed: " . mysqli_connect_error());
-}
-
-/* 2. Resolve Target Item */
 $itemId = intval($_GET['id'] ?? $_POST['toast-id'] ?? 0);
-if ($itemId <= 0) {
-    header("Location: " . WWW_ROOT . "/admin_action/inventory_manager.php");
+$feedback = null;
+$item = null;
+
+if ($itemId > 0) {
+    $item = $inventory->getItemById($itemId);
+    if (!$item || $item['category'] !== 'toast') {
+        header('Location: inventory_manager.php');
+        exit;
+    }
+} else {
+    header('Location: inventory_manager.php');
     exit;
 }
-
-$feedback = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf_token();
-}
+    if (isset($_POST['save-toast'])) {
+        $toastName = trim($_POST['toast-name'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $ingredients = trim($_POST['ingredients'] ?? '');
+        $color = trim($_POST['color'] ?? '');
 
-/* 3. Handle Save Action */
-if (isset($_POST['save-toast'])) {
-    $toastName = trim($_POST['toast-name'] ?? '');
-    $description = trim($_POST['description'] ?? '');
-    $ingredients = trim($_POST['ingredients'] ?? '');
-    $color = trim($_POST['color'] ?? '');
-
-    if ($toastName === '' || $description === '' || $ingredients === '' || $color === '') {
-        $feedback = ['type' => 'error', 'message' => 'Alla fält måste fyllas i.'];
-    } else {
-        $stmt = mysqli_prepare($conn, "UPDATE toasts SET name = ?, description = ?, ingredients = ?, color = ? WHERE toast_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ssssi', $toastName, $description, $ingredients, $color, $itemId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-
-        header("Location: " . WWW_ROOT . "/admin_action/inventory_manager.php");
-        exit;
+        if ($toastName === '' || $description === '' || $ingredients === '' || $color === '') {
+            $feedback = ['type' => 'error', 'message' => 'Alla fält måste fyllas i.'];
+        } else {
+            $inventory->updateItem($itemId, [
+                'name' => $toastName,
+                'description' => $description,
+                'ingredients' => $ingredients,
+                'color' => $color
+            ]);
+            header('Location: inventory_manager.php');
+            exit;
+        }
     }
 }
-
-/* 4. Fetch Existing Item */
-$stmt = mysqli_prepare($conn, "SELECT t.toast_id AS item_id, t.name, t.description, t.ingredients, t.color FROM toasts t WHERE t.toast_id = ? LIMIT 1");
-mysqli_stmt_bind_param($stmt, 'i', $itemId);
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
-$toast = $result ? mysqli_fetch_assoc($result) : null;
-mysqli_stmt_close($stmt);
-
-if (!$toast) {
-    mysqli_close($conn);
-    header("Location: " . WWW_ROOT . "/admin_action/inventory_manager.php");
-    exit;
-}
-
-mysqli_close($conn);
 ?>
 
 <!DOCTYPE html>
@@ -65,7 +51,7 @@ mysqli_close($conn);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redigera toast</title>
+    <title>Redigera Toast</title>
     <style>
         /* --- 5. Layout & Theme --- */
         :root {
@@ -193,12 +179,13 @@ mysqli_close($conn);
     </style>
 </head>
 <body>
-    <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
 
+    <div class="container">
     <div class="container">
         <h1>Redigera toast</h1>
         <p class="subtitle">
-            Du redigerar: <strong><?= htmlspecialchars($toast['name']) ?></strong>
+            Du redigerar: <strong><?= htmlspecialchars($item['name']) ?></strong>
         </p>
 
         <?php if ($feedback): ?>
@@ -206,40 +193,41 @@ mysqli_close($conn);
         <?php endif; ?>
 
         <section class="card">
-            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>?id=<?= (int)$item['item_id'] ?>">
                 <?= csrf_token_input() ?>
-                <input type="hidden" name="toast-id" value="<?= (int) $toast['item_id'] ?>">
+                <input type="hidden" name="toast-id" value="<?= (int) $item['item_id'] ?>">
 
                 <div class="row">
                     <div>
                         <label for="toast-name">Namn</label>
-                        <input id="toast-name" type="text" name="toast-name" value="<?= htmlspecialchars($toast['name']) ?>" required>
+                        <input id="toast-name" type="text" name="toast-name" value="<?= htmlspecialchars($item['name']) ?>" required>
                     </div>
 
                     <div>
                         <label for="description">Beskrivning</label>
-                        <textarea id="description" name="description" required><?= htmlspecialchars($toast['description']) ?></textarea>
+                        <textarea id="description" name="description" required><?= htmlspecialchars($item['description']) ?></textarea>
                     </div>
 
                     <div>
                         <label for="ingredients">Ingredienser</label>
-                        <textarea id="ingredients" name="ingredients" required><?= htmlspecialchars($toast['ingredients']) ?></textarea>
+                        <textarea id="ingredients" name="ingredients" required><?= htmlspecialchars($item['ingredients']) ?></textarea>
                     </div>
 
                     <div>
                         <label for="color">Färg</label>
-                        <input id="color" type="color" name="color" value="<?= htmlspecialchars($toast['color']) ?>" required>
+                        <input id="color" type="color" name="color" value="<?= htmlspecialchars($item['color']) ?>" required>
                     </div>
                 </div>
 
                 <div class="actions">
                     <button type="submit" class="btn btn-primary" name="save-toast">Spara</button>
-                    <a class="btn btn-secondary" href="<?= WWW_ROOT ?>/admin_action/inventory_manager.php">Avbryt</a>
+                    <a class="btn btn-secondary" href="inventory_manager.php">Avbryt</a>
                 </div>
             </form>
         </section>
     </div>
+    </div>
 
-    <?php include(SHARED_PATH . "/public_footer.php"); ?>
+    <?php include(TEMPLATE_PATH . "/public_footer.php"); ?>
 </body>
 </html>

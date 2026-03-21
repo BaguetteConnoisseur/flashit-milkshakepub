@@ -1,103 +1,46 @@
 <?php
 /* --- 1. Bar Display View Bootstrap --- */
+require_once(__DIR__ . '/../../private/initialize.php');
 
-require_once("../../private/initialize.php");
-require(PRIVATE_PATH . "/core/db-connection.php");
-require(PRIVATE_PATH . "/core/schema-bootstrap.php");
-
-if (!$conn) {
-    die("Database connection failed: " . mysqli_connect_error());
-}
-
-$pubTracking = ensure_pub_tracking($conn);
-$activePubId = (int) $pubTracking['active_pub_id'];
+$pdo = db();
+$activePubId = isset($_SESSION['active_pub_id']) ? (int)$_SESSION['active_pub_id'] : null;
 
 /* --- 2. Data Fetching + AJAX Partial --- */
+
 if (isset($_GET['fetch_view'])) {
-    // Fetch orders with pre-aggregated item status counters (avoids per-order follow-up queries).
+    // Fetch orders with pre-aggregated item status counters using order_items/menu_items
     $query = "
         SELECT
             o.order_id,
             o.order_number,
-            o.pub_order_number,
             o.customer_name,
             o.status AS order_status,
-            o.created_at,
-            COALESCE(om_stats.total_count, 0) AS milkshake_total,
-            COALESCE(om_stats.delivered_count, 0) AS milkshake_delivered,
-            COALESCE(ot_stats.total_count, 0) AS toast_total,
-            COALESCE(ot_stats.delivered_count, 0) AS toast_delivered,
-              CASE
-                 WHEN COALESCE(om_stats.not_done_count, 0) = 0
-                     AND COALESCE(ot_stats.not_done_count, 0) = 0 THEN 'Done'
-                 WHEN (
-                    (COALESCE(om_stats.done_count, 0) > 0 OR COALESCE(ot_stats.done_count, 0) > 0)
-                    AND (
-                        COALESCE(om_stats.not_done_count, 0) > 0
-                        OR COALESCE(ot_stats.not_done_count, 0) > 0
-                    )
-                 ) THEN 'In Progress'
-                 WHEN COALESCE(om_stats.in_progress_count, 0) > 0
-                     OR COALESCE(ot_stats.in_progress_count, 0) > 0 THEN 'In Progress'
-                 WHEN COALESCE(om_stats.received_count, 0) > 0
-                     OR COALESCE(ot_stats.received_count, 0) > 0 THEN 'Received'
-                 ELSE 'Pending'
-              END AS calculated_status
+            o.created_at
         FROM orders o
-        LEFT JOIN (
-            SELECT
-                order_id,
-                COUNT(*) AS total_count,
-                SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) AS delivered_count,
-                SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) AS in_progress_count,
-                SUM(CASE WHEN status = 'Received' THEN 1 ELSE 0 END) AS received_count,
-                SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) AS done_count,
-                SUM(CASE WHEN status NOT IN ('Done', 'Delivered') THEN 1 ELSE 0 END) AS not_done_count
-            FROM order_milkshakes
-            GROUP BY order_id
-        ) om_stats ON om_stats.order_id = o.order_id
-        LEFT JOIN (
-            SELECT
-                order_id,
-                COUNT(*) AS total_count,
-                SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END) AS delivered_count,
-                SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) AS in_progress_count,
-                SUM(CASE WHEN status = 'Received' THEN 1 ELSE 0 END) AS received_count,
-                SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) AS done_count,
-                SUM(CASE WHEN status NOT IN ('Done', 'Delivered') THEN 1 ELSE 0 END) AS not_done_count
-            FROM order_toasts
-            GROUP BY order_id
-        ) ot_stats ON ot_stats.order_id = o.order_id
-        WHERE o.event_id = ?
+        WHERE o.event_id = :event_id
           AND o.created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
         ORDER BY o.created_at DESC
     ";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute(['event_id' => $activePubId]);
+    $orders = $stmt->fetchAll();
 
-    $stmt = mysqli_prepare($conn, $query);
-    mysqli_stmt_bind_param($stmt, 'i', $activePubId);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
-    $orders = mysqli_fetch_all($result, MYSQLI_ASSOC);
-    mysqli_stmt_close($stmt);
 
     // Buckets
-    $preparing = [];    // Will hold 'Pending' and 'Received'
-    $inProgress = [];   // Will hold 'In Progress'
-    $doneDelivered = []; // Will hold 'Done' and 'Delivered'
+    $preparing = [];
+    $inProgress = [];
+    $doneDelivered = [];
 
     foreach ($orders as $o) {
-        $s = strtolower($o['calculated_status']);
-        
-        if ($s === 'pending' || $s === 'received') {
-            $o['display_status'] = 'Preparing';
+        $status = strtolower($o['order_status']);
+        if ($status === 'pending' || $status === 'received') {
+            $o['display_status'] = ucfirst($status) === 'Received' ? 'Preparing' : ucfirst($status);
             $preparing[] = $o;
-        } elseif ($s === 'in progress') {
+        } elseif ($status === 'in progress') {
             $o['display_status'] = 'In-progress';
             $inProgress[] = $o;
-        } elseif ($s === 'done') {
-            $total_items = ((int) ($o['milkshake_total'] ?? 0)) + ((int) ($o['toast_total'] ?? 0));
-            $delivered_items = ((int) ($o['milkshake_delivered'] ?? 0)) + ((int) ($o['toast_delivered'] ?? 0));
-            $o['display_status'] = ($delivered_items == $total_items && $total_items > 0) ? 'Delivered' : 'Done';
+        } elseif ($status === 'done' || $status === 'delivered') {
+            $o['display_status'] = ucfirst($status);
             $doneDelivered[] = $o;
         }
     }
@@ -110,7 +53,7 @@ if (isset($_GET['fetch_view'])) {
          echo '<div class="empty-msg">No orders preparing</div>';
     } else {
         foreach ($preparing as $o) {
-            $displayOrderNumber = $o['pub_order_number'] ?? $o['order_number'] ?? $o['order_id'];
+            $displayOrderNumber = $o['order_number'] ?? $o['order_id'];
             echo '<div class="card card-preparing">
                     <div class="row-top">
                         <span class="ord-num">#' . htmlspecialchars($displayOrderNumber) . '</span>
@@ -128,7 +71,7 @@ if (isset($_GET['fetch_view'])) {
          echo '<div class="empty-msg">No orders in progress</div>';
     } else {
         foreach ($inProgress as $o) {
-            $displayOrderNumber = $o['pub_order_number'] ?? $o['order_number'] ?? $o['order_id'];
+            $displayOrderNumber = $o['order_number'] ?? $o['order_id'];
             echo '<div class="card card-inProgress">
                     <div class="row-top">
                         <span class="ord-num">#' . htmlspecialchars($displayOrderNumber) . '</span>
@@ -149,7 +92,7 @@ if (isset($_GET['fetch_view'])) {
             $badgeClass = ($o['display_status'] === 'Done') ? 'badge-done' : 'badge-del';
             $extraClass = ($o['display_status'] === 'Delivered') ? ' delivered' : '';
             $statusKey = strtolower($o['display_status']);
-            $displayOrderNumber = $o['pub_order_number'] ?? $o['order_number'] ?? $o['order_id'];
+            $displayOrderNumber = $o['order_number'] ?? $o['order_id'];
             
             echo '<div class="card card-doneDelivered' . $extraClass . '" data-order-id="' . htmlspecialchars($o['order_id']) . '" data-display-status="' . htmlspecialchars($statusKey) . '">
                     <div class="row-top">
@@ -318,30 +261,22 @@ if (isset($_GET['fetch_view'])) {
     <header>
         Wait List
     </header>
-
     <div class="display-board">
-        
         <div class="column">
             <div class="col-header">RECEIVED</div>
-            <div id="list-preparing" class="order-list">
-                </div>
+            <div id="list-preparing" class="order-list"></div>
         </div>
-
         <div class="column col-center">
             <div class="col-header">In-progress</div>
-            <div id="list-inprogress" class="order-list">
-                </div>
+            <div id="list-inprogress" class="order-list"></div>
         </div>
-
         <div class="column">
             <div class="col-header">Done/Delivered</div>
-            <div id="list-done-delivered" class="order-list">
-                </div>
+            <div id="list-done-delivered" class="order-list"></div>
         </div>
-
     </div>
 
-    <script src="../js/live-poller.js"></script>
+    <script src="/assets/js/ws.js"></script>
     <script>
         const DELIVERY_HIDE_DELAY_MS = 10000;
         const deliveredFirstSeen = new Map();
@@ -382,23 +317,32 @@ if (isset($_GET['fetch_view'])) {
             }
         }
 
-        createLivePoller({
-            endpoint: '?fetch_view=1',
-            onData: function (html) {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-
-                document.getElementById('list-preparing').innerHTML = doc.getElementById('col-preparing').innerHTML;
-                document.getElementById('list-inprogress').innerHTML = doc.getElementById('col-inprogress').innerHTML;
-                document.getElementById('list-done-delivered').innerHTML = doc.getElementById('col-done-delivered').innerHTML;
-            },
-            onTick: function () {
+        // Fetch and update the three columns using the bar-view.php AJAX partial
+        async function loadOrders() {
+            try {
+                const r = await fetch(window.location.pathname + '?fetch_view=1');
+                const html = await r.text();
+                // Create a temporary container to parse the returned HTML
+                const temp = document.createElement('div');
+                temp.innerHTML = html;
+                // Replace each column by id
+                const colPreparing = document.getElementById('list-preparing');
+                const colInProgress = document.getElementById('list-inprogress');
+                const colDoneDelivered = document.getElementById('list-done-delivered');
+                const newPreparing = temp.querySelector('#col-preparing');
+                const newInProgress = temp.querySelector('#col-inprogress');
+                const newDoneDelivered = temp.querySelector('#col-done-delivered');
+                if (colPreparing && newPreparing) colPreparing.innerHTML = newPreparing.innerHTML;
+                if (colInProgress && newInProgress) colInProgress.innerHTML = newInProgress.innerHTML;
+                if (colDoneDelivered && newDoneDelivered) colDoneDelivered.innerHTML = newDoneDelivered.innerHTML;
                 applyDeliveredGracePeriod();
-            },
-            onError: function (err) {
-                console.error('Display update failed', err);
-            },
-        });
+            } catch (e) {
+                console.error('Failed to load orders:', e);
+            }
+        }
+
+        // Initial load
+        document.addEventListener('DOMContentLoaded', loadOrders);
+        // Run grace period check every second
+        setInterval(applyDeliveredGracePeriod, 10000);
     </script>
-</body>
-</html>

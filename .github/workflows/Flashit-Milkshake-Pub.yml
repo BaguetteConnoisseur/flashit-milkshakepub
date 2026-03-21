@@ -41,4 +41,4 @@ jobs:
           context: .
           file: docker/backend/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/${{ env.OWNER_LC }}/${{ env.IMAGE_NAME }}:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/flashit-milkshakepub:latest

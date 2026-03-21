@@ -1,58 +1,47 @@
-# Flashit order sheet for MilkshakePub
+# Flashit MilkshakePub Order System
 
-A lightweight order sheet web app for FlashIT's MilkshakePub, containerized with Docker Compose.
-
-## Contributors
-
-This project was originally created by:
-- Filur - (https://www.github.com/Filuren123)
-- Ponky - (https://www.github.com/BaguetteConnoisseur)
-
-From FlashIT'25.
+A modern, containerized web app for managing orders at FlashIT's MilkshakePub.
 
 ## Stack
+- **Frontend:** Nginx
+- **Backend:** PHP-FPM
+- **Database:** MySQL 8.4
+- **WebSocket:** Node.js
 
-- `frontend`: Nginx
-- `backend`: PHP-FPM (`mysqli`)
-- `db`: MySQL 8.4
+## Prerequisites
+- Node.js v18+ for running the websocket
+- Docker for running other services
 
 ## Quick Start
 
 ### Windows (one-click)
+```sh
+quick-start.bat
+```
 
-Run `quick-start.bat`.
-
-### Manual
-
+### Manual (All Platforms)
 1. Copy env template:
-   ```bash
+   ```sh
    cp .env.example .env
-   ```
-   PowerShell:
-   ```powershell
+   # or on PowerShell:
    Copy-Item .env.example .env
    ```
-
-2. Edit `.env` and set your own secure credentials.
-
+2. Edit `.env` and set strong, unique credentials.
 3. Start the stack:
-   ```bash
+   ```sh
    docker compose up -d --build
    ```
-
-4. Open:
-   - `http://localhost:8080`
-
-## Security
-
-Before deployment:
-- Change `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, and `ADMIN_PASSWORD`
-- Never commit `.env`
-- Review [SECURITY.md](SECURITY.md)
+4. Open [http://localhost:8080](http://localhost:8080)
 
 ## Useful Commands
-
 - Start: `docker compose up -d --build`
 - Stop: `docker compose down`
-- Reset DB volume: `docker compose down -v`
+- Reset DB: `docker compose down -v`
 - Logs: `docker compose logs -f`
+
+## Contributors
+This project was originally created by:
+- [Filur](https://www.github.com/Filuren123)
+- [Ponky](https://www.github.com/BaguetteConnoisseur)
+
+From FlashIT'25.

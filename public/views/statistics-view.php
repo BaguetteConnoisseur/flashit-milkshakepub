@@ -1,175 +1,59 @@
 <?php
 /* --- 1. Statistics View Bootstrap --- */
+require_once(__DIR__ . '/../../private/initialize.php');
 
-require_once("../../private/initialize.php");
-require(PRIVATE_PATH . "/core/db-connection.php");
-require(PRIVATE_PATH . "/core/schema-bootstrap.php");
+$db = db();
 
-require_login();
-
-if (!$conn) {
-    die("Database connection failed: " . mysqli_connect_error());
-}
-
-$pubTracking = ensure_pub_tracking($conn);
-$activePubId = (int) $pubTracking['active_pub_id'];
-$activePubName = $pubTracking['active_pub_name'];
-
+// Get active pub/event
+$activePubId = (int) ($_SESSION['active_pub_id'] ?? 0);
+$activePubName = $_SESSION['active_pub_name'] ?? '';
+$selectedPubId = $activePubId;
+$selectedPubName = $activePubName;
 $feedback = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf_token();
-}
-
-/* 2. Actions (Delete Historical Pub) */
-if (isset($_POST['delete_pub'])) {
-    $targetPubId = (int) ($_POST['target_pub_id'] ?? 0);
-    $confirmation = trim($_POST['confirm_delete_pub'] ?? '');
-
-    if ($targetPubId <= 0) {
-        $feedback = ['type' => 'error', 'message' => 'Ogiltigt pubval.'];
-    } elseif ($targetPubId === $activePubId) {
-        $feedback = ['type' => 'error', 'message' => 'Du kan inte ta bort den aktiva puben. Starta en ny pub först.'];
-    } elseif ($confirmation !== 'DELETE PUB') {
-        $feedback = ['type' => 'error', 'message' => 'Bekräftelsetexten måste vara exakt: DELETE PUB'];
-    } else {
-        mysqli_begin_transaction($conn);
-
-        try {
-            $stmtDeleteMilkshakes = mysqli_prepare($conn, "DELETE om FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = ?");
-            if (!$stmtDeleteMilkshakes) {
-                throw new Exception(mysqli_error($conn));
+    // Delete pub logic
+    if (isset($_POST['delete_pub'])) {
+        $targetPubId = (int) ($_POST['target_pub_id'] ?? 0);
+        $confirmation = trim($_POST['confirm_delete_pub'] ?? '');
+        if ($targetPubId <= 0) {
+            $feedback = ['type' => 'error', 'message' => 'Ogiltigt pubval.'];
+        } elseif ($targetPubId === $activePubId) {
+            $feedback = ['type' => 'error', 'message' => 'Du kan inte ta bort den aktiva puben. Starta en ny pub först.'];
+        } elseif ($confirmation !== 'DELETE PUB') {
+            $feedback = ['type' => 'error', 'message' => 'Bekräftelsetexten måste vara exakt: DELETE PUB'];
+        } else {
+            $db->beginTransaction();
+            try {
+                // Delete order_items for orders in this event
+                $db->prepare("DELETE oi FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE o.event_id = ?")
+                    ->execute([$targetPubId]);
+                // Delete orders for this event
+                $db->prepare("DELETE FROM orders WHERE event_id = ?")
+                    ->execute([$targetPubId]);
+                // Delete event_menu_items for this event
+                $db->prepare("DELETE FROM event_menu_items WHERE event_id = ?")
+                    ->execute([$targetPubId]);
+                // Delete the pub event (only if inactive)
+                $db->prepare("DELETE FROM pub_events WHERE event_id = ? AND is_active = 0")
+                    ->execute([$targetPubId]);
+                $db->commit();
+                $feedback = ['type' => 'success', 'message' => 'Vald pub och dess orderhistorik togs bort.'];
+            } catch (Throwable $e) {
+                $db->rollBack();
+                $feedback = ['type' => 'error', 'message' => 'Kunde inte ta bort vald pub.'];
             }
-            mysqli_stmt_bind_param($stmtDeleteMilkshakes, 'i', $targetPubId);
-            if (!mysqli_stmt_execute($stmtDeleteMilkshakes)) {
-                throw new Exception(mysqli_stmt_error($stmtDeleteMilkshakes));
-            }
-            mysqli_stmt_close($stmtDeleteMilkshakes);
-
-            $stmtDeleteToasts = mysqli_prepare($conn, "DELETE ot FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = ?");
-            if (!$stmtDeleteToasts) {
-                throw new Exception(mysqli_error($conn));
-            }
-            mysqli_stmt_bind_param($stmtDeleteToasts, 'i', $targetPubId);
-            if (!mysqli_stmt_execute($stmtDeleteToasts)) {
-                throw new Exception(mysqli_stmt_error($stmtDeleteToasts));
-            }
-            mysqli_stmt_close($stmtDeleteToasts);
-
-            $stmtDeleteOrders = mysqli_prepare($conn, "DELETE FROM orders WHERE event_id = ?");
-            if (!$stmtDeleteOrders) {
-                throw new Exception(mysqli_error($conn));
-            }
-            mysqli_stmt_bind_param($stmtDeleteOrders, 'i', $targetPubId);
-            if (!mysqli_stmt_execute($stmtDeleteOrders)) {
-                throw new Exception(mysqli_stmt_error($stmtDeleteOrders));
-            }
-            mysqli_stmt_close($stmtDeleteOrders);
-
-            $inactiveFlag = 0;
-            $stmtDeleteEvent = mysqli_prepare($conn, "DELETE FROM sales_events WHERE event_id = ? AND is_active = ?");
-            if (!$stmtDeleteEvent) {
-                throw new Exception(mysqli_error($conn));
-            }
-            mysqli_stmt_bind_param($stmtDeleteEvent, 'ii', $targetPubId, $inactiveFlag);
-            if (!mysqli_stmt_execute($stmtDeleteEvent)) {
-                throw new Exception(mysqli_stmt_error($stmtDeleteEvent));
-            }
-            mysqli_stmt_close($stmtDeleteEvent);
-
-            mysqli_commit($conn);
-            $feedback = ['type' => 'success', 'message' => 'Vald pub och dess orderhistorik togs bort.'];
-        } catch (Throwable $e) {
-            mysqli_rollback($conn);
-            $feedback = ['type' => 'error', 'message' => 'Kunde inte ta bort vald pub.'];
         }
     }
 }
 
-/* 3. Data Fetching */
-$allPubs = mysqli_fetch_all(mysqli_query(
-    $conn,
-    "SELECT
-        e.event_id,
-        e.event_name,
-        e.started_at,
-        e.ended_at,
-        e.is_active,
-        (SELECT COUNT(*) FROM orders o WHERE o.event_id = e.event_id) AS total_orders,
-        (SELECT COUNT(*) FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = e.event_id) AS total_milkshakes,
-        (SELECT COUNT(*) FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = e.event_id) AS total_toasts
-     FROM sales_events e
-     ORDER BY e.started_at DESC"
-), MYSQLI_ASSOC);
+// Fetch all pubs/events
+$allPubs = $db->query("SELECT event_id, event_name, started_at, ended_at, is_active FROM pub_events ORDER BY started_at DESC")->fetchAll(PDO::FETCH_ASSOC);
 
-$selectedPubId = $activePubId;
-$selectedPubName = $activePubName;
-
-$stmtTotalOrders = mysqli_prepare($conn, "SELECT COUNT(*) AS c FROM orders WHERE event_id = ?");
-mysqli_stmt_bind_param($stmtTotalOrders, 'i', $selectedPubId);
-mysqli_stmt_execute($stmtTotalOrders);
-mysqli_stmt_bind_result($stmtTotalOrders, $totalOrdersCount);
-mysqli_stmt_fetch($stmtTotalOrders);
-mysqli_stmt_close($stmtTotalOrders);
-$totalOrders = (int) ($totalOrdersCount ?? 0);
-
-$stmtTotalMilkshakes = mysqli_prepare($conn, "SELECT COUNT(*) AS c FROM order_milkshakes om JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = ?");
-mysqli_stmt_bind_param($stmtTotalMilkshakes, 'i', $selectedPubId);
-mysqli_stmt_execute($stmtTotalMilkshakes);
-mysqli_stmt_bind_result($stmtTotalMilkshakes, $totalMilkshakesCount);
-mysqli_stmt_fetch($stmtTotalMilkshakes);
-mysqli_stmt_close($stmtTotalMilkshakes);
-$totalMilkshakesSold = (int) ($totalMilkshakesCount ?? 0);
-
-$stmtTotalToasts = mysqli_prepare($conn, "SELECT COUNT(*) AS c FROM order_toasts ot JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = ?");
-mysqli_stmt_bind_param($stmtTotalToasts, 'i', $selectedPubId);
-mysqli_stmt_execute($stmtTotalToasts);
-mysqli_stmt_bind_result($stmtTotalToasts, $totalToastsCount);
-mysqli_stmt_fetch($stmtTotalToasts);
-mysqli_stmt_close($stmtTotalToasts);
-$totalToastsSold = (int) ($totalToastsCount ?? 0);
-$totalItemsSold = $totalMilkshakesSold + $totalToastsSold;
-
-$milkshakeSales = mysqli_fetch_all(mysqli_query(
-    $conn,
-    "SELECT 
-        m.milkshake_id,
-        m.name,
-        (SELECT COUNT(*) FROM order_milkshakes WHERE milkshake_id = m.milkshake_id) AS total_sold,
-        (SELECT COUNT(DISTINCT event_id) FROM pub_milkshakes WHERE milkshake_id = m.milkshake_id AND is_active = 1) AS num_pubs_active
-     FROM milkshakes m
-     WHERE (SELECT COUNT(DISTINCT event_id) FROM pub_milkshakes WHERE milkshake_id = m.milkshake_id AND is_active = 1) > 0
-     ORDER BY total_sold DESC, m.name ASC"
-), MYSQLI_ASSOC);
-
-// Calculate average per pub
-foreach ($milkshakeSales as &$item) {
-    $item['avg_per_pub'] = $item['num_pubs_active'] > 0 ? round($item['total_sold'] / $item['num_pubs_active'], 2) : 0;
-}
-unset($item);
-
-$toastAverageSales = mysqli_fetch_all(mysqli_query(
-    $conn,
-    "SELECT
-        t.toast_id,
-        t.name,
-        (SELECT COUNT(*) FROM order_toasts WHERE toast_id = t.toast_id) AS total_sold,
-        (SELECT COUNT(DISTINCT event_id) FROM pub_toasts WHERE toast_id = t.toast_id AND is_active = 1) AS num_pubs_active
-     FROM toasts t
-     WHERE (SELECT COUNT(DISTINCT event_id) FROM pub_toasts WHERE toast_id = t.toast_id AND is_active = 1) > 0
-     ORDER BY total_sold DESC, t.name ASC"
-), MYSQLI_ASSOC);
-
-// Calculate average per pub
-foreach ($toastAverageSales as &$item) {
-    $item['avg_per_pub'] = $item['num_pubs_active'] > 0 ? round($item['total_sold'] / $item['num_pubs_active'], 2) : 0;
-}
-unset($item);
-
-/* 4. Leaderboard Data - Top Lists by Selected Pub */
+// Allow leaderboard filter by pub
 $leaderboardPubId = isset($_GET['leaderboard_pub_id']) && $_GET['leaderboard_pub_id'] !== 'all' ? (int) $_GET['leaderboard_pub_id'] : null;
 $leaderboardPubName = 'Alla pubar';
-
 if ($leaderboardPubId !== null) {
     foreach ($allPubs as $pub) {
         if ((int) $pub['event_id'] === $leaderboardPubId) {
@@ -179,61 +63,98 @@ if ($leaderboardPubId !== null) {
     }
 }
 
-if ($leaderboardPubId === null) {
-    // All pubs
-    $topMilkshakes = mysqli_fetch_all(mysqli_query(
-        $conn,
-        "SELECT m.name AS item_name, COUNT(*) AS sold
-         FROM order_milkshakes om
-         JOIN milkshakes m ON m.milkshake_id = om.milkshake_id
-         GROUP BY m.milkshake_id, m.name
-         ORDER BY sold DESC, m.name ASC
-         LIMIT 10"
-    ), MYSQLI_ASSOC);
+// KPIs for selected pub
+$stmt = $db->prepare("SELECT COUNT(*) FROM orders WHERE event_id = ?");
+$stmt->execute([$selectedPubId]);
+$totalOrders = (int) $stmt->fetchColumn();
 
-    $topToasts = mysqli_fetch_all(mysqli_query(
-        $conn,
-        "SELECT t.name AS item_name, COUNT(*) AS sold
-         FROM order_toasts ot
-         JOIN toasts t ON t.toast_id = ot.toast_id
-         GROUP BY t.toast_id, t.name
-         ORDER BY sold DESC, t.name ASC
-         LIMIT 10"
-    ), MYSQLI_ASSOC);
-} else {
-    // Specific pub
-    $stmtTopMilkshakes = mysqli_prepare($conn, 
-        "SELECT m.name AS item_name, COUNT(*) AS sold
-         FROM order_milkshakes om
-         JOIN orders o ON o.order_id = om.order_id
-         JOIN milkshakes m ON m.milkshake_id = om.milkshake_id
-         WHERE o.event_id = ?
-         GROUP BY m.milkshake_id, m.name
-         ORDER BY sold DESC, m.name ASC
-         LIMIT 10"
-    );
-    mysqli_stmt_bind_param($stmtTopMilkshakes, 'i', $leaderboardPubId);
-    mysqli_stmt_execute($stmtTopMilkshakes);
-    $topMilkshakes = mysqli_fetch_all(mysqli_stmt_get_result($stmtTopMilkshakes), MYSQLI_ASSOC);
-    mysqli_stmt_close($stmtTopMilkshakes);
+$stmt = $db->prepare("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE o.event_id = ?");
+$stmt->execute([$selectedPubId]);
+$totalItemsSold = (int) $stmt->fetchColumn();
 
-    $stmtTopToasts = mysqli_prepare($conn,
-        "SELECT t.name AS item_name, COUNT(*) AS sold
-         FROM order_toasts ot
-         JOIN orders o ON o.order_id = ot.order_id
-         JOIN toasts t ON t.toast_id = ot.toast_id
-         WHERE o.event_id = ?
-         GROUP BY t.toast_id, t.name
-         ORDER BY sold DESC, t.name ASC
-         LIMIT 10"
-    );
-    mysqli_stmt_bind_param($stmtTopToasts, 'i', $leaderboardPubId);
-    mysqli_stmt_execute($stmtTopToasts);
-    $topToasts = mysqli_fetch_all(mysqli_stmt_get_result($stmtTopToasts), MYSQLI_ASSOC);
-    mysqli_stmt_close($stmtTopToasts);
+$stmt = $db->prepare("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'milkshake'");
+$stmt->execute([$selectedPubId]);
+$totalMilkshakesSold = (int) $stmt->fetchColumn();
+
+$stmt = $db->prepare("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'toast'");
+$stmt->execute([$selectedPubId]);
+$totalToastsSold = (int) $stmt->fetchColumn();
+
+// Per-item sales for selected pub
+$milkshakeSales = $db->prepare("SELECT mi.name, COUNT(*) AS total_sold FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'milkshake' GROUP BY mi.item_id, mi.name ORDER BY total_sold DESC, mi.name ASC");
+$milkshakeSales->execute([$selectedPubId]);
+$milkshakeSales = $milkshakeSales->fetchAll(PDO::FETCH_ASSOC);
+
+$toastSales = $db->prepare("SELECT mi.name, COUNT(*) AS total_sold FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'toast' GROUP BY mi.item_id, mi.name ORDER BY total_sold DESC, mi.name ASC");
+$toastSales->execute([$selectedPubId]);
+$toastSales = $toastSales->fetchAll(PDO::FETCH_ASSOC);
+
+// Calculate average per pub for milkshakes
+$milkshakeAverages = [];
+$stmt = $db->query("SELECT mi.item_id, mi.name,
+    COUNT(oi.order_item_id) AS total_sold,
+    COUNT(DISTINCT o.event_id) AS num_pubs_sold
+    FROM menu_items mi
+    LEFT JOIN order_items oi ON oi.item_id = mi.item_id
+    LEFT JOIN orders o ON o.order_id = oi.order_id
+    WHERE mi.category = 'milkshake'
+    GROUP BY mi.item_id, mi.name
+    HAVING total_sold > 0
+    ORDER BY total_sold DESC, mi.name ASC");
+foreach ($stmt as $row) {
+    $avg = $row['num_pubs_sold'] > 0 ? round($row['total_sold'] / $row['num_pubs_sold'], 2) : 0;
+    $milkshakeAverages[] = [
+        'name' => $row['name'],
+        'total_sold' => $row['total_sold'],
+        'num_pubs_sold' => $row['num_pubs_sold'],
+        'avg_per_pub' => $avg
+    ];
 }
 
-mysqli_close($conn);
+// Calculate average per pub for toasts
+$toastAverages = [];
+$stmt = $db->query("SELECT mi.item_id, mi.name,
+    COUNT(oi.order_item_id) AS total_sold,
+    COUNT(DISTINCT o.event_id) AS num_pubs_sold
+    FROM menu_items mi
+    LEFT JOIN order_items oi ON oi.item_id = mi.item_id
+    LEFT JOIN orders o ON o.order_id = oi.order_id
+    WHERE mi.category = 'toast'
+    GROUP BY mi.item_id, mi.name
+    HAVING total_sold > 0
+    ORDER BY total_sold DESC, mi.name ASC");
+foreach ($stmt as $row) {
+    $avg = $row['num_pubs_sold'] > 0 ? round($row['total_sold'] / $row['num_pubs_sold'], 2) : 0;
+    $toastAverages[] = [
+        'name' => $row['name'],
+        'total_sold' => $row['total_sold'],
+        'num_pubs_sold' => $row['num_pubs_sold'],
+        'avg_per_pub' => $avg
+    ];
+}
+
+// Leaderboard (top 10) for selected pub or all time
+if ($leaderboardPubId === null) {
+    // All time
+    $topMilkshakes = $db->query("SELECT mi.name AS item_name, COUNT(*) AS sold FROM order_items oi JOIN menu_items mi ON oi.item_id = mi.item_id WHERE mi.category = 'milkshake' GROUP BY mi.item_id, mi.name ORDER BY sold DESC, mi.name ASC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+    $topToasts = $db->query("SELECT mi.name AS item_name, COUNT(*) AS sold FROM order_items oi JOIN menu_items mi ON oi.item_id = mi.item_id WHERE mi.category = 'toast' GROUP BY mi.item_id, mi.name ORDER BY sold DESC, mi.name ASC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    // Specific pub
+    $stmt = $db->prepare("SELECT mi.name AS item_name, COUNT(*) AS sold FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'milkshake' GROUP BY mi.item_id, mi.name ORDER BY sold DESC, mi.name ASC LIMIT 10");
+    $stmt->execute([$leaderboardPubId]);
+    $topMilkshakes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $db->prepare("SELECT mi.name AS item_name, COUNT(*) AS sold FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'toast' GROUP BY mi.item_id, mi.name ORDER BY sold DESC, mi.name ASC LIMIT 10");
+    $stmt->execute([$leaderboardPubId]);
+    $topToasts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Pub history
+$pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended_at, e.is_active,
+    (SELECT COUNT(*) FROM orders o WHERE o.event_id = e.event_id) AS total_orders,
+    (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = e.event_id AND mi.category = 'milkshake') AS total_milkshakes,
+    (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = e.event_id AND mi.category = 'toast') AS total_toasts
+    FROM pub_events e ORDER BY e.started_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+
 ?>
 
 <!DOCTYPE html>
@@ -242,8 +163,6 @@ mysqli_close($conn);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Statistik</title>
-    <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
         /* --- 4. Layout & Theme --- */
         :root {
@@ -520,7 +439,7 @@ mysqli_close($conn);
     </style>
 </head>
 <body>
-    <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
 
     <div class="container">
         <h1>Statistik</h1>
@@ -553,13 +472,13 @@ mysqli_close($conn);
             <section class="card">
                 <h2>Milkshakeförsäljning per smak</h2>
                 <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
-                <?php if (empty($milkshakeSales)): ?>
+                <?php if (empty($milkshakeAverages)): ?>
                     <p class="empty">Ingen milkshake-försäljning ännu.</p>
                 <?php else: ?>
-                    <?php $topMilkshakeAverageSales = array_slice($milkshakeSales, 0, 5); ?>
+                    <?php $topMilkshakeAverageSales = array_slice($milkshakeAverages, 0, 5); ?>
                     <ol class="list">
                         <?php foreach ($topMilkshakeAverageSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_active'] ?> pub<?= (int) $row['num_pubs_active'] !== 1 ? 'ar' : '' ?>)</span></li>
+                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
                 <?php endif; ?>
@@ -568,13 +487,13 @@ mysqli_close($conn);
             <section class="card">
                 <h2>Toastförsäljning per smak</h2>
                 <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
-                <?php if (empty($toastAverageSales)): ?>
+                <?php if (empty($toastAverages)): ?>
                     <p class="empty">Ingen toast-försäljning ännu.</p>
                 <?php else: ?>
-                    <?php $topToastAverageSales = array_slice($toastAverageSales, 0, 5); ?>
+                    <?php $topToastAverageSales = array_slice($toastAverages, 0, 5); ?>
                     <ol class="list">
                         <?php foreach ($topToastAverageSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_active'] ?> pub<?= (int) $row['num_pubs_active'] !== 1 ? 'ar' : '' ?>)</span></li>
+                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
                 <?php endif; ?>
@@ -643,7 +562,7 @@ mysqli_close($conn);
 
         <section class="card" style="margin-bottom: 1.5rem;">
             <h2>Pubhistorik</h2>
-            <?php if (empty($allPubs)): ?>
+            <?php if (empty($pubHistory)): ?>
                 <p class="empty">Inga pubar skapade ännu.</p>
             <?php else: ?>
                 <table>
@@ -658,7 +577,7 @@ mysqli_close($conn);
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($allPubs as $pub): ?>
+                        <?php foreach ($pubHistory as $pub): ?>
                             <tr>
                                 <td>
                                     <?= htmlspecialchars($pub['event_name']) ?>

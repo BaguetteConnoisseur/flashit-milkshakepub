@@ -1,359 +1,14 @@
 <?php
-/* --- 1. Delivery Station View Bootstrap --- */
+require_once(__DIR__ . '/../../private/initialize.php');
 
-require_once("../../private/initialize.php");
-require(PRIVATE_PATH . "/core/db-connection.php");
-require(PRIVATE_PATH . "/core/schema-bootstrap.php");
-
-require_login();
-
-if (!$conn) {
-    die("Database connection failed: " . mysqli_connect_error());
-}
-
-$pubTracking = ensure_pub_tracking($conn);
-$activePubId = (int) $pubTracking['active_pub_id'];
-
-function localize_status_label($status) {
-    $map = [
-        'Pending' => 'Väntar',
-        'Received' => 'Mottagen',
-        'In Progress' => 'Pågår',
-        'Done' => 'Klar',
-        'Delivered' => 'Levererad',
-    ];
-
-    return $map[$status] ?? $status;
-}
-
-/* --- 2. Actions (POST) --- */
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    require_csrf_token();
-
-    // 1. Deliver Entire Order
-    if (isset($_POST['deliver_all'])) {
-        $order_id = intval($_POST['order_id']);
-
-        mysqli_begin_transaction($conn);
-        try {
-            $stmt = mysqli_prepare($conn, "UPDATE orders SET status = 'Delivered' WHERE order_id = ? AND event_id = ?");
-            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
-            if (!mysqli_stmt_execute($stmt)) {
-                mysqli_stmt_close($stmt);
-                throw new Exception(mysqli_error($conn));
-            }
-            mysqli_stmt_close($stmt);
-
-            $stmt = mysqli_prepare($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_id = ? AND o.event_id = ?");
-            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
-            if (!mysqli_stmt_execute($stmt)) {
-                mysqli_stmt_close($stmt);
-                throw new Exception(mysqli_error($conn));
-            }
-            mysqli_stmt_close($stmt);
-
-            $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_id = ? AND o.event_id = ?");
-            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
-            if (!mysqli_stmt_execute($stmt)) {
-                mysqli_stmt_close($stmt);
-                throw new Exception(mysqli_error($conn));
-            }
-            mysqli_stmt_close($stmt);
-
-            mysqli_commit($conn);
-        } catch (Throwable $e) {
-            mysqli_rollback($conn);
-        }
-
-        header("Location: " . $_SERVER['PHP_SELF']);
-        exit;
-    }
-
-    // 2. Deliver Individual Milkshake
-    if (isset($_POST['deliver_milkshake'])) {
-        $id = intval($_POST['item_id']);
-        
-        $stmt = mysqli_prepare($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Delivered' WHERE om.order_milkshake_id = ? AND o.event_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $id, $activePubId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        
-        $stmt = mysqli_prepare($conn, "UPDATE orders o SET o.status = 'Delivered' WHERE o.order_id = (SELECT om.order_id FROM order_milkshakes om JOIN orders ox ON ox.order_id = om.order_id WHERE om.order_milkshake_id = ? AND ox.event_id = ? LIMIT 1) AND NOT EXISTS (SELECT 1 FROM order_milkshakes om2 WHERE om2.order_id = o.order_id AND om2.status <> 'Delivered') AND NOT EXISTS (SELECT 1 FROM order_toasts ot2 WHERE ot2.order_id = o.order_id AND ot2.status <> 'Delivered')");
-        mysqli_stmt_bind_param($stmt, 'ii', $id, $activePubId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        
-        header("Location: " . $_SERVER['PHP_SELF']);
-        exit;
-    }
-
-    // 3. Deliver Individual Toast
-    if (isset($_POST['deliver_toast'])) {
-        $id = intval($_POST['item_id']);
-        
-        $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Delivered' WHERE ot.order_toast_id = ? AND o.event_id = ?");
-        mysqli_stmt_bind_param($stmt, 'ii', $id, $activePubId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        
-        $stmt = mysqli_prepare($conn, "UPDATE orders o SET o.status = 'Delivered' WHERE o.order_id = (SELECT ot.order_id FROM order_toasts ot JOIN orders ox ON ox.order_id = ot.order_id WHERE ot.order_toast_id = ? AND ox.event_id = ? LIMIT 1) AND NOT EXISTS (SELECT 1 FROM order_milkshakes om2 WHERE om2.order_id = o.order_id AND om2.status <> 'Delivered') AND NOT EXISTS (SELECT 1 FROM order_toasts ot2 WHERE ot2.order_id = o.order_id AND ot2.status <> 'Delivered')");
-        mysqli_stmt_bind_param($stmt, 'ii', $id, $activePubId);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        
-        header("Location: " . $_SERVER['PHP_SELF']);
-        exit;
-    }
-
-    // 4. Take Back Delivered Order (Revert to Done)
-    if (isset($_POST['take_back_order'])) {
-        $order_id = intval($_POST['order_id']);
-
-        mysqli_begin_transaction($conn);
-        try {
-            $stmt = mysqli_prepare($conn, "UPDATE orders SET status = 'Done' WHERE order_id = ? AND event_id = ?");
-            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
-            if (!mysqli_stmt_execute($stmt)) {
-                mysqli_stmt_close($stmt);
-                throw new Exception(mysqli_error($conn));
-            }
-            mysqli_stmt_close($stmt);
-
-            $stmt = mysqli_prepare($conn, "UPDATE order_milkshakes om JOIN orders o ON o.order_id = om.order_id SET om.status = 'Done' WHERE om.order_id = ? AND o.event_id = ?");
-            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
-            if (!mysqli_stmt_execute($stmt)) {
-                mysqli_stmt_close($stmt);
-                throw new Exception(mysqli_error($conn));
-            }
-            mysqli_stmt_close($stmt);
-
-            $stmt = mysqli_prepare($conn, "UPDATE order_toasts ot JOIN orders o ON o.order_id = ot.order_id SET ot.status = 'Done' WHERE ot.order_id = ? AND o.event_id = ?");
-            mysqli_stmt_bind_param($stmt, 'ii', $order_id, $activePubId);
-            if (!mysqli_stmt_execute($stmt)) {
-                mysqli_stmt_close($stmt);
-                throw new Exception(mysqli_error($conn));
-            }
-            mysqli_stmt_close($stmt);
-
-            mysqli_commit($conn);
-        } catch (Throwable $e) {
-            mysqli_rollback($conn);
-        }
-
-        header("Location: " . $_SERVER['PHP_SELF']);
-        exit;
-    }
-}
-
-/* --- 3. Data Fetching Helpers --- */
-function getOrders($conn, $activePubId) {
-    // 1. Fetch ALL Orders (Active first, then Delivered. Within those groups, oldest first)
-    // We add a limit (e.g., 50) to prevent the page from crashing after a year of usage.
-    $stmt = mysqli_prepare($conn, "SELECT * FROM orders WHERE event_id = ? ORDER BY CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END, created_at ASC LIMIT 50");
-    mysqli_stmt_bind_param($stmt, 'i', $activePubId);
-    mysqli_stmt_execute($stmt);
-    $orders = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-    mysqli_stmt_close($stmt);
-
-    if (empty($orders)) return [];
-
-    // Get IDs for fetching items
-    $order_ids = array_column($orders, 'order_id');
-    $order_ids = array_map('intval', $order_ids);
-
-    if (empty($order_ids)) return [];
-
-    // Create placeholders for IN clause
-    $placeholders = implode(',', array_fill(0, count($order_ids), '?'));
-    $types = str_repeat('i', count($order_ids) + 1);
-
-    // 2. Fetch Milkshakes for these orders
-    $stmt = mysqli_prepare($conn, "SELECT om.*, m.name FROM order_milkshakes om JOIN milkshakes m ON om.milkshake_id = m.milkshake_id JOIN orders o ON o.order_id = om.order_id WHERE o.event_id = ? AND om.order_id IN ($placeholders)");
-    mysqli_stmt_bind_param($stmt, $types, $activePubId, ...$order_ids);
-    mysqli_stmt_execute($stmt);
-    $milkshakes = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-    mysqli_stmt_close($stmt);
-
-    // 3. Fetch Toasts for these orders
-    $stmt = mysqli_prepare($conn, "SELECT ot.*, t.name FROM order_toasts ot JOIN toasts t ON ot.toast_id = t.toast_id JOIN orders o ON o.order_id = ot.order_id WHERE o.event_id = ? AND ot.order_id IN ($placeholders)");
-    mysqli_stmt_bind_param($stmt, $types, $activePubId, ...$order_ids);
-    mysqli_stmt_execute($stmt);
-    $toasts = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
-    mysqli_stmt_close($stmt);
-
-    $milkshakesByOrder = [];
-    foreach ($milkshakes as $m) {
-        $orderId = (int) $m['order_id'];
-        $m['type'] = 'milkshake';
-        $milkshakesByOrder[$orderId][] = $m;
-    }
-
-    $toastsByOrder = [];
-    foreach ($toasts as $t) {
-        $orderId = (int) $t['order_id'];
-        $t['type'] = 'toast';
-        $toastsByOrder[$orderId][] = $t;
-    }
-
-    // 4. Attach items to orders
-    foreach ($orders as &$order) {
-        $orderId = (int) $order['order_id'];
-        $orderMilkshakes = $milkshakesByOrder[$orderId] ?? [];
-        $orderToasts = $toastsByOrder[$orderId] ?? [];
-        $order['items'] = array_merge($orderMilkshakes, $orderToasts);
-        $order['ready_to_serve'] = true; // Assume ready
-        $order['has_items'] = !empty($order['items']);
-        $order['is_fully_delivered'] = false;
-
-        foreach ($order['items'] as $item) {
-            if ($item['status'] !== 'Done' && $item['status'] !== 'Delivered') {
-                $order['ready_to_serve'] = false;
-            }
-        }
-        
-        if (!$order['has_items']) {
-            $order['ready_to_serve'] = false;
-        }
-
-        $allDelivered = $order['has_items'];
-        foreach ($order['items'] as $item) {
-            if ($item['status'] !== 'Delivered') {
-                $allDelivered = false;
-                break;
-            }
-        }
-
-        $order['is_fully_delivered'] = $allDelivered;
-    }
-
-    usort($orders, function ($a, $b) {
-        $priorityA = $a['is_fully_delivered'] ? 2 : ($a['ready_to_serve'] ? 0 : 1);
-        $priorityB = $b['is_fully_delivered'] ? 2 : ($b['ready_to_serve'] ? 0 : 1);
-
-        if ($priorityA !== $priorityB) {
-            return $priorityA <=> $priorityB;
-        }
-
-        return strtotime($a['created_at']) <=> strtotime($b['created_at']);
-    });
-
-    return $orders;
-}
-
-/* --- 4. AJAX Partial Renderer --- */
-if (isset($_GET['fetch_view'])) {
-    $orders = getOrders($conn, $activePubId);
-    
-    if (empty($orders)) {
-        echo '<div class="empty-state"><h2>Inga beställningar hittades.</h2></div>';
-    } else {
-        foreach($orders as $o) {
-            $isDelivered = $o['is_fully_delivered'];
-            $isReady = $o['ready_to_serve'];
-            
-            // Determine Card Class
-            $cardClass = '';
-            if ($isDelivered) {
-                $cardClass = 'card-completed';
-            } elseif ($isReady) {
-                $cardClass = 'card-ready';
-            }
-            ?>
-            <div class="ticket-card <?= $cardClass ?>">
-                <div class="card-header">
-                    <div class="meta">
-                        <span>#<?= htmlspecialchars($o['pub_order_number'] ?? $o['order_number'] ?? $o['order_id']) ?></span>
-                        <span><?= date("H:i", strtotime($o['created_at'])) ?></span>
-                    </div>
-                    <div class="customer">
-                        <?= htmlspecialchars($o['customer_name']) ?>
-                        <?php if($isDelivered): ?> <span style="font-size:0.8rem; opacity:0.6;">(Levererad)</span><?php endif; ?>
-                    </div>
-                    <?php if(!empty($o['order_comment'])): ?>
-                        <div class="order-note">📝 <?= htmlspecialchars($o['order_comment']) ?></div>
-                    <?php endif; ?>
-                </div>
-
-                <div class="card-body">
-                    <?php foreach($o['items'] as $item): 
-                        $isItemReady = ($item['status'] == 'Done');
-                        $isItemDelivered = ($item['status'] == 'Delivered');
-                        $itemClass = $isItemDelivered ? 'item-delivered' : ($isItemReady ? 'item-done' : 'item-pending');
-                        $icon = $item['type'] == 'milkshake' ? '🥤' : '🥪';
-                    ?>
-                        <div class="item-row <?= $itemClass ?>">
-                            <div class="item-info">
-                                <span class="item-icon"><?= $icon ?></span>
-                                <div>
-                                    <div class="item-name"><?= htmlspecialchars($item['name']) ?></div>
-                                    <?php if(!empty($item['comment'])): ?>
-                                        <div class="item-comment">⚠️ <?= htmlspecialchars($item['comment']) ?></div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            
-                            <div class="item-status">
-                                <?php if (!$isItemDelivered): ?>
-                                    <span class="status-text"><?= localize_status_label($item['status']) ?></span>
-                                    
-                                    <?php if ($isItemReady && !$isDelivered): ?>
-                                        <form method="POST" style="display:inline;">
-                                            <?= csrf_token_input() ?>
-                                            <input type="hidden" name="item_id" value="<?= $item['type'] == 'milkshake' ? $item['order_milkshake_id'] : $item['order_toast_id'] ?>">
-                                            <button type="submit" name="deliver_<?= $item['type'] ?>" class="btn-mini">✓</button>
-                                        </form>
-                                    <?php endif; ?>
-                                <?php else: ?>
-                                    <span>Levererad</span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-
-                <?php if (!$isDelivered): ?>
-                    <div class="card-footer">
-                        <form method="POST">
-                            <?= csrf_token_input() ?>
-                            <input type="hidden" name="order_id" value="<?= $o['order_id'] ?>">
-                            <?php if ($isReady): ?>
-                                <button type="submit" name="deliver_all" class="btn-main btn-success">
-                                    LEVERERA BESTÄLLNING
-                                </button>
-                            <?php else: ?>
-                                <button type="button" class="btn-main btn-disabled" disabled>
-                                    Väntar på köket...
-                                </button>
-                            <?php endif; ?>
-                        </form>
-                    </div>
-                <?php else: ?>
-                    <div class="card-footer">
-                        <form method="POST" style="display: flex; justify-content: flex-end;">
-                            <?= csrf_token_input() ?>
-                            <input type="hidden" name="order_id" value="<?= $o['order_id'] ?>">
-                            <button type="submit" name="take_back_order" class="btn-take-back" title="Återta denna beställning">
-                                ↶
-                            </button>
-                        </form>
-                    </div>
-                <?php endif; ?>
-            </div>
-            <?php
-        }
-    }
-    exit;
-}
 ?>
-
 <!DOCTYPE html>
 <html lang="sv">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leveransstation</title>
-    <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="../img/logo/favicon.png" type="image/png">
+
     <style>
         /* --- 5. Layout & Theme --- */
         :root {
@@ -362,7 +17,7 @@ if (isset($_GET['fetch_view'])) {
             --card-bg: #ffffff;
             --text-main: #1f2937;
             --text-sub: #6b7280;
-            --accent: #6366f1; /* Indigo for Delivery */
+            --accent: #6366f1; /* Delivery */
             
             --status-pending: #d1d5db;
             --status-progress: #eab308;
@@ -387,9 +42,9 @@ if (isset($_GET['fetch_view'])) {
         /* 1. Ready to Serve (Green Border) */
         .card-ready { border: 2px solid var(--status-done); box-shadow: 0 10px 15px -3px rgba(34, 197, 94, 0.2); }
         
-        /* 2. Completed / Delivered (Greyed Out) */
-        .card-completed { opacity: 0.6; background: #f9fafb; border-color: transparent; box-shadow: none; filter: grayscale(80%); }
-        .card-completed:hover { opacity: 0.8; }
+        /* 2. Delivered (Greyed Out) */
+        .card-delivered { opacity: 0.6; background: #f9fafb; border-color: transparent; box-shadow: none; filter: grayscale(80%); }
+        .card-delivered:hover { opacity: 0.8; }
 
         .card-header { padding: 1.25rem; border-bottom: 1px solid #f3f4f6; background: #f9fafb; }
         .meta { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-sub); text-transform: uppercase; margin-bottom: 0.5rem; }
@@ -451,7 +106,7 @@ if (isset($_GET['fetch_view'])) {
     </style>
 </head>
 <body>
-    <?php require(SHARED_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
 
     <div class="header">
         <h1>📦 Leveransstation</h1>
@@ -461,25 +116,173 @@ if (isset($_GET['fetch_view'])) {
     <div id="ticket-grid" class="grid">
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
     </div>
-    <?php include(SHARED_PATH . "/public_footer.php"); ?>
+    <?php include(TEMPLATE_PATH . "/public_footer.php"); ?>
 
-    <script src="../js/live-poller.js"></script>
+    <script src="/assets/js/ws.js"></script>
+    <script src="/assets/js/shared.js"></script>
     <script>
-        createLivePoller({
-            endpoint: '?fetch_view=1',
-            statusSelector: '#connection-status',
-            statusLabels: {
-                live: '● Live',
-                offline: '● Offline',
-                sleeping: '● Sleeping',
-            },
-            onData: function (html) {
-                document.getElementById('ticket-grid').innerHTML = html;
-            },
-            onError: function (err) {
-                console.error('Kunde inte hämta beställningar:', err);
-            },
+    // --- DOM helpers for card rendering ---
+    function createOrderCard(order) {
+        const items = order.items || [];
+        // Allow 'Deliver Order' if all items are either Done or Delivered
+        const allDoneOrDelivered = items.length > 0 && items.every(item => item.status === 'Done' || item.status === 'Delivered');
+        const allDelivered = items.length > 0 && items.every(item => item.status === 'Delivered');
+
+        // Card class logic
+        let cardClass = '';
+        if (order.status === 'Delivered' || allDelivered) {
+            cardClass = 'card-delivered';
+        } else if (allDoneOrDelivered) {
+            cardClass = 'card-ready';
+        }
+
+        // Card element
+        const card = document.createElement('div');
+        card.className = `ticket-card ${cardClass}`;
+
+        // Card header
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        header.innerHTML = `
+            <div class="meta">
+                <span>#${order.order_number}</span>
+                <span>${order.created_at ? new Date(order.created_at).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+            </div>
+            <div class="customer">
+                ${order.customer_name ? escapeHtml(order.customer_name) : ''}
+                ${(order.status === 'Delivered' || allDelivered) ? '<span style="font-size:0.8rem; opacity:0.6;">(Levererad)</span>' : ''}
+            </div>
+            ${order.order_comment ? `<div class="order-note">📝 ${escapeHtml(order.order_comment)}</div>` : ''}
+        `;
+        card.appendChild(header);
+
+        // Card body (items)
+        const body = document.createElement('div');
+        body.className = 'card-body';
+        items.forEach(item => {
+            const isItemReady = item.status === 'Done';
+            const isItemDelivered = item.status === 'Delivered';
+            const itemClass = isItemDelivered ? 'item-delivered' : (isItemReady ? 'item-done' : 'item-pending');
+            const icon = item.category === 'milkshake' ? '🥤' : '🥪';
+
+            const row = document.createElement('div');
+            row.className = `item-row ${itemClass}`;
+            row.innerHTML = `
+                <div class="item-info">
+                    <span class="item-icon">${icon}</span>
+                    <div>
+                        <div class="item-name">${escapeHtml(item.name)}</div>
+                        ${item.comment ? `<div class="item-comment">⚠️ ${escapeHtml(item.comment)}</div>` : ''}
+                    </div>
+                </div>
+                <div class="item-status">
+                    <span class="status-text">${localizeItemStatusLabel(item.status)}</span>
+                    ${isItemReady? `
+                        <button class="btn-mini" title="Leverera" onclick="deliverItem(${item.order_item_id}, this)">✓</button>
+                    ` : ''}
+                </div>
+            `;
+            body.appendChild(row);
         });
+        card.appendChild(body);
+
+        // Card footer
+        const footer = document.createElement('div');
+        footer.className = 'card-footer';
+        if (!(order.status === 'Delivered' || allDelivered)) {
+            if (allDoneOrDelivered) {
+                const btn = document.createElement('button');
+                btn.className = 'btn-main btn-success';
+                btn.textContent = 'LEVERERA BESTÄLLNING';
+                btn.onclick = async () => {
+                    btn.disabled = true;
+                    await updateOrderStatus(order.order_id, 'Delivered');
+                };
+                footer.appendChild(btn);
+            } else {
+                const btn = document.createElement('button');
+                btn.className = 'btn-main btn-disabled';
+                btn.textContent = 'Väntar på köket...';
+                btn.disabled = true;
+                footer.appendChild(btn);
+            }
+        } else {
+            const btn = document.createElement('button');
+            btn.className = 'btn-take-back';
+            btn.title = 'Återta denna beställning';
+            btn.innerHTML = '↶';
+            btn.onclick = async () => {
+                btn.disabled = true;
+                await updateOrderStatus(order.order_id, 'Done');
+            };
+            footer.appendChild(btn);
+        }
+        card.appendChild(footer);
+
+        return card;
+    }
+
+    // --- API: Update order status --- BUG: If we update an order to Delivered from the Cashier view with items still marked as Pending or In Progress, and revert from this view, the items will be set to Done instead of Pending. This is because the API endpoint for updating order status also updates all items to match the order status when set to Delivered or Done. A proper fix would involve separating the logic for manually setting an order to Delivered (which should not auto-update item statuses) from the automatic status syncing that happens when individual items are updated. For now, a workaround is to only use the "Take back" button on this view to revert a Delivered order back to Done, which will keep item statuses intact.
+    async function updateOrderStatus(orderId, status) {
+        const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
+        try {
+            await fetch('/api/update_order.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_id: orderId, status, csrf_token: csrfToken })
+            });
+        } catch (e) {
+            // Optionally show error
+        }
+        await loadOrders();
+    }
+
+    // --- API: Deliver individual item ---
+    async function deliverItem(orderItemId, btn) {
+        btn.disabled = true;
+        const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
+        await fetch('/api/update_item.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item_id: orderItemId, status: 'Delivered', csrf_token: csrfToken })
+        });
+        await loadOrders();
+    }
+    
+
+
+    // --- Main loader: fetch and render orders ---
+
+    async function loadOrders() {
+        const r = await fetch("/api/get_event_orders.php");
+        let data = await r.json();
+        const grid = document.getElementById("ticket-grid");
+        grid.innerHTML = '';
+
+        if (!Array.isArray(data) || data.length === 0) {
+            grid.innerHTML = '<div class="empty-state"><h2>Inga beställningar hittades.</h2></div>';
+            return;
+        }
+
+        // Sort: all items done first, then status 'Done', then others, all by order_number
+        data.sort((a, b) => {
+            function sortRank(order) {
+                if (Array.isArray(order.items) && order.items.length > 0 && order.items.every(item => item.status === 'Done' || item.status === 'Delivered')) return 0; // All items done
+                if (order.status === 'Done') return 1; // Status done, but not all items done
+                return 2;
+            }
+            const aRank = sortRank(a);
+            const bRank = sortRank(b);
+            if (aRank !== bRank) return aRank - bRank;
+            return (a.order_number ?? 0) - (b.order_number ?? 0);
+        });
+        console.log("Loaded orders:", data);
+        data.forEach(order => {
+            grid.appendChild(createOrderCard(order));
+        });
+    }
+
+    loadOrders();
     </script>
 </body>
 </html>
