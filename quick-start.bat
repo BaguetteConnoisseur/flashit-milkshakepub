@@ -21,7 +21,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo Waiting for services to be ready...
-timeout /t 5 /nobreak >nul
+timeout /t 15 /nobreak >nul
 
 echo.
 echo =====================================
