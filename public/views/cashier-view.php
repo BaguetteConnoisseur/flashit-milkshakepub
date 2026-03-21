@@ -1,13 +1,12 @@
 <?php
 require_once(__DIR__ . "/../../private/initialize.php");
-require_login();
+require_once(PRIVATE_PATH . '/src/services/inventoryManager.php');
 
 $pdo = db();
 $activePubId = $_SESSION['active_pub_id'] ?? null;
 $activePubName = $_SESSION['active_pub_name'] ?? '';
 
 // --- 1. Inventory for Create Form ---
-require_once(PRIVATE_PATH . '/src/services/inventoryManager.php');
 $inventory = new InventoryManager($pdo, $activePubId);
 $milkshakes = $inventory->getItemsByCategory('milkshake', true);
 $toasts = $inventory->getItemsByCategory('toast', true);
@@ -22,7 +21,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT COALESCE(MAX(order_number), 0) + 1 AS next_num FROM orders WHERE event_id = ? FOR UPDATE");
             $stmt->execute([$activePubId]);
             $order_number = (int)($stmt->fetchColumn() ?: 1);
-
             $stmt = $pdo->prepare("INSERT INTO orders (event_id, order_number, customer_name, order_comment, status) VALUES (?, ?, ?, ?, 'Pending')");
             $stmt->execute([
                 $activePubId,
@@ -138,8 +136,6 @@ if (isset($_GET['view_order'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order System</title>
-    <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
         :root {
             --primary: #2563eb;

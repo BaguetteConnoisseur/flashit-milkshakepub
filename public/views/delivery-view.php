@@ -1,9 +1,5 @@
 <?php
-require_once(__DIR__ . "/../../private/initialize.php");
-
-// Handle logout and login actions BEFORE any output
-$showError = handle_login_post();
-
+require_once(__DIR__ . '/../../private/initialize.php');
 
 ?>
 <!DOCTYPE html>
@@ -12,8 +8,7 @@ $showError = handle_login_post();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leveransstation</title>
-    <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="../img/logo/favicon.png" type="image/png">
+
     <style>
         /* --- 5. Layout & Theme --- */
         :root {
@@ -124,10 +119,10 @@ $showError = handle_login_post();
     <?php include(TEMPLATE_PATH . "/public_footer.php"); ?>
 
     <script src="/assets/js/ws.js"></script>
+    <script src="/assets/js/shared.js"></script>
     <script>
     // --- DOM helpers for card rendering ---
     function createOrderCard(order) {
-        // Determine if all items are Done (ready to deliver)
         const items = order.items || [];
         // Allow 'Deliver Order' if all items are either Done or Delivered
         const allDoneOrDelivered = items.length > 0 && items.every(item => item.status === 'Done' || item.status === 'Delivered');
@@ -168,7 +163,7 @@ $showError = handle_login_post();
             const isItemReady = item.status === 'Done';
             const isItemDelivered = item.status === 'Delivered';
             const itemClass = isItemDelivered ? 'item-delivered' : (isItemReady ? 'item-done' : 'item-pending');
-            const icon = item.type === 'milkshake' ? '🥤' : '🥪';
+            const icon = item.category === 'milkshake' ? '🥤' : '🥪';
 
             const row = document.createElement('div');
             row.className = `item-row ${itemClass}`;
@@ -181,7 +176,7 @@ $showError = handle_login_post();
                     </div>
                 </div>
                 <div class="item-status">
-                    <span class="status-text">${localizeStatusLabel(item.status)}</span>
+                    <span class="status-text">${localizeItemStatusLabel(item.status)}</span>
                     ${isItemReady? `
                         <button class="btn-mini" title="Leverera" onclick="deliverItem(${item.order_item_id}, this)">✓</button>
                     ` : ''}
@@ -227,7 +222,7 @@ $showError = handle_login_post();
         return card;
     }
 
-    // --- API: Update order status ---
+    // --- API: Update order status --- BUG: If we update an order to Delivered from the Cashier view with items still marked as Pending or In Progress, and revert from this view, the items will be set to Done instead of Pending. This is because the API endpoint for updating order status also updates all items to match the order status when set to Delivered or Done. A proper fix would involve separating the logic for manually setting an order to Delivered (which should not auto-update item statuses) from the automatic status syncing that happens when individual items are updated. For now, a workaround is to only use the "Take back" button on this view to revert a Delivered order back to Done, which will keep item statuses intact.
     async function updateOrderStatus(orderId, status) {
         const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
         try {
@@ -254,23 +249,7 @@ $showError = handle_login_post();
         await loadOrders();
     }
     
-    // --- Utility: HTML escaping ---
-    function escapeHtml(str) {
-        return String(str).replace(/[&<>'"]/g, function (c) {
-            return {'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c];
-        });
-    }
 
-    // --- Utility: Status localization (replace with your own logic if needed) ---
-    function localizeStatusLabel(status) {
-        switch (status) {
-            case 'Pending': return 'Väntar';
-            case 'In Progress': return 'Pågår';
-            case 'Done': return 'Klar';
-            case 'Delivered': return 'Levererad';
-            default: return status;
-        }
-    }
 
     // --- Main loader: fetch and render orders ---
 
@@ -285,9 +264,19 @@ $showError = handle_login_post();
             return;
         }
 
-            // Sort by order_number ascending only
-            data.sort((a, b) => (a.order_number ?? 0) - (b.order_number ?? 0));
-
+        // Sort: all items done first, then status 'Done', then others, all by order_number
+        data.sort((a, b) => {
+            function sortRank(order) {
+                if (Array.isArray(order.items) && order.items.length > 0 && order.items.every(item => item.status === 'Done' || item.status === 'Delivered')) return 0; // All items done
+                if (order.status === 'Done') return 1; // Status done, but not all items done
+                return 2;
+            }
+            const aRank = sortRank(a);
+            const bRank = sortRank(b);
+            if (aRank !== bRank) return aRank - bRank;
+            return (a.order_number ?? 0) - (b.order_number ?? 0);
+        });
+        console.log("Loaded orders:", data);
         data.forEach(order => {
             grid.appendChild(createOrderCard(order));
         });

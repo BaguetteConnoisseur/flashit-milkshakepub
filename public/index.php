@@ -10,10 +10,7 @@ $errorMessage = handle_login_post();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flashit Milkshake Pub - Dashboard</title>
-    <link rel="icon" href="img/logo/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="img/logo/favicon.png" type="image/png">
-    <style>
+    <title>Flashit Milkshake Pub - Dashboard</title>    <style>
         * {
             margin: 0;
             padding: 0;
@@ -302,9 +299,6 @@ $errorMessage = handle_login_post();
                 
                 <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
                     <?= csrf_token_input() ?>
-                    <div class="form-group">
-                        <input type="text" name="username" placeholder="Användarnamn" required autocomplete="username">
-                    </div>
                     <div class="form-group">
                         <input type="password" name="password" placeholder="Lösenord" required autocomplete="current-password">
                     </div>

@@ -1,4 +1,5 @@
-<?phprequire_once(__DIR__ . "/../../private/initialize.php");
+<?php
+require_once(__DIR__ . "/../../private/initialize.php");
 require_once(__DIR__ . "/../../private/src/services/broadcast.php");
 
 $db = db();
@@ -13,9 +14,11 @@ if (!csrf_token_is_valid($csrf_token)) {
 }
 
 try {
-    // 2. Use the Active Pub ID from the session (the 'ensure_pub_tracking' logic)
-    $activePubId = $_SESSION['active_pub_id'] ?? 1; 
+    // Start transaction for atomicity and speed
+    $db->beginTransaction();
 
+    // 2. Use the Active Pub ID from the session (the 'ensure_pub_tracking' logic)
+    $activePubId = $_SESSION['active_pub_id'] ?? 1;
 
     // Get next order_number for this event
     $stmt = $db->prepare("SELECT COALESCE(MAX(order_number), 0) + 1 AS next_num FROM orders WHERE event_id = ?");
@@ -30,33 +33,42 @@ try {
     $order_id = $db->lastInsertId();
 
     // 4. Process the actual items in the cart
-    // We expect $request['items'] to be an array of slugs: ['oreo-supreme', 'toast-standard']
     $items_to_add = $request['items'] ?? [];
-
     if (empty($items_to_add)) {
         throw new Exception("No items in order");
     }
 
-    $stmt_item = $db->prepare("INSERT INTO order_items (order_id, item_id, status) VALUES (?, ?, ?)");
+    // Batch lookup item IDs
+    $placeholders = implode(',', array_fill(0, count($items_to_add), '?'));
+    $stmt_get_ids = $db->prepare("SELECT item_id, slug FROM menu_items WHERE slug IN ($placeholders)");
+    $stmt_get_ids->execute($items_to_add);
+    $slug_to_id = [];
+    while ($row = $stmt_get_ids->fetch(PDO::FETCH_ASSOC)) {
+        $slug_to_id[$row['slug']] = $row['item_id'];
+    }
 
-    // Prepare the lookup and the insert
-    $stmt_get_id = $db->prepare("SELECT item_id FROM menu_items WHERE slug = ?");
-    $stmt_item = $db->prepare("INSERT INTO order_items (order_id, item_id, status) VALUES (?, ?, ?)");
-
-    foreach($items_to_add as $slug) {
-        // 1. Find the real ID using the obvious slug
-        $stmt_get_id->execute([$slug]);
-        $item = $stmt_get_id->fetch();
-
-        if ($item) {
-            // 2. Insert using that ID
-            $stmt_item->execute([
-                $order_id,
-                $item['item_id'],
-                "Pending"
-            ]);
+    // Prepare values for batch insert
+    $order_items_values = [];
+    foreach ($items_to_add as $slug) {
+        if (isset($slug_to_id[$slug])) {
+            $order_items_values[] = '(' . implode(',', [
+                $db->quote($order_id),
+                $db->quote($slug_to_id[$slug]),
+                $db->quote('Pending')
+            ]) . ')';
         }
     }
+
+    if (empty($order_items_values)) {
+        throw new Exception("No valid items found");
+    }
+
+    // Batch insert order_items
+    $sql = "INSERT INTO order_items (order_id, item_id, status) VALUES " . implode(',', $order_items_values);
+    $db->exec($sql);
+
+    // Commit transaction
+    $db->commit();
 
     // 5. Notify the stations (Bar, Toast, etc.)
     broadcast([
@@ -68,6 +80,9 @@ try {
     echo json_encode(["ok" => true, "order_id" => $order_id]);
 
 } catch (Exception $e) {
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
     http_response_code(500);
     echo json_encode(["error" => $e->getMessage()]);
 }

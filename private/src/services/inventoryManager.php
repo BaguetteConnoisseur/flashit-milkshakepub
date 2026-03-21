@@ -32,17 +32,41 @@ class InventoryManager {
     }
 
     /**
+     * Fetch a single item by its ID for the current event.
+     */
+    public function getItemById(int $itemId) {
+        $sql = "SELECT mi.*, emi.is_active as event_active
+                FROM menu_items mi
+                JOIN event_menu_items emi ON mi.item_id = emi.item_id
+                WHERE emi.event_id = :event_id
+                  AND mi.item_id = :item_id
+                  AND mi.is_archived = 0
+                LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'event_id' => $this->eventId,
+            'item_id' => $itemId
+        ]);
+        return $stmt->fetch();
+    }
+
+    /**
      * Add a new item to the system and link it to the current event.
      */
     public function addItem(array $data) {
         try {
             $this->db->beginTransaction();
 
-            // 1. Insert into Master List
-            $sql = "INSERT INTO menu_items (category, name, description, ingredients, color) 
-                    VALUES (:category, :name, :description, :ingredients, :color)";
+            // 1. Generate a unique slug
+            require_once(__DIR__ . '/../../../private/functions.php');
+            $slug = generate_unique_slug($data['name']);
+
+            // 2. Insert into Master List
+            $sql = "INSERT INTO menu_items (slug, category, name, description, ingredients, color)
+                    VALUES (:slug, :category, :name, :description, :ingredients, :color)";
             $stmt = $this->db->prepare($sql);
             $stmt->execute([
+                'slug'        => $slug,
                 'category'    => $data['category'],
                 'name'        => $data['name'],
                 'description' => $data['description'] ?? null,
@@ -52,8 +76,8 @@ class InventoryManager {
 
             $itemId = $this->db->lastInsertId();
 
-            // 2. Link to current Event
-            $sql = "INSERT INTO event_menu_items (event_id, item_id, is_active) 
+            // 3. Link to current Event
+            $sql = "INSERT INTO event_menu_items (event_id, item_id, is_active)
                     VALUES (:event_id, :item_id, 1)";
             $stmt = $this->db->prepare($sql);
             $stmt->execute([
@@ -84,4 +108,26 @@ class InventoryManager {
             'item_id'  => $itemId
         ]);
     }
+
+        /**
+         * Update a menu item (name, description, ingredients, color, is_archived)
+         */
+        public function updateItem(int $itemId, array $data) {
+            $fields = [];
+            $params = [ 'item_id' => $itemId ];
+            // Only allow these columns to be updated
+            $allowed = ['name', 'description', 'ingredients', 'color', 'is_archived'];
+            foreach ($allowed as $col) {
+                if (isset($data[$col])) {
+                    $fields[] = "$col = :$col";
+                    $params[$col] = ($col === 'is_archived') ? ($data[$col] ? 1 : 0) : $data[$col];
+                }
+            }
+            if (empty($fields)) {
+                return false; // Nothing to update
+            }
+            $sql = 'UPDATE menu_items SET ' . implode(', ', $fields) . ' WHERE item_id = :item_id';
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute($params);
+        }
 }

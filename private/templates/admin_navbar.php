@@ -6,6 +6,10 @@
  */
 ?>
 
+<!-- Favicons -->
+<link rel="icon" href="/assets/img/logo/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/img/logo/favicon.png" type="image/png">
+
 <style>
     .admin-navbar {
         background-color: rgba(255, 255, 255, 0.98);

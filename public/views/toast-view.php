@@ -1,17 +1,13 @@
 <?php
-require_once(__DIR__ . "/../../private/initialize.php");
-require_once(__DIR__ . '/../../private/src/database/db.php');
+require_once(__DIR__ . '/../../private/initialize.php');
+require_once(PRIVATE_PATH . '/src/database/db.php');
 
-// Handle logout and login actions BEFORE any output
-$showError = handle_login_post();
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
     <title>Toast-station</title>
-    <link rel="icon" href="../img/logo/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="../img/logo/favicon.png" type="image/png">
     <style>
         :root {
             --bg: #f3f4f6;
@@ -33,7 +29,6 @@ $showError = handle_login_post();
             font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
             background: linear-gradient(180deg, #eef2ff 0%, var(--bg-light) 30%, #eef2ff 100%);
-            /* Delivery view uses this gradient, so we match it exactly */
             color: var(--text-main);
             padding: 1rem;
         }
@@ -248,7 +243,7 @@ $showError = handle_login_post();
             font-weight: 700;
             cursor: pointer;
             font-size: 1rem;
-            transition: background 0.2s;
+            transition: 0.2s;
             white-space: nowrap;
         }
         .btn-next:hover {
@@ -291,6 +286,7 @@ $showError = handle_login_post();
     </div>
 
     <script src="/assets/js/ws.js"></script>
+    <script src="/assets/js/shared.js"></script>
     <script>
     // --- 1. Globals & Utility Functions ---
     window.CSRF_TOKEN = '<?php echo $_SESSION['csrf_token'] ?? '' ?>';
@@ -320,7 +316,7 @@ $showError = handle_login_post();
 
         const itemName = document.createElement('div');
         itemName.className = 'item-name';
-        itemName.innerHTML = `🥪 ${escapeHtml(toastItem.name)}`;
+        itemName.innerHTML = `${escapeHtml(toastItem.name)}`;
         body.appendChild(itemName);
 
         if (toastItem.comment) {
@@ -351,7 +347,7 @@ $showError = handle_login_post();
                 ${milkshakes.map(ms => `
                     <div class="linked-item">
                         <span>🥤 ${escapeHtml(ms.name)}</span>
-                        <span style="font-size:0.8em; opacity:0.7;">(${localizeStatusLabel(ms.status)})</span>
+                        <span style="font-size:0.8em; opacity:0.7;">(${localizeItemStatusLabel(ms.status)})</span>
                     </div>
                 `).join('')}
             `;
@@ -465,18 +461,35 @@ $showError = handle_login_post();
             return;
         }
 
-        // Fill toasts orders into grid, excluding Delivered
-        const toastOrders = data.filter(order => Array.isArray(order.items) && order.items.some(item => item.category === 'toast' && item.status !== 'Delivered'));
-        toastOrders.sort((a, b) => (a.order_number ?? 0) - (b.order_number ?? 0));
 
-        if (data.length > 0 && toastOrders.length === 0) {
+
+        // Flatten all toast items (excluding Delivered) with their parent order
+        let allToastItems = [];
+        data.forEach(order => {
+            (order.items || []).forEach(item => {
+                if (item.category === 'toast' && item.status !== 'Delivered') {
+                    allToastItems.push({ order, toastItem: item });
+                }
+            });
+        });
+
+        // Sort all toast items globally: Pending, In Progress, Done
+        const statusOrder = { 'Pending': 0, 'In Progress': 1, 'Done': 2 };
+        allToastItems.sort((a, b) => {
+            const aStatus = statusOrder[a.toastItem.status] ?? 99;
+            const bStatus = statusOrder[b.toastItem.status] ?? 99;
+            // If same status, sort by order_number
+            if (aStatus === bStatus) {
+                return (a.order.order_number ?? 0) - (b.order.order_number ?? 0);
+            }
+            return aStatus - bStatus;
+        });
+
+        if (allToastItems.length === 0) {
             grid.innerHTML = '<div class="empty-state"><h2>Inga väntande toast.</h2></div>';
         } else {
-            toastOrders.forEach(order => {
-                const toastItems = (order.items || []).filter(i => i.category === 'toast' && i.status !== 'Delivered');
-                toastItems.forEach(toastItem => {
-                    grid.appendChild(createToastCard(order, toastItem));
-                });
+            allToastItems.forEach(({ order, toastItem }) => {
+                grid.appendChild(createToastCard(order, toastItem));
             });
         }
 
@@ -484,20 +497,7 @@ $showError = handle_login_post();
         renderToastSummary(toastOrders);
     }
 
-    function escapeHtml(str) {
-        return String(str).replace(/[&<>'"]/g, function (c) {
-            return {'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c];
-        });
-    }
 
-    function localizeStatusLabel(status) {
-        switch (status) {
-            case 'Pending': return 'Väntar';
-            case 'In Progress': return 'Pågår';
-            case 'Done': return 'Klar';
-            default: return status;
-        }
-    }
 
     // --- 6. Event Binding ---
     document.addEventListener('DOMContentLoaded', () => {

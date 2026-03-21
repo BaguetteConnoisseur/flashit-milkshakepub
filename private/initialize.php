@@ -1,4 +1,14 @@
 <?php
+// Set secure session cookie parameters before session_start
+$secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443;
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'domain' => '',
+    'secure' => $secure,
+    'httponly' => true,
+    'samesite' => 'Strict',
+]);
 session_start();
 
 // 1. Define Paths
@@ -15,21 +25,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 require_once(PRIVATE_PATH . '/auth.php');
 require_once(PRIVATE_PATH . '/functions.php');
 
-// 3. Event/Pub Tracking Logic
-function ensure_pub_tracking() {
-    $db = db(); 
-    if (!isset($_SESSION['current_pub_id'])) {
-        $stmt = $db->query("SELECT event_id, event_name FROM pub_events WHERE is_active = 1 LIMIT 1");
-        $event = $stmt->fetch();
-        if ($event) {
-            $_SESSION['active_pub_id'] = (int)$event['event_id'];
-            $_SESSION['active_pub_name'] = $event['event_name'];
-        }
-    }
-    return $_SESSION['current_pub_id'] ?? null;
-}
-
-// Run the tracker
+// 3. Run Event/Pub Tracking Logic
 $pub = ensure_pub_tracking();
 
 // 4. Protection Logic
@@ -37,7 +33,7 @@ $loggedIn = is_logged_in();
 $currentUri = $_SERVER['REQUEST_URI'];
 $isPublicPage = false;
 
-$publicKeywords = ['index.php', 'bar-view.php', 'debug.php', '/api/', '/public/menu']; 
+$publicKeywords = ['index.php', 'bar-view.php', '/api/', '/public/menu']; 
 
 foreach ($publicKeywords as $keyword) {
     if (strpos($currentUri, $keyword) !== false) {
@@ -56,6 +52,3 @@ if (!$loggedIn && !$isPublicPage) {
     header("Location: /index.php");
     exit;
 }
-
-// 5. Helpers
-// csrf_token_input and related helpers are now in functions.php

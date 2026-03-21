@@ -60,13 +60,15 @@ CREATE TABLE IF NOT EXISTS order_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
 INSERT INTO pub_events (event_name, is_active) 
-VALUES ('Premiärpuben', 1);
+VALUES ('First MSP', 1);
 
-INSERT INTO menu_items (slug, category, name, description, ingredients, color) VALUES
-('oreo-supreme',   'milkshake', 'Oreo Supreme', 'Klassisk Oreo-dröm', 'Mjölk, Glass, Oreo', '#3d3d3d'),
-('daim-licious',   'milkshake', 'Daim-Licious', 'Krispig Daim-milkshake', 'Mjölk, Glass, Daim', '#c1af28'),
-('toast-standard', 'toast',     'Standarden', 'Skinka & Ost', 'Bröd, Skinka, Ost, Senap', '#F7C87D'),
-('toast-chili',    'toast',     'Chilicheese', 'Stark och krämig', 'Bröd, Chilicheese-röra, Jalapenos', '#B8D98B');
+INSERT INTO menu_items (category, slug, name, description, ingredients, color) VALUES
+('milkshake', 'oreo-milkshake', 'Oreo Milkshake', 'Milkshake med vaniljglass och Oreo', '½ Oreo', '#7e4a27'),
+('milkshake', 'daim-milkshake', 'Daim Milkshake', 'Milkshake med Daim-karameller', '5 små bitar Daim', '#c1af28'),
+('milkshake', 'lakris-milkshake', 'Lakris Milkshake', 'Milkshake med lakriskarameller', '8 Lakris pellets', '#322e2f'),
+('toast', 'toast-standard', 'Standard Toast', 'Toast med skinka och ost', 'Skinka, Ost, Pesto, Tomatpuré, Oregano, Smör', '#F7C87D'),
+('toast', 'toast-chili', 'Chilicheese Toast', 'Chilicheese på rostatbröd', 'Chillicheese', '#B8D98B'),
+('toast', 'toast-desert', 'Desert Toast', 'Efterrätts toast med choklad och banan', 'Choklad, Banan', '#ce915c');
 
 -- Link all items to the first event
 INSERT INTO event_menu_items (event_id, item_id, is_active)

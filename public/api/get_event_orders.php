@@ -13,7 +13,7 @@ try {
 	}
 	$sql = "
 		SELECT 
-			o.order_id, o.created_at, o.customer_name, o.order_comment, o.order_number,
+			o.order_id, o.status, o.customer_name, o.order_comment, o.order_number, o.created_at,
 			COALESCE(JSON_ARRAYAGG(
 				CASE WHEN oi.order_item_id IS NOT NULL THEN
 					JSON_OBJECT(

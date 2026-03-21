@@ -1,4 +1,5 @@
 <?php
+
 // Helper for syncing order status with its items
 function syncOrderStatusWithItems($pdo, $item_id) {
 

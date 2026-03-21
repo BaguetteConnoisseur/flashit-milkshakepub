@@ -1,46 +1,7 @@
 <?php
-require_once(__DIR__ . "/../../private/initialize.php");
-require_once(__DIR__ . "/../../private/src/services/InventoryManager.php");
-
-// 1. Get the active pub info from the session
-$activePubId = $_SESSION['active_pub_id']; 
+require_once(__DIR__ . '/../../private/initialize.php');
 $activePubName = $_SESSION['active_pub_name'];
 
-// 2. Initialize the Manager
-$pdo = db();
-$inventory = new InventoryManager($pdo, $activePubId);
-
-/* --- 1. Form Actions --- */
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    require_csrf_token();
-
-    if (isset($_POST['add-milkshake']) || isset($_POST['add-toast'])) {
-        $category = isset($_POST['add-milkshake']) ? 'milkshake' : 'toast';
-        $inventory->addItem([
-            'category'    => $category,
-            'name'        => trim($_POST['name'] ?? $_POST['milkshake-name']),
-            'description' => trim($_POST['description'] ?? ''),
-            'ingredients' => trim($_POST['ingredients'] ?? ''),
-            'color'       => trim($_POST['color'] ?? '#ffffff')
-        ]);
-        header("Location: inventory_manager.php");
-        exit;
-    }
-
-    if (isset($_POST['toggle-status'])) {
-        $itemId = (int)$_POST['item-id'];
-        $isActive = (int)$_POST['new-status'] === 1;
-        $inventory->toggleActive($itemId, $isActive);
-        header("Location: inventory_manager.php");
-        exit;
-    }
-}
-
-/* --- 2. Data Fetching --- */
-$milkshakeInventory = $inventory->getItemsByCategory('milkshake', true);
-$inactiveMilkshakeInventory = $inventory->getItemsByCategory('milkshake', false);
-$toastInventory = $inventory->getItemsByCategory('toast', true);
-$inactiveToastInventory = $inventory->getItemsByCategory('toast', false);
 ?>
 
 <!DOCTYPE html>
@@ -175,6 +136,7 @@ $inactiveToastInventory = $inventory->getItemsByCategory('toast', false);
             border-color: #15803d;
             color: #ffffff;
             background: #16a34a;
+            white-space: nowrap;
         }
 
         .btn-edit-item {
@@ -253,171 +215,41 @@ $inactiveToastInventory = $inventory->getItemsByCategory('toast', false);
 
     <h1>Lagerhanterare: <?= htmlspecialchars($activePubName) ?></h1>
 
-    <div class="grid-container">
-        
-        <section class="card milkshake-section">
+    <div class="grid-container" id="inventory-root">
+        <!-- Inventory tables and forms will be rendered here by JS -->
+    </div>
+
+    <template id="inventory-templates">
+        <section class="card milkshake-section" data-section="active-milkshakes">
             <h2>Aktiva milkshakes</h2>
-            <div class="table-wrapper">
-                <?php if (empty($milkshakeInventory)): ?>
-                    <p style="color:var(--text-sub); text-align:center;">Inga aktiva milkshakes för denna pub.</p>
-                <?php else: ?>
-                    <table class="inventory-table">
-                        <thead>
-                            <tr><th>ID</th><th>Namn</th><th>Beskrivning</th><th>Ingredienser</th><th>Färg</th><th>Åtgärd</th></tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($milkshakeInventory as $item): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($item['item_id']) ?></td>
-                                <td><?= htmlspecialchars($item['name']) ?></td>
-                                <td><?= htmlspecialchars($item['description']) ?></td>
-                                <td><?= htmlspecialchars($item['ingredients']) ?></td>
-                                <td style="text-align: center;"><div style="width: 25px; height: 25px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto; border-radius:4px;"></div></td>
-                                <td>
-                                    <form method="post">
-                                        <?= csrf_token_input() ?>
-                                        <input type="hidden" name="item-id" value="<?= $item['item_id'] ?>">
-                                        <input type="hidden" name="new-status" value="0">
-                                        <input type="submit" name="toggle-status" class="btn-remove" value="Inaktivera">
-                                    </form>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
+            <div class="table-wrapper"></div>
         </section>
-
-        <section class="card toast-section">
+        <section class="card toast-section" data-section="active-toasts">
             <h2>Aktiva toasts</h2>
-            <div class="table-wrapper">
-                <?php if (empty($toastInventory)): ?>
-                    <p style="color:var(--text-sub); text-align:center;">Inga aktiva toasts för denna pub.</p>
-                <?php else: ?>
-                    <table class="inventory-table">
-                        <thead>
-                            <tr><th>ID</th><th>Namn</th><th>Beskrivning</th><th>Ingredienser</th><th>Färg</th><th>Åtgärd</th></tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($toastInventory as $item): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($item['item_id']) ?></td>
-                                <td><?= htmlspecialchars($item['name']) ?></td>
-                                <td><?= htmlspecialchars($item['description']) ?></td>
-                                <td><?= htmlspecialchars($item['ingredients']) ?></td>
-                                <td style="text-align: center;"><div style="width: 25px; height: 25px; background-color: <?= htmlspecialchars($item['color']) ?>; border: 1px solid #ccc; margin: 0 auto; border-radius:4px;"></div></td>
-                                <td>
-                                    <form method="post">
-                                        <?= csrf_token_input() ?>
-                                        <input type="hidden" name="item-id" value="<?= $item['item_id'] ?>">
-                                        <input type="hidden" name="new-status" value="0">
-                                        <input type="submit" name="toggle-status" class="btn-remove" value="Inaktivera">
-                                    </form>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
+            <div class="table-wrapper"></div>
         </section>
-
-        <section class="card milkshake-section">
+        <section class="card milkshake-section" data-section="inactive-milkshakes">
             <h2>Tidigare milkshakes</h2>
-            <div class="table-wrapper">
-                <?php if (empty($inactiveMilkshakeInventory)): ?>
-                    <p style="color:var(--text-sub); text-align:center;">Inga inaktiva milkshakes.</p>
-                <?php else: ?>
-                    <table class="inactive-milkshake-table">
-                        <thead>
-                            <tr>
-                                <th>Namn</th>
-                                <th>Ingredienser</th>
-                                <th>Färg</th>
-                                <th>Åtgärd</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($inactiveMilkshakeInventory as $item): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($item['name']) ?></td>
-                                    <td><?= htmlspecialchars($item['ingredients']) ?></td>
-                                    <td><div class="color-swatch" style="background-color: <?= htmlspecialchars($item['color']) ?>;"></div></td>
-                                    <td>
-                                        <div class="action-stack">
-                                            <form method="post">
-                                                <?= csrf_token_input() ?>
-                                                <input type="hidden" name="item-id" value="<?= $item['item_id'] ?>">
-                                                <input type="hidden" name="new-status" value="1">
-                                                <input type="submit" name="toggle-status" class="btn-action btn-add-pub" value="Lägg till">
-                                            </form>
-                                            <a href="edit_milkshake.php?id=<?= $item['item_id'] ?>" class="btn-action btn-edit-item">Redigera</a>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
+            <div class="table-wrapper"></div>
         </section>
-
-        <section class="card toast-section">
+        <section class="card toast-section" data-section="inactive-toasts">
             <h2>Tidigare toasts</h2>
-            <div class="table-wrapper">
-                <?php if (empty($inactiveToastInventory)): ?>
-                    <p style="color:var(--text-sub); text-align:center;">Inga inaktiva toasts.</p>
-                <?php else: ?>
-                    <table class="inactive-toast-table">
-                        <thead>
-                            <tr>
-                                <th>Namn</th>
-                                <th>Ingredienser</th>
-                                <th>Färg</th>
-                                <th>Åtgärd</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($inactiveToastInventory as $item): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($item['name']) ?></td>
-                                    <td><?= htmlspecialchars($item['ingredients']) ?></td>
-                                    <td><div class="color-swatch" style="background-color: <?= htmlspecialchars($item['color']) ?>;"></div></td>
-                                    <td>
-                                        <div class="action-stack">
-                                            <form method="post">
-                                                <?= csrf_token_input() ?>
-                                                <input type="hidden" name="item-id" value="<?= $item['item_id'] ?>">
-                                                <input type="hidden" name="new-status" value="1">
-                                                <input type="submit" name="toggle-status" class="btn-action btn-add-pub" value="Lägg till">
-                                            </form>
-                                            <a href="edit_toast.php?id=<?= $item['item_id'] ?>" class="btn-action btn-edit-item">Redigera</a>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
+            <div class="table-wrapper"></div>
         </section>
-
-        <section class="card milkshake-section">
+        <section class="card milkshake-section" data-section="add-milkshake">
             <h2>Lägg till ny milkshake</h2>
-            <form method="post">
+            <form id="add-milkshake-form">
                 <?= csrf_token_input() ?>
-                <div class="form-group"><label>Namn</label><input name="milkshake-name" type="text" required></div>
+                <div class="form-group"><label>Namn</label><input name="name" type="text" required></div>
                 <div class="form-group"><label>Beskrivning</label><textarea name="description" rows="2" required></textarea></div>
                 <div class="form-group"><label>Ingredienser</label><textarea name="ingredients" rows="2" required></textarea></div>
                 <div class="form-group"><label>Färg</label><input name="color" type="color" value="#3b82f6"></div>
                 <input name="add-milkshake" type="submit" class="btn-submit btn-milkshake" value="Spara Milkshake">
             </form>
         </section>
-
-        <section class="card toast-section">
+        <section class="card toast-section" data-section="add-toast">
             <h2>Lägg till ny toast</h2>
-            <form method="post">
+            <form id="add-toast-form">
                 <?= csrf_token_input() ?>
                 <div class="form-group"><label>Namn</label><input name="name" type="text" required></div>
                 <div class="form-group"><label>Beskrivning</label><textarea name="description" rows="2" required></textarea></div>
@@ -426,8 +258,143 @@ $inactiveToastInventory = $inventory->getItemsByCategory('toast', false);
                 <input name="add-toast" type="submit" class="btn-submit btn-toast" value="Spara Toast">
             </form>
         </section>
+    </template>
 
-    </div>
+    <script src="/assets/js/shared.js"></script>
+    <script>
+    // --- SPA Inventory Manager JS ---
+    const root = document.getElementById('inventory-root');
+    const templates = document.getElementById('inventory-templates').content;
+
+    function renderInventory(inventory) {
+        root.innerHTML = '';
+        // Sections: active milkshakes, active toasts, inactive milkshakes, inactive toasts, add forms
+        const sections = [
+            ['active-milkshakes', inventory.milkshakes.active, 'milkshake', true],
+            ['active-toasts', inventory.toasts.active, 'toast', true],
+            ['inactive-milkshakes', inventory.milkshakes.inactive, 'milkshake', false],
+            ['inactive-toasts', inventory.toasts.inactive, 'toast', false],
+        ];
+        for (const [section, items, category, isActive] of sections) {
+            const node = templates.querySelector(`[data-section="${section}"]`).cloneNode(true);
+            const wrapper = node.querySelector('.table-wrapper');
+            if (!items.length) {
+                wrapper.innerHTML = `<p style="color:var(--text-sub); text-align:center;">Inga ${isActive ? 'aktiva' : 'inaktiva'} ${category === 'milkshake' ? 'milkshakes' : 'toasts'}${isActive ? ' för denna pub.' : '.'}</p>`;
+            } else {
+                const table = document.createElement('table');
+                table.className = isActive ? 'inventory-table' : `inactive-${category}-table`;
+                const thead = document.createElement('thead');
+                thead.innerHTML = `<tr>${isActive ? '<th>Namn</th><th>Beskrivning</th><th>Ingredienser</th><th>Färg</th><th>Åtgärd</th>' : '<th>Namn</th><th>Ingredienser</th><th>Färg</th><th>Åtgärd</th>'}</tr>`;
+                table.appendChild(thead);
+                const tbody = document.createElement('tbody');
+                for (const item of items) {
+                    const tr = document.createElement('tr');
+                    if (isActive) {
+                        tr.innerHTML = `
+                            <td>${escapeHtml(item.name)}</td>
+                            <td>${escapeHtml(item.description)}</td>
+                            <td>${escapeHtml(item.ingredients)}</td>
+                            <td style="text-align: center;"><div style="width: 25px; height: 25px; background-color: ${escapeHtml(item.color)}; border: 1px solid #ccc; margin: 0 auto; border-radius:4px;"></div></td>
+                            <td><button class="btn-remove" data-action="toggle" data-id="${item.item_id}" data-status="0">Inaktivera</button></td>
+                        `;
+                    } else {
+                        tr.innerHTML = `
+                            <td>${escapeHtml(item.name)}</td>
+                            <td>${escapeHtml(item.ingredients)}</td>
+                            <td><div class="color-swatch" style="background-color: ${escapeHtml(item.color)};"></div></td>
+                            <td>
+                                <div class="action-stack">
+                                    <button class="btn-action btn-add-pub" data-action="toggle" data-id="${item.item_id}" data-status="1">Lägg till</button>
+                                    <a href="edit_${category}.php?id=${item.item_id}" class="btn-action btn-edit-item">Redigera</a>
+                                </div>
+                            </td>
+                        `;
+                    }
+                    tbody.appendChild(tr);
+                }
+                table.appendChild(tbody);
+                wrapper.appendChild(table);
+            }
+            root.appendChild(node);
+        }
+        // Add forms
+        root.appendChild(templates.querySelector('[data-section="add-milkshake"]').cloneNode(true));
+        root.appendChild(templates.querySelector('[data-section="add-toast"]').cloneNode(true));
+        attachEventHandlers();
+    }
+
+    async function fetchInventory() {
+        const res = await fetch('/api/get_inventory.php');
+        if (!res.ok) throw new Error('Kunde inte hämta inventarielista');
+        return await res.json();
+    }
+
+    async function sendAction(data) {
+        const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
+        const res = await fetch('/api/inventory_action.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...data, csrf_token: csrfToken })
+        });
+        return await res.json();
+    }
+
+    function attachEventHandlers() {
+        // Toggle active/inactive
+        root.querySelectorAll('[data-action="toggle"]').forEach(btn => {
+            btn.onclick = async e => {
+                e.preventDefault();
+                btn.disabled = true;
+                await sendAction({ action: 'toggle', item_id: btn.dataset.id, new_status: btn.dataset.status });
+                await updateInventory();
+            };
+        });
+        // Add milkshake
+        const milkshakeForm = root.querySelector('#add-milkshake-form');
+        if (milkshakeForm) {
+            milkshakeForm.onsubmit = async e => {
+                e.preventDefault();
+                const fd = new FormData(milkshakeForm);
+                await sendAction({
+                    action: 'add',
+                    category: 'milkshake',
+                    name: fd.get('name'),
+                    description: fd.get('description'),
+                    ingredients: fd.get('ingredients'),
+                    color: fd.get('color')
+                });
+                milkshakeForm.reset();
+                await updateInventory();
+            };
+        }
+        // Add toast
+        const toastForm = root.querySelector('#add-toast-form');
+        if (toastForm) {
+            toastForm.onsubmit = async e => {
+                e.preventDefault();
+                const fd = new FormData(toastForm);
+                await sendAction({
+                    action: 'add',
+                    category: 'toast',
+                    name: fd.get('name'),
+                    description: fd.get('description'),
+                    ingredients: fd.get('ingredients'),
+                    color: fd.get('color')
+                });
+                toastForm.reset();
+                await updateInventory();
+            };
+        }
+    }
+
+    async function updateInventory() {
+        const data = await fetchInventory();
+        renderInventory(data);
+    }
+
+    // Initial load
+    updateInventory();
+    </script>
 
     <?php include(TEMPLATE_PATH . "/public_footer.php"); ?>
 </body>
