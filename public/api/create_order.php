@@ -5,6 +5,7 @@ require_once(__DIR__ . "/../../private/src/services/broadcast.php");
 $db = db();
 
 // 1. Grab the JSON data sent from your frontend
+$input = file_get_contents('php://input');
 $request = json_decode($input, true);
 $csrf_token = $request['csrf_token'] ?? '';
 if (!csrf_token_is_valid($csrf_token)) {
@@ -38,23 +39,44 @@ try {
         throw new Exception("No items in order");
     }
 
+    $slugs = [];
+    foreach ($items_to_add as $item) {
+        if (is_array($item) && isset($item['slug'])) {
+            $slugs[] = $item['slug'];
+        } else if (is_string($item)) {
+            $slugs[] = $item;
+        }
+    }
+    if (empty($slugs)) {
+        throw new Exception("No valid item slugs");
+    }
+
     // Batch lookup item IDs
-    $placeholders = implode(',', array_fill(0, count($items_to_add), '?'));
+    $placeholders = implode(',', array_fill(0, count($slugs), '?'));
     $stmt_get_ids = $db->prepare("SELECT item_id, slug FROM menu_items WHERE slug IN ($placeholders)");
-    $stmt_get_ids->execute($items_to_add);
+    $stmt_get_ids->execute($slugs);
     $slug_to_id = [];
     while ($row = $stmt_get_ids->fetch(PDO::FETCH_ASSOC)) {
         $slug_to_id[$row['slug']] = $row['item_id'];
     }
 
-    // Prepare values for batch insert
+    // Prepare values for batch insert into order_items
     $order_items_values = [];
-    foreach ($items_to_add as $slug) {
-        if (isset($slug_to_id[$slug])) {
+    foreach ($items_to_add as $item) {
+        if (is_array($item) && isset($item['slug']) && isset($slug_to_id[$item['slug']])) {
+            $comment = isset($item['comment']) ? $item['comment'] : '';
             $order_items_values[] = '(' . implode(',', [
                 $db->quote($order_id),
-                $db->quote($slug_to_id[$slug]),
-                $db->quote('Pending')
+                $db->quote($slug_to_id[$item['slug']]),
+                $db->quote('Pending'),
+                $db->quote($comment)
+            ]) . ')';
+        } else if (is_string($item) && isset($slug_to_id[$item])) {
+            $order_items_values[] = '(' . implode(',', [
+                $db->quote($order_id),
+                $db->quote($slug_to_id[$item]),
+                $db->quote('Pending'),
+                $db->quote('')
             ]) . ')';
         }
     }
@@ -64,7 +86,7 @@ try {
     }
 
     // Batch insert order_items
-    $sql = "INSERT INTO order_items (order_id, item_id, status) VALUES " . implode(',', $order_items_values);
+    $sql = "INSERT INTO order_items (order_id, item_id, status, item_comment) VALUES " . implode(',', $order_items_values);
     $db->exec($sql);
 
     // Commit transaction

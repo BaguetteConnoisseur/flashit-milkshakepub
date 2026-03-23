@@ -33,6 +33,33 @@ quick-start.bat
    ```
 4. Open [http://localhost:8080](http://localhost:8080)
 
+## Firewall Note (Windows)
+
+If you want to receive live order updates (broadcasts) via WebSocket, make sure your firewall allows incoming connections to the WebSocket port. By default, the websocket server listens on port 8081. If you run the stack locally, Windows Defender Firewall may block it.
+
+**To allow the broadcast through the firewall:**
+
+1. When you first run the websocket server, Windows may prompt you to allow access. Click **Allow access**.
+2. To add the rule manually, you can use the Windows Firewall GUI or run one of these commands in an administrator PowerShell:
+
+   **PowerShell:**
+   ```powershell
+   New-NetFirewallRule -DisplayName "Flashit WebSocket" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8081
+   ```
+
+   **Command Prompt (netsh):**
+   ```cmd
+   netsh advfirewall firewall add rule name="Flashit WebSocket" dir=in action=allow protocol=TCP localport=8081
+   ```
+
+   Or, in the GUI:
+   - Open **Windows Defender Firewall** > **Advanced settings**
+   - Go to **Inbound Rules** > **New Rule...**
+   - Select **Port**, then **TCP**, and enter `8081` (or your configured port)
+   - Allow the connection, apply to all profiles, and give it a name like `Flashit WebSocket`
+
+This ensures that all clients on your network can receive real-time updates.
+
 ## Useful Commands
 - Start: `docker compose up -d --build`
 - Stop: `docker compose down`
