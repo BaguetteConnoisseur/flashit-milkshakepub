@@ -1,20 +1,3 @@
-// AJAX partial update for order list
-async function updateOrderList() {
-    try {
-        const resp = await fetch(window.location.pathname + '?ajax=1');
-        if (!resp.ok) throw new Error('Kunde inte hämta beställningar');
-        const html = await resp.text();
-        const temp = document.createElement('div');
-        temp.innerHTML = html;
-        const newContainer = temp.querySelector('#order-container');
-        if (newContainer) {
-            document.getElementById('order-container').replaceWith(newContainer);
-        }
-    } catch (err) {
-        console.error('Kunde inte uppdatera orderlistan:', err);
-    }
-}
-
 // cashier.js - Modal and order logic for cashier view
 
 function openCreateOrderModal() {

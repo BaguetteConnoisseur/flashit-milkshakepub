@@ -12,8 +12,8 @@ function escapeHtml(str) {
 }
 
 
-// Localize order status label
-function localizeOrderStatusLabel(status) {
+// Localize status label (order or item)
+function localizeStatusLabel(status) {
     switch (status) {
         case 'Pending':
         case 'pending': return 'Väntar';
@@ -27,22 +27,11 @@ function localizeOrderStatusLabel(status) {
     }
 }
 
-// Localize order item status label
-function localizeItemStatusLabel(status) {
-    switch (status) {
-        case 'Pending':
-        case 'pending': return 'Väntar';
-        case 'In Progress':
-        case 'in_progress': return 'Pågår';
-        case 'Done':
-        case 'done': return 'Klar';
-        case 'Delivered':
-        case 'delivered': return 'Levererad';
-        default: return status;
-    }
-}
+// For backward compatibility, alias the old names
+const localizeOrderStatusLabel = localizeStatusLabel;
+const localizeItemStatusLabel = localizeStatusLabel;
 
 // Export for module use if needed
 if (typeof module !== 'undefined') {
-    module.exports = { escapeHtml, localizeOrderStatusLabel, localizeItemStatusLabel };
+    module.exports = { escapeHtml, localizeStatusLabel, localizeOrderStatusLabel, localizeItemStatusLabel };
 }

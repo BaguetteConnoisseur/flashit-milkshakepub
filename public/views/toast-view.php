@@ -494,7 +494,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         }
 
         // Render toast summary
-        renderToastSummary(toastOrders);
+        renderToastSummary(data);
     }
 
 

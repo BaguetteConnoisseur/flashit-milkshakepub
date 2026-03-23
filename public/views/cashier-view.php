@@ -796,6 +796,25 @@ if (isset($_GET['view_order'])) {
     
     <script src="/assets/js/ws.js"></script>
     <script src="/assets/js/cashier.js"></script>
-    
+    <script>
+        // AJAX partial update for order list
+        async function updateOrderList() {
+            try {
+                const resp = await fetch(window.location.pathname + '?ajax=1');
+                if (!resp.ok) throw new Error('Kunde inte hämta beställningar');
+                const html = await resp.text();
+                const temp = document.createElement('div');
+                temp.innerHTML = html;
+                const newContainer = temp.querySelector('#order-container');
+                if (newContainer) {
+                    document.getElementById('order-container').replaceWith(newContainer);
+                }
+            } catch (err) {
+                console.error('Kunde inte uppdatera orderlistan:', err);
+            }
+        }
+        // Alias for ws.js compatibility
+        window.loadOrders = updateOrderList;
+    </script>
 </body>
 </html>

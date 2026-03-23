@@ -478,7 +478,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         }
 
         // Render milkshake summary
-        renderMilkshakeSummary(milkshakeOrders);
+        renderMilkshakeSummary(data);
     }
 
 
