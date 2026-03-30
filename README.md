@@ -73,7 +73,7 @@ This ensures that all clients on your network can receive real-time updates.
 - Logs: `docker compose logs -f`
 
 ## Contributors
-This project was originally created by:
+This project was created and is managed by:
 - [Filur](https://www.github.com/Filuren123)
 - [Ponky](https://www.github.com/BaguetteConnoisseur)
 
