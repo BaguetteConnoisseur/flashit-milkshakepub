@@ -50,6 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="sv">
 <head>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
+    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redigera Milkshake</title>

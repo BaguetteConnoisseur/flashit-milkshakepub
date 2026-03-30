@@ -7,6 +7,8 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
+    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
     <title>Toast-station</title>
     <style>
         :root {
