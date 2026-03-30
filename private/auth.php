@@ -9,9 +9,29 @@ function is_logged_in() {
 /**
  * Processes all auth-related POST requests (Login & Logout).
  */
+/**
+ * Processes all auth-related POST requests (Login & Logout).
+ *
+ * Adds a simple session-based rate limiter for failed login attempts.
+ */
 function handle_login_post() {
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         return false;
+    }
+
+    // --- Simple rate limiter: max 5 failed attempts per 5 minutes ---
+    if (!isset($_SESSION['login_attempts'])) {
+        $_SESSION['login_attempts'] = [];
+    }
+    // Remove attempts older than 10 minutes
+    $_SESSION['login_attempts'] = array_filter(
+        $_SESSION['login_attempts'],
+        function($ts) { return $ts > time() - 600; }
+    );
+    if (count($_SESSION['login_attempts']) >= 5) {
+        $minutes = ceil((600 - (time() - min($_SESSION['login_attempts']))) / 60);
+        return "För många misslyckade inloggningar. Vänta $minutes minut(er) och försök igen.";
     }
 
     // 1. Handle Logout
@@ -34,16 +54,26 @@ function handle_login_post() {
     if (isset($_POST['login'])) {
         $pass = $_POST['password'] ?? '';
 
-        // Only check password
-        if (hash_equals(ADMIN_PASS, (string)$pass)) {
+        // Check password using password_verify and hashed env var
+        if (password_verify($pass, ADMIN_PASS_HASH)) {
             session_regenerate_id(true);
             $_SESSION['logged_in'] = true;
             $_SESSION['last_login'] = time();
-            
+
+            // Reset failed attempts on success
+            $_SESSION['login_attempts'] = [];
             header("Location: /index.php");
             exit;
         } else {
-            return "Felaktigt lösenord.";
+            // Record failed attempt timestamp
+            $_SESSION['login_attempts'][] = time();
+            if (count($_SESSION['login_attempts']) >= 5) {
+                $minutes = ceil((600 - (time() - min($_SESSION['login_attempts']))) / 60);
+                return "För många misslyckade inloggningar. Vänta $minutes minut(er) och försök igen.";
+            } else {
+                $remaining = 5 - count($_SESSION['login_attempts']);
+                return "Ogiltiga uppgifter. Försök igen.";
+            }
         }
     }
 

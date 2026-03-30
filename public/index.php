@@ -2,8 +2,8 @@
 // index.php
 require_once("/var/www/html/private/initialize.php");
 
-// handle_login_post now returns a string error if login fails, or false if nothing happened
-$errorMessage = handle_login_post();
+// Only process login/logout on POST requests
+$errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : false;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -294,9 +294,10 @@ $errorMessage = handle_login_post();
             <div class="login-card">
                 <h2>Välkommen tillbaka</h2>
                 
+
                 <?php if ($errorMessage): ?>
                     <div class="error-message">
-                        Ogiltiga uppgifter. Försök igen.
+                        <?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?>
                     </div>
                 <?php endif; ?>
                 

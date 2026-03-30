@@ -31,7 +31,7 @@ echo.
 echo App URL: http://localhost:8080
 echo.
 echo Login credentials:
-echo   Check your .env file for ADMIN_PASS
+echo   Check your .env file for ADMIN_PASS_HASH value (default is "flashit_msp")
 echo.
 echo To stop: docker compose down
 echo To view logs: docker compose logs -f

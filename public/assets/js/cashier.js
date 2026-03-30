@@ -36,6 +36,78 @@ function adjustQtyModal(inputId, delta) {
     updateItemComments(input);
 }
 
+// Transform the item row to show only the green 'Add item' button
+function transformToAddButton(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const itemRow = input.closest('.item-row');
+    if (!itemRow) return;
+    // Hide quantity controls and comments
+    const controls = itemRow.querySelector('.quantity-controls');
+    if (controls) controls.style.display = 'none';
+    const comments = itemRow.querySelector('.item-comments');
+    if (comments) comments.style.display = 'none';
+    // Add the green 'Add item' button if not present
+    let addBtn = itemRow.querySelector('.add-item-btn');
+    if (!addBtn) {
+        addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'add-item-btn';
+        addBtn.textContent = 'Lägg till produkt';
+        addBtn.onclick = function() {
+            transformToQuantitySelector(itemRow, inputId);
+        };
+        // Insert in the same place as the controls
+        const controls = itemRow.querySelector('.quantity-controls');
+        if (controls) {
+            itemRow.insertBefore(addBtn, controls);
+        } else {
+            itemRow.insertBefore(addBtn, itemRow.children[1]);
+        }
+    }
+    addBtn.style.display = '';
+    input.style.display = 'none';
+}
+
+// Transform the item row to show the quantity selector and comments
+function transformToQuantitySelector(itemRow, inputId) {
+    const input = itemRow.querySelector(`#${inputId}`);
+    if (!input) return;
+    // Hide add button
+    const addBtn = itemRow.querySelector('.add-item-btn');
+    if (addBtn) addBtn.style.display = 'none';
+    // Show quantity controls
+    const controls = itemRow.querySelector('.quantity-controls');
+    if (controls) {
+        controls.style.display = 'flex';
+        controls.style.alignItems = 'stretch'; // Prevent vertical centering
+    }
+    // Show input
+    input.style.display = '';
+    // Set value to 1 on add
+    input.value = 1;
+    updateItemComments(input);
+    // Show comments
+    const comments = itemRow.querySelector('.item-comments');
+    if (comments) comments.style.display = '';
+}
+
+// On page load, transform all items to 'Add item' button if value is 0
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.item-row').forEach(row => {
+        const input = row.querySelector('input[type="number"]');
+        if (input && (parseInt(input.value) || 0) === 0) {
+            transformToAddButton(input.id);
+        } else if (input) {
+            // If value > 0, ensure controls are visible and add button is hidden
+            const controls = row.querySelector('.quantity-controls');
+            if (controls) controls.style.display = 'flex';
+            const addBtn = row.querySelector('.add-item-btn');
+            if (addBtn) addBtn.style.display = 'none';
+        }
+    });
+});
+
 
 // Dynamically show/hide and preserve comment fields for each item based on quantity
 function updateItemComments(input) {

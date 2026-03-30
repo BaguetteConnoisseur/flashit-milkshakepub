@@ -258,7 +258,28 @@ if (isset($_GET['view_order'])) {
             display: flex;
             align-items: center;
             gap: 0.45rem;
+            justify-content: flex-start;
+        }
+
+        button.add-item-btn {
+            background: #22c55e;
+            color: white;
+            height: 30px;
+            font-size: 0.9rem;
+            padding: 0 1rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
             justify-content: center;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.2s, transform 0.15s;
+            width: auto;
+        }
+        button.add-item-btn:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
         }
         
         .qty-btn {
@@ -747,7 +768,7 @@ if (isset($_GET['view_order'])) {
                                 <?php foreach($milkshakes as $m): ?>
                                     <div class="item-row" data-item-type="milkshake" data-item-id="<?= $m['item_id'] ?>" data-item-slug="<?= htmlspecialchars($m['slug']) ?>">
                                         <h4><?= htmlspecialchars($m['name']) ?></h4>
-                                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
+                                        <div class="quantity-controls" style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
                                             <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('m_<?= $m['item_id'] ?>', -1)">−</button>
                                             <input type="number" name="milkshakes[<?= $m['item_id'] ?>]" value="0" min="0" id="m_<?= $m['item_id'] ?>" class="quantity-input" onchange="updateItemComments(this)" aria-label="Antal <?= htmlspecialchars($m['name']) ?>">
                                             <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('m_<?= $m['item_id'] ?>', 1)">+</button>
@@ -764,7 +785,7 @@ if (isset($_GET['view_order'])) {
                                 <?php foreach($toasts as $t): ?>
                                     <div class="item-row" data-item-type="toast" data-item-id="<?= $t['item_id'] ?>" data-item-slug="<?= htmlspecialchars($t['slug']) ?>">
                                         <h4><?= htmlspecialchars($t['name']) ?></h4>
-                                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
+                                        <div class="quantity-controls" style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
                                             <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('t_<?= $t['item_id'] ?>', -1)">−</button>
                                             <input type="number" name="toasts[<?= $t['item_id'] ?>]" value="0" min="0" id="t_<?= $t['item_id'] ?>" class="quantity-input" onchange="updateItemComments(this)" aria-label="Antal <?= htmlspecialchars($t['name']) ?>">
                                             <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('t_<?= $t['item_id'] ?>', 1)">+</button>
