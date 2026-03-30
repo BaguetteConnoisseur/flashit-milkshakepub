@@ -272,7 +272,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <div class="header">
         <div>

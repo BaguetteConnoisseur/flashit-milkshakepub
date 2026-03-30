@@ -179,7 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <div class="container">
     <div class="container">

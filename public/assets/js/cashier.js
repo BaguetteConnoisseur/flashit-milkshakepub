@@ -1,14 +1,33 @@
 // cashier.js - Modal and order logic for cashier view
 
+//
+// This script manages the cashier view's modal dialogs, item quantity adjustment,
+// comment fields, view switching (card/list), and order creation via AJAX.
+//
+// Main sections:
+//   1. Modal open/close and quantity adjustment
+//   2. Dynamic comment fields for each item
+//   3. View switching (card/list)
+//   4. Create order form submission (AJAX)
+//
+
+
+// --- 1. Modal open/close and quantity adjustment ---
+
+// Show the create order modal
 function openCreateOrderModal() {
     document.getElementById('create-order-modal').style.display = 'flex';
 }
 
+
+// Hide the create order modal and reset the form
 function closeCreateOrderModal() {
     document.getElementById('create-order-modal').style.display = 'none';
     document.getElementById('create-order-form').reset();
 }
 
+
+// Increase or decrease the quantity for an item in the modal
 function adjustQtyModal(inputId, delta) {
     const input = document.getElementById(inputId);
     const currentValue = parseInt(input.value) || 0;
@@ -17,6 +36,8 @@ function adjustQtyModal(inputId, delta) {
     updateItemComments(input);
 }
 
+
+// Dynamically show/hide and preserve comment fields for each item based on quantity
 function updateItemComments(input) {
     const inputId = input.id;
     const qty = parseInt(input.value) || 0;
@@ -27,6 +48,7 @@ function updateItemComments(input) {
     const itemRow = input.closest('.item-row');
     const itemName = itemRow ? itemRow.querySelector('h4').textContent : 'Artikel';
     const savedValues = {};
+    // Save existing comment values to preserve them when re-rendering
     commentsContainer.querySelectorAll('input[type="text"]').forEach(inp => {
         const match = inp.name.match(/\[(.*?)\]/);
         if (match) savedValues[match[1]] = inp.value;
@@ -56,12 +78,18 @@ function updateItemComments(input) {
     }
 }
 
+
+// Close modal if user clicks outside the modal content
 document.getElementById('create-order-modal').addEventListener('click', function(e) {
     if (e.target === this) {
         closeCreateOrderModal();
     }
 });
 
+
+// --- 2. View switching (card/list) ---
+
+// Switch between card and list view for orders
 function setView(viewType) {
     const container = document.getElementById('order-container');
     const cardBtn = document.getElementById('card-view-btn');
@@ -76,12 +104,17 @@ function setView(viewType) {
     localStorage.setItem('cashierViewPreference', viewType);
 }
 
+
+// On page load, restore the last used view (card/list)
 document.addEventListener('DOMContentLoaded', function() {
     const savedView = localStorage.getItem('cashierViewPreference') || 'card';
     setView(savedView);
 });
 
-// --- Intercept Create Order Form Submit and Send JSON ---
+
+// --- 3. Create order form submission (AJAX) ---
+
+// Intercept the create order form submit, collect data, and send as JSON via fetch
 document.getElementById('create-order-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = this;
@@ -89,6 +122,8 @@ document.getElementById('create-order-form').addEventListener('submit', async fu
     const orderComment = form.order_comment.value.trim();
     const csrfToken = form.querySelector('input[name="csrf_token"]').value;
     const items = [];
+
+    // Collect all items and their comments from the modal
     function collectItems(containerSelector) {
         const result = [];
         document.querySelectorAll(containerSelector + ' .item-row').forEach(row => {
@@ -108,6 +143,7 @@ document.getElementById('create-order-form').addEventListener('submit', async fu
     }
     items.push(...collectItems('#milkshakes-container'));
     items.push(...collectItems('#toasts-container'));
+
     if (!customerName) {
         console.error('Kundnamn krävs.');
         return;
@@ -116,6 +152,8 @@ document.getElementById('create-order-form').addEventListener('submit', async fu
         console.error('Välj minst en artikel.');
         return;
     }
+
+    // Prepare payload and send to backend
     const payload = {
         csrf_token: csrfToken,
         customer_name: customerName,

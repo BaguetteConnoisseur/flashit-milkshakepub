@@ -439,7 +439,7 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <div class="container">
         <h1>Statistik</h1>

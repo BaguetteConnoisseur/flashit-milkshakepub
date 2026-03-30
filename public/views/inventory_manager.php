@@ -211,7 +211,7 @@ $activePubName = $_SESSION['active_pub_name'];
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <h1>Lagerhanterare: <?= htmlspecialchars($activePubName) ?></h1>
 

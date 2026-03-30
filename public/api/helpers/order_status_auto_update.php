@@ -1,6 +1,26 @@
 <?php
+/**
+ * Helper for syncing order status with its items.
+ *
+ * Keeps the parent order's status in sync with the statuses of all its items.
+ *
+ * How it works:
+ * 1. Finds the order for the given item ID.
+ * 2. Fetches the status of every item in that order.
+ * 3. Determines the new order status:
+ *    - If all items are 'Delivered', sets order to 'Delivered'.
+ *    - If all items are 'Done' or 'Delivered' (none 'Pending' or 'In Progress'), sets order to 'Done'.
+ *    - If any item is 'In Progress' or 'Done', sets order to 'In Progress'.
+ *    - Otherwise, sets order to 'Pending'.
+ * 4. Updates the order's status in the database.
+ *
+ * Usage:
+ *   Call this after updating any order item's status:
+ *     syncOrderStatusWithItems($pdo, $item_id);
+ *
+ * Extend this logic if you add new item/order statuses in the future.
+ */
 
-// Helper for syncing order status with its items
 function syncOrderStatusWithItems($pdo, $item_id) {
 
     // Fetch order_id from item_id

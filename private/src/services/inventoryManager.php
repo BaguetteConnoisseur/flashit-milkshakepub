@@ -109,25 +109,25 @@ class InventoryManager {
         ]);
     }
 
-        /**
-         * Update a menu item (name, description, ingredients, color, is_archived)
-         */
-        public function updateItem(int $itemId, array $data) {
-            $fields = [];
-            $params = [ 'item_id' => $itemId ];
-            // Only allow these columns to be updated
-            $allowed = ['name', 'description', 'ingredients', 'color', 'is_archived'];
-            foreach ($allowed as $col) {
-                if (isset($data[$col])) {
-                    $fields[] = "$col = :$col";
-                    $params[$col] = ($col === 'is_archived') ? ($data[$col] ? 1 : 0) : $data[$col];
-                }
+    /**
+     * Update a menu item (name, description, ingredients, color, is_archived)
+     */
+    public function updateItem(int $itemId, array $data) {
+        $fields = [];
+        $params = [ 'item_id' => $itemId ];
+        // Only allow these columns to be updated
+        $allowed = ['name', 'description', 'ingredients', 'color', 'is_archived'];
+        foreach ($allowed as $col) {
+            if (isset($data[$col])) {
+                $fields[] = "$col = :$col";
+                $params[$col] = ($col === 'is_archived') ? ($data[$col] ? 1 : 0) : $data[$col];
             }
-            if (empty($fields)) {
-                return false; // Nothing to update
-            }
-            $sql = 'UPDATE menu_items SET ' . implode(', ', $fields) . ' WHERE item_id = :item_id';
-            $stmt = $this->db->prepare($sql);
-            return $stmt->execute($params);
         }
+        if (empty($fields)) {
+            return false; // Nothing to update
+        }
+        $sql = 'UPDATE menu_items SET ' . implode(', ', $fields) . ' WHERE item_id = :item_id';
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
 }

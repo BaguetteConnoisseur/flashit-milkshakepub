@@ -5,7 +5,7 @@ A modern, containerized web app for managing orders at FlashIT's MilkshakePub.
 ## Stack
 - **Frontend:** Nginx
 - **Backend:** PHP-FPM
-- **Database:** MySQL 8.4
+- **Database:** MySQL 8.4 (with PDO MySQL extension)
 - **WebSocket:** Node.js
 
 ## Prerequisites
@@ -33,30 +33,36 @@ quick-start.bat
    ```
 4. Open [http://localhost:8080](http://localhost:8080)
 
-## Firewall Note (Windows)
+## Firewall Note
 
-If you want to receive live order updates (broadcasts) via WebSocket, make sure your firewall allows incoming connections to the WebSocket port. By default, the websocket server listens on port 8081. If you run the stack locally, Windows Defender Firewall may block it.
+### Required Ports
+
+For the system to function correctly, you must allow incoming connections to **both** of these ports:
+
+- **8081** — WebSocket server (used for real-time updates to clients)
+- **8082** — Broadcast API (used for backend to trigger broadcasts)
+
+If either port is blocked, real-time updates or broadcasts will not work.
+
+By default, the websocket server listens on port 8081 for client connections and on port 8082 for broadcast API requests. If you run the stack locally, Windows Defender Firewall may block these ports.
 
 **To allow the broadcast through the firewall:**
 
 1. When you first run the websocket server, Windows may prompt you to allow access. Click **Allow access**.
+
 2. To add the rule manually, you can use the Windows Firewall GUI or run one of these commands in an administrator PowerShell:
 
-   **PowerShell:**
+   **PowerShell (Windows):**
    ```powershell
-   New-NetFirewallRule -DisplayName "Flashit WebSocket" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8081
+   New-NetFirewallRule -DisplayName "Flashit RealTime WS (8081)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8081
+   New-NetFirewallRule -DisplayName "Flashit Broadcast API (8082)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8082
    ```
 
-   **Command Prompt (netsh):**
-   ```cmd
-   netsh advfirewall firewall add rule name="Flashit WebSocket" dir=in action=allow protocol=TCP localport=8081
+   **Linux (ufw):**
+   ```sh
+   sudo ufw allow 8081/tcp comment 'Flashit RealTime WS'
+   sudo ufw allow 8082/tcp comment 'Flashit Broadcast API'
    ```
-
-   Or, in the GUI:
-   - Open **Windows Defender Firewall** > **Advanced settings**
-   - Go to **Inbound Rules** > **New Rule...**
-   - Select **Port**, then **TCP**, and enter `8081` (or your configured port)
-   - Allow the connection, apply to all profiles, and give it a name like `Flashit WebSocket`
 
 This ensures that all clients on your network can receive real-time updates.
 

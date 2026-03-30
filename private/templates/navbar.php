@@ -2,7 +2,7 @@
 /**
  * Admin Navigation Bar
  * Include this in all admin views except bar-view
- * <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+ * <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
  */
 ?>
 

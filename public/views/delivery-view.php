@@ -106,7 +106,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <div class="header">
         <h1>📦 Leveransstation</h1>
