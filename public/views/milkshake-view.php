@@ -435,7 +435,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 
     // --- 5. Main Loader ---
     async function loadOrders() {
-        const r = await fetch("/api/get_event_orders.php");
+        const r = await fetch("/api/get_active_orders.php");
         let data = await r.json();
         const grid = document.getElementById("ticket-grid");
         grid.innerHTML = '';
@@ -447,28 +447,24 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             return;
         }
 
-
-
-        // Flatten all milkshake items (excluding Delivered) with their parent order
+        // Collect all milkshake items with their parent order
         let allMilkshakeItems = [];
         data.forEach(order => {
-            (order.items || []).forEach(item => {
-                if (item.category === 'milkshake' && item.status !== 'Delivered') {
-                    allMilkshakeItems.push({ order, milkshakeItem: item });
-                }
+            const milkshakes = (order.items || []).filter(item => item.category === 'milkshake');
+            milkshakes.forEach(milkshakeItem => {
+                allMilkshakeItems.push({ order, milkshakeItem });
             });
         });
 
-        // Sort all milkshake items globally: Pending, In Progress, Done
-        const statusOrder = { 'Pending': 0, 'In Progress': 1, 'Done': 2 };
+        // Sort: all items with status 'Done' go last, others by their own order_id
         allMilkshakeItems.sort((a, b) => {
-            const aStatus = statusOrder[a.milkshakeItem.status] ?? 99;
-            const bStatus = statusOrder[b.milkshakeItem.status] ?? 99;
-            // If same status, sort by order_number
-            if (aStatus === bStatus) {
-                return (a.order.order_number ?? 0) - (b.order.order_number ?? 0);
+            const aDone = a.milkshakeItem.status === 'Done';
+            const bDone = b.milkshakeItem.status === 'Done';
+            if (aDone !== bDone) {
+                return aDone ? 1 : -1;
             }
-            return aStatus - bStatus;
+            // Both not done or both done: sort by order_id
+            return (a.order.order_id ?? 0) - (b.order.order_id ?? 0);
         });
 
         if (allMilkshakeItems.length === 0) {

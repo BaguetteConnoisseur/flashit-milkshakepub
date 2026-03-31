@@ -451,7 +451,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 
     // --- 5. Main Loader ---
     async function loadOrders() {
-        const r = await fetch("/api/get_event_orders.php");
+        const r = await fetch("/api/get_active_orders.php");
         let data = await r.json();
         const grid = document.getElementById("ticket-grid");
         grid.innerHTML = '';
@@ -463,28 +463,24 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             return;
         }
 
-
-
-        // Flatten all toast items (excluding Delivered) with their parent order
+        // Collect all toast items with their parent order
         let allToastItems = [];
         data.forEach(order => {
             (order.items || []).forEach(item => {
-                if (item.category === 'toast' && item.status !== 'Delivered') {
+                if (item.category === 'toast') {
                     allToastItems.push({ order, toastItem: item });
                 }
             });
         });
 
-        // Sort all toast items globally: Pending, In Progress, Done
-        const statusOrder = { 'Pending': 0, 'In Progress': 1, 'Done': 2 };
+        // Sort: all 'Done' toast items last, all others by order_id ascending
         allToastItems.sort((a, b) => {
-            const aStatus = statusOrder[a.toastItem.status] ?? 99;
-            const bStatus = statusOrder[b.toastItem.status] ?? 99;
-            // If same status, sort by order_number
-            if (aStatus === bStatus) {
-                return (a.order.order_number ?? 0) - (b.order.order_number ?? 0);
+            const aDone = a.toastItem.status === 'Done';
+            const bDone = b.toastItem.status === 'Done';
+            if (aDone !== bDone) {
+                return aDone ? 1 : -1;
             }
-            return aStatus - bStatus;
+            return (a.order.order_id ?? 0) - (b.order.order_id ?? 0);
         });
 
         if (allToastItems.length === 0) {
