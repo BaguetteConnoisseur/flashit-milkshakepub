@@ -27,10 +27,11 @@ try {
     $next_order_number = $stmt->fetchColumn();
 
     $customerName = $request['customer_name'] ?? "Guest";
+    $orderComment = $request['order_comment'] ?? null;
 
-    // Insert order with order_number only
-    $stmt = $db->prepare("INSERT INTO orders (event_id, order_number, customer_name) VALUES (?, ?, ?)");
-    $stmt->execute([$activePubId, $next_order_number, $customerName]);
+    // Insert order with order_number and order_comment
+    $stmt = $db->prepare("INSERT INTO orders (event_id, order_number, customer_name, order_comment) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$activePubId, $next_order_number, $customerName, $orderComment]);
     $order_id = $db->lastInsertId();
 
     // 4. Process the actual items in the cart
