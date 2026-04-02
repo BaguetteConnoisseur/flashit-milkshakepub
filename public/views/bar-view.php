@@ -116,7 +116,7 @@ if (isset($_GET['fetch_view'])) {
     <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Display</title>
+    <title>Kund display</title>
     <style>
         /* --- 4. Layout & Theme --- */
         :root {
