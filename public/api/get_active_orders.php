@@ -37,22 +37,18 @@ try {
     $stmt->execute(['event_id' => $event_id]);
     $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Filter out fully delivered orders
+    // Filter out delivered orders and delivered items
     $active_orders = [];
     foreach ($orders as &$order) {
         $order['items'] = json_decode($order['items'], true);
-        $is_fully_delivered = true;
-        if (empty($order['items'])) {
-            $is_fully_delivered = false;
-        } else {
-            foreach ($order['items'] as $item) {
-                if ($item['status'] !== 'Done') {
-                    $is_fully_delivered = false;
-                    break;
-                }
-            }
-        }
-        if (!$is_fully_delivered) {
+        // Show only orders that are NOT Delivered
+        if ($order['status'] !== 'Delivered') {
+            // Filter out individual items with 'Delivered' status
+            $order['items'] = array_filter($order['items'], function($item) {
+                return $item['status'] !== 'Delivered';
+            });
+            // Re-index items array after filtering
+            $order['items'] = array_values($order['items']);
             $active_orders[] = $order;
         }
     }

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . "/../../private/initialize.php";
 require_once __DIR__ . "/../../private/src/database/db.php";
+require_once __DIR__ . "/../../private/src/services/broadcast.php";
 
 header('Content-Type: application/json');
 
@@ -25,17 +26,35 @@ try {
         exit;
     }
 
-    // Update order and all items if status is Delivered or Done
-    if ($manual_status === 'Delivered' || $manual_status === 'Done') {
+    // Handle manual order status changes with smart item updates
+    if ($manual_status === 'Delivered') {
+        // When marking order as Delivered: upgrade Done items to Delivered
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare("UPDATE orders SET status = ? WHERE order_id = ?");
             $stmt->execute([$manual_status, $order_id]);
-
-            // Update all items in this order to match the manual status
-            $stmt = $pdo->prepare("UPDATE order_items SET status = ? WHERE order_id = ?");
+            
+            // Upgrade items that are 'Done' to 'Delivered', leave others alone
+            $stmt = $pdo->prepare("UPDATE order_items SET status = 'Delivered' WHERE order_id = ? AND status = 'Done'");
+            $stmt->execute([$order_id]);
+            
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            echo json_encode(["error" => $e->getMessage()]);
+            exit;
+        }
+    } elseif ($manual_status === 'Done') {
+        // When reverting to Done (after being Delivered): downgrade Delivered items back to Done
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("UPDATE orders SET status = ? WHERE order_id = ?");
             $stmt->execute([$manual_status, $order_id]);
-
+            
+            // Downgrade items that are 'Delivered' back to 'Done'
+            $stmt = $pdo->prepare("UPDATE order_items SET status = 'Done' WHERE order_id = ? AND status = 'Delivered'");
+            $stmt->execute([$order_id]);
+            
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();
@@ -43,10 +62,18 @@ try {
             exit;
         }
     } else {
-        // Only update order status
+        // For other statuses (Pending, In Progress), only update order, not items
         $stmt = $pdo->prepare("UPDATE orders SET status = ? WHERE order_id = ?");
         $stmt->execute([$manual_status, $order_id]);
     }
+    
+    // Broadcast the order status change so all views update in real-time
+    broadcast([
+        "type" => "order_updated",
+        "order_id" => $order_id,
+        "status" => $manual_status
+    ]);
+    
     echo json_encode(["success" => true, "order_id" => $order_id, "status" => $manual_status]);
 } catch (Exception $e) {
     echo json_encode(["error" => $e->getMessage()]);

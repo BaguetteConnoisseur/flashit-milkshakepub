@@ -9,7 +9,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 <head>
     <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
     <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
-    <title>Toast-station</title>
+    <title>Milkshake station</title>
     <style>
         :root {
             --bg: #f3f4f6;
@@ -137,7 +137,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             width: 100%;
         }
 
-        .bar-Pending, .bar-Received {
+        .bar-Pending {
             background-color: var(--status-pending);
         }
         .bar-Progress {
@@ -501,7 +501,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
                 const item_id = form.querySelector('[name="order_milkshake_id"]').value;
                 let status = form.querySelector('[name="current_status"]').value;
                 const csrf_token = form.querySelector('[name="csrf_token"]').value;
-                if (status === 'Pending' || status === 'Received') status = 'In Progress';
+                if (status === 'Pending') status = 'In Progress';
                 else if (status === 'In Progress') status = 'Done';
                 else return;
                 update(item_id, status, csrf_token);

@@ -40,23 +40,6 @@ try {
 	// Decode the items JSON for each order
 	foreach ($orders as &$order) {
 		$order['items'] = json_decode($order['items'], true);
-		// Add ready_to_serve and is_fully_delivered flags
-		$order['ready_to_serve'] = true;
-		$order['is_fully_delivered'] = true;
-		$has_items = !empty($order['items']);
-		if (!$has_items) {
-			$order['ready_to_serve'] = false;
-			$order['is_fully_delivered'] = false;
-		} else {
-			foreach ($order['items'] as $item) {
-				if ($item['status'] !== 'Done') {
-					$order['ready_to_serve'] = false;
-				}
-				if ($item['status'] !== 'Done') {
-					$order['is_fully_delivered'] = false;
-				}
-			}
-		}
 	}
 
 	echo json_encode($orders);

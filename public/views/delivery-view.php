@@ -9,7 +9,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
     <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leveransstation</title>
+    <title>Leverans station</title>
 
     <style>
         /* --- 5. Layout & Theme --- */
@@ -266,12 +266,15 @@ require_once(__DIR__ . '/../../private/initialize.php');
             return;
         }
 
-        // Sort: all items done first, then status 'Done', then others, all by order_number
+        // Sort: ready to deliver (all done) first, then in progress, then fully delivered at bottom
         data.sort((a, b) => {
             function sortRank(order) {
-                if (Array.isArray(order.items) && order.items.length > 0 && order.items.every(item => item.status === 'Done' || item.status === 'Delivered')) return 0; // All items done
-                if (order.status === 'Done') return 1; // Status done, but not all items done
-                return 2;
+                // Rank 0: Order is fully delivered
+                if (order.status === 'Delivered') return 2;
+                // Rank 1: All items are Done/Delivered but order not yet marked Delivered (ready to deliver, placed at the top)
+                if (Array.isArray(order.items) && order.items.length > 0 && order.items.every(item => item.status === 'Done' || item.status === 'Delivered')) return 0;
+                // Rank 2: Still in progress (in the middle)
+                return 1;
             }
             const aRank = sortRank(a);
             const bRank = sortRank(b);
