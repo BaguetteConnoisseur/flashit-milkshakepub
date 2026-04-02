@@ -1,6 +1,8 @@
 <?php
 function broadcast($data) {
-    $secret = getenv('BROADCAST_SECRET') ?: '';
+    require_once(__DIR__ . '/../../config.php');
+
+    $secret = BROADCAST_SECRET;
     if ($secret === '') {
         error_log('Broadcast skipped: BROADCAST_SECRET is not configured');
         return false;

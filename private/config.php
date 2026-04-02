@@ -6,3 +6,4 @@ define("DB_NAME",   getenv('MYSQL_DATABASE') ?: 'flashit_milkshakepub');
 
 // Use a hashed admin password for better security
 define("ADMIN_PASS_HASH", getenv('ADMIN_PASS_HASH') ?: '$2y$10$REPLACE_WITH_YOUR_HASH');
+define("BROADCAST_SECRET", getenv('BROADCAST_SECRET') ?: '');
