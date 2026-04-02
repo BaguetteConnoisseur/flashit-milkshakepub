@@ -16,7 +16,7 @@ require_once(PRIVATE_PATH . '/auth.php');
 require_once(PRIVATE_PATH . '/functions.php');
 
 // 3. Run Event/Pub Tracking Logic
-$pub = ensure_pub_tracking();
+ensure_pub_tracking();
 
 // 4. Protection Logic
 $loggedIn = is_logged_in();

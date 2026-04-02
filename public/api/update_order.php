@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . "/../../private/initialize.php";
-require_once __DIR__ . "/../../private/src/database/db.php";
 require_once __DIR__ . "/../../private/src/services/broadcast.php";
 
 header('Content-Type: application/json');
