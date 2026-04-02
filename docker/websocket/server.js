@@ -3,6 +3,7 @@ const http = require('http');
 const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args));
 const cookie = require('cookie');
 
+const BROADCAST_SECRET = process.env.BROADCAST_SECRET || '';
 
 const wss = new WebSocket.Server({ port: 8081, host: '0.0.0.0' });
 
@@ -14,11 +15,6 @@ async function isSessionValid(sessionId) {
     });
     const text = await res.text();
     const trimmed = text.trim();
-    console.log('validate_session.php response:', {
-      status: res.status,
-      ok: res.ok,
-      body: trimmed,
-    });
     return res.ok && trimmed === 'OK';
   } catch (e) {
     console.error('Error validating session:', e);
@@ -33,21 +29,16 @@ function heartbeat() {
 
 
 wss.on('connection', async function connection(ws, req) {
-  console.log('--- New WebSocket connection attempt ---');
-  console.log('Request headers:', req.headers);
   const cookies = cookie.parse(req.headers.cookie || '');
-  console.log('Parsed cookies:', cookies);
   const sessionId = cookies.PHPSESSID;
   if (!sessionId) {
-    console.log('Rejected WebSocket connection: no PHPSESSID cookie found.');
+    console.warn('Rejected WebSocket connection: missing session cookie');
     ws.close();
     return;
   }
-  console.log('Validating session:', sessionId);
   const valid = await isSessionValid(sessionId);
-  console.log('Session valid:', valid);
   if (!valid) {
-    console.log('Rejected WebSocket connection: session validation failed for PHPSESSID', sessionId);
+    console.warn('Rejected WebSocket connection: invalid session');
     ws.close();
     return;
   }
@@ -79,10 +70,16 @@ wss.on('close', function close() {
 
 const server = http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/broadcast') {
+    const providedSecret = req.headers['x-broadcast-secret'] || '';
+    if (!BROADCAST_SECRET || providedSecret !== BROADCAST_SECRET) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('forbidden');
+      return;
+    }
+
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
         req.on('end', () => {
-            console.log('Broadcasting:', body);
             wss.clients.forEach(client => {
                 if (client.readyState === WebSocket.OPEN) {
                     client.send(body);

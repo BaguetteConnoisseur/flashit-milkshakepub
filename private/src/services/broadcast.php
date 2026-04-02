@@ -1,5 +1,11 @@
 <?php
 function broadcast($data) {
+    $secret = getenv('BROADCAST_SECRET') ?: '';
+    if ($secret === '') {
+        error_log('Broadcast skipped: BROADCAST_SECRET is not configured');
+        return false;
+    }
+
     $url = "http://websocket:8082/broadcast";
     
     $ch = curl_init($url);
@@ -13,7 +19,10 @@ function broadcast($data) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 1500);
     curl_setopt($ch, CURLOPT_TIMEOUT_MS, 3000);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'X-Broadcast-Secret: ' . $secret,
+    ]);
     
     $response = curl_exec($ch);
     if ($response === false) {

@@ -35,6 +35,7 @@ services:
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - ADMIN_PASS_HASH=${ADMIN_PASS_HASH}
+      - BROADCAST_SECRET=${BROADCAST_SECRET}
     healthcheck:
       test: ["CMD-SHELL", "php-fpm -t >/dev/null 2>&1"]
       interval: 10s
@@ -45,6 +46,10 @@ services:
   websocket:
     build: ./docker/websocket
     container_name: flashitmilkshakepub-websocket
+    env_file:
+      - .env
+    environment:
+      - BROADCAST_SECRET=${BROADCAST_SECRET}
     ports:
       - "8081:8081"
     healthcheck:
