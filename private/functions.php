@@ -49,7 +49,7 @@ function require_csrf_token($fieldName = 'csrf_token') {
 
 function ensure_pub_tracking() {
     $db = db();
-    if (!isset($_SESSION['current_pub_id'])) {
+    if (!isset($_SESSION['active_pub_id'])) {
         $stmt = $db->query("SELECT event_id, event_name FROM pub_events WHERE is_active = 1 LIMIT 1");
         $event = $stmt->fetch();
         if ($event) {
@@ -57,7 +57,7 @@ function ensure_pub_tracking() {
             $_SESSION['active_pub_name'] = $event['event_name'];
         }
     }
-    return $_SESSION['current_pub_id'] ?? null;
+    return isset($_SESSION['active_pub_id']) ? (int)$_SESSION['active_pub_id'] : null;
 }
 
 /**

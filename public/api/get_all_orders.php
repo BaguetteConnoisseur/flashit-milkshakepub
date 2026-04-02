@@ -1,4 +1,9 @@
 <?php
+/**
+ * WARNING: This endpoint returns ALL orders from ALL events globally.
+ * It is NOT current used by any frontend. Consider deleting if no external clients depend on it.
+ * It also lacks event-based access control (unlike get_event_orders.php).
+ */
 require_once(__DIR__ . "/../../private/initialize.php");
 require_once(__DIR__ . "/../../private/src/database/db.php");
 

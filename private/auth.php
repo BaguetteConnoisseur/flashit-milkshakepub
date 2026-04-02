@@ -8,9 +8,6 @@ function is_logged_in() {
 
 /**
  * Processes all auth-related POST requests (Login & Logout).
- */
-/**
- * Processes all auth-related POST requests (Login & Logout).
  *
  * Adds a simple session-based rate limiter for failed login attempts.
  */
@@ -71,7 +68,6 @@ function handle_login_post() {
                 $minutes = ceil((600 - (time() - min($_SESSION['login_attempts']))) / 60);
                 return "För många misslyckade inloggningar. Vänta $minutes minut(er) och försök igen.";
             } else {
-                $remaining = 5 - count($_SESSION['login_attempts']);
                 return "Ogiltiga uppgifter. Försök igen.";
             }
         }
