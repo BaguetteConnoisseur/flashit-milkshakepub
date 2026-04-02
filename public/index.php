@@ -22,7 +22,7 @@ $errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : 
         
         body {
             font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #09cdda 0%, #6c5ad1 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -87,7 +87,7 @@ $errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : 
         .btn-login {
             width: 100%;
             padding: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #09cdda 0%, #6c5ad1 100%);
             color: white;
             border: none;
             border-radius: 8px;
@@ -184,7 +184,7 @@ $errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : 
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(90deg, #09cdda 0%, #6c5ad1 100%);
             transform: scaleX(0);
             transition: transform 0.3s ease;
         }
@@ -207,7 +207,7 @@ $errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : 
             justify-content: center;
             font-size: 28px;
             margin-bottom: 16px;
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            background: linear-gradient(135deg, rgba(9, 205, 218, 0.1) 0%, rgba(108, 90, 209, 0.1) 100%);
         }
         
         .view-card h3 {
