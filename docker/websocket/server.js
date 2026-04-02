@@ -1,16 +1,67 @@
 const WebSocket = require('ws');
 const http = require('http');
+const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args));
+const cookie = require('cookie');
+
 
 const wss = new WebSocket.Server({ port: 8081, host: '0.0.0.0' });
+
+async function isSessionValid(sessionId) {
+  if (!sessionId) return false;
+  try {
+    const res = await fetch('http://nginx/api/validate_session.php', {
+      headers: { 'Cookie': `PHPSESSID=${sessionId}` }
+    });
+    const text = await res.text();
+    const trimmed = text.trim();
+    console.log('validate_session.php response:', {
+      status: res.status,
+      ok: res.ok,
+      body: trimmed,
+    });
+    return res.ok && trimmed === 'OK';
+  } catch (e) {
+    console.error('Error validating session:', e);
+    return false;
+  }
+}
 
 function heartbeat() {
   this.isAlive = true;
 }
 
-wss.on('connection', function connection(ws) {
+
+
+wss.on('connection', async function connection(ws, req) {
+  console.log('--- New WebSocket connection attempt ---');
+  console.log('Request headers:', req.headers);
+  const cookies = cookie.parse(req.headers.cookie || '');
+  console.log('Parsed cookies:', cookies);
+  const sessionId = cookies.PHPSESSID;
+  if (!sessionId) {
+    console.log('Rejected WebSocket connection: no PHPSESSID cookie found.');
+    ws.close();
+    return;
+  }
+  console.log('Validating session:', sessionId);
+  const valid = await isSessionValid(sessionId);
+  console.log('Session valid:', valid);
+  if (!valid) {
+    console.log('Rejected WebSocket connection: session validation failed for PHPSESSID', sessionId);
+    ws.close();
+    return;
+  }
   ws.isAlive = true;
   ws.on('pong', heartbeat);
   console.log('Client connected');
+
+  ws.on('error', (err) => {
+    console.error('WebSocket error:', err);
+  });
+
+  ws.on('close', () => {
+    console.log('WebSocket connection closed');
+  });
 });
 
 const interval = setInterval(function ping() {

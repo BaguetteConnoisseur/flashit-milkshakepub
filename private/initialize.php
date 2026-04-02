@@ -1,15 +1,5 @@
 <?php
-// Set secure session cookie parameters before session_start
-$secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443;
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path' => '/',
-    'domain' => '',
-    'secure' => $secure,
-    'httponly' => true,
-    'samesite' => 'Strict',
-]);
-session_start();
+require_once(__DIR__ . '/session_bootstrap.php');
 
 // 1. Define Paths
 define("PRIVATE_PATH", dirname(__FILE__));
@@ -33,7 +23,7 @@ $loggedIn = is_logged_in();
 $currentUri = $_SERVER['REQUEST_URI'];
 $isPublicPage = false;
 
-$publicKeywords = ['index.php', 'bar-view.php', '/api/', '/public/menu']; 
+$publicKeywords = ['index.php', 'bar-view.php', '/public/menu']; 
 
 foreach ($publicKeywords as $keyword) {
     if (strpos($currentUri, $keyword) !== false) {
