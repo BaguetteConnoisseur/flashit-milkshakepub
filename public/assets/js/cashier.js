@@ -94,7 +94,7 @@ function transformToQuantitySelector(itemRow, inputId) {
 
 // On page load, transform all items to 'Add item' button if value is 0
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.item-row').forEach(row => {
+    document.querySelectorAll('#create-order-form .item-row').forEach(row => {
         const input = row.querySelector('input[type="number"]');
         if (input && (parseInt(input.value) || 0) === 0) {
             transformToAddButton(input.id);
@@ -132,21 +132,25 @@ function updateItemComments(input) {
             const commentKey = prefix + '_' + baseId + '_' + i;
             const div = document.createElement('div');
             div.style.marginBottom = '0.5rem';
+            const commentInputId = `${inputId}-comment-${i}`;
             const input = document.createElement('input');
             input.type = 'text';
             input.name = type + '[' + commentKey + ']';
             input.value = savedValues[commentKey] || '';
             input.placeholder = 'Lägg till notering...';
             input.style.cssText = 'width: 100%; padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;';
+            input.id = commentInputId;
             const label = document.createElement('label');
             label.style.cssText = 'font-size: 0.85rem; color: var(--text-sub); display: block; margin-bottom: 0.25rem;';
             label.textContent = 'Notering för ' + itemName + ' ' + (i + 1);
+            label.setAttribute('for', commentInputId);
             div.appendChild(label);
             div.appendChild(input);
             commentsContainer.appendChild(div);
         }
     } else {
         commentsContainer.style.display = 'none';
+        transformToAddButton(inputId);
     }
 }
 

@@ -20,7 +20,7 @@ class InventoryManager {
                 AND mi.category = :category 
                 AND emi.is_active = :is_active
                 AND mi.is_archived = 0
-                ORDER BY mi.name ASC";
+                ORDER BY mi.item_id ASC";
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
