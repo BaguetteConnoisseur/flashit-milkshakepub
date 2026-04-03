@@ -1,10 +1,12 @@
 <?php
 require_once(__DIR__ . "/../../private/initialize.php");
-require_once(PRIVATE_PATH . '/src/services/inventoryManager.php');
+require_once(PRIVATE_PATH . '/src/services/inventory_manager.php');
+require_once(PRIVATE_PATH . '/src/services/order_manager.php');
 
 $pdo = db();
 $activePubId = $_SESSION['active_pub_id'] ?? null;
 $activePubName = $_SESSION['active_pub_name'] ?? '';
+$ordersManager = new OrderManager($pdo, $activePubId);
 
 // --- 1. Inventory for Create Form ---
 $inventory = new InventoryManager($pdo, $activePubId);
@@ -17,71 +19,42 @@ if (isset($_POST['update_order'])) {
     $order_id = (int)$_POST['order_id'];
     $main_status = $_POST['main_status'] ?? 'Pending';
     $main_comment = trim($_POST['main_comment'] ?? '');
-    $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare("UPDATE orders SET status = ?, order_comment = ? WHERE order_id = ? AND event_id = ?");
-        $stmt->execute([$main_status, $main_comment, $order_id, $activePubId]);
-
-        // Update order_items
-        foreach (($_POST['oi_status'] ?? []) as $oi_id => $status) {
-            $comment = $_POST['oi_comment'][$oi_id] ?? '';
-            $stmt = $pdo->prepare("UPDATE order_items SET status = ?, item_comment = ? WHERE order_item_id = ?");
-            $stmt->execute([$status, $comment, $oi_id]);
-        }
-        $pdo->commit();
+        $ordersManager->updateOrder(
+            $order_id,
+            $main_status,
+            $main_comment,
+            $_POST['oi_status'] ?? [],
+            $_POST['oi_comment'] ?? []
+        );
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     } catch (Throwable $e) {
-        $pdo->rollBack();
     }
 }
 // DELETE ORDER
 if (isset($_POST['delete_order'])) {
     $order_id = (int)$_POST['order_id'];
-    $pdo->beginTransaction();
     try {
-        $pdo->prepare("DELETE FROM order_items WHERE order_id = ?")->execute([$order_id]);
-        $pdo->prepare("DELETE FROM orders WHERE order_id = ? AND event_id = ?")->execute([$order_id, $activePubId]);
-        $pdo->commit();
+        $ordersManager->deleteOrder($order_id);
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     } catch (Throwable $e) {
-        $pdo->rollBack();
     }
 }
 
 
 // --- 3. Fetch Orders ---
-$orders = [];
 $modal_order = null;
 $modal_items = [];
-// Fetch all orders for this event
-$stmt = $pdo->prepare("SELECT * FROM orders WHERE event_id = ? ORDER BY created_at DESC");
-$stmt->execute([$activePubId]);
-$orders = $stmt->fetchAll();
-
-// Attach summary for each order
-foreach ($orders as &$order) {
-    $stmt = $pdo->prepare("SELECT mi.name, mi.category, COUNT(*) as qty FROM order_items oi JOIN menu_items mi ON oi.item_id = mi.item_id WHERE oi.order_id = ? GROUP BY mi.item_id, mi.name, mi.category");
-    $stmt->execute([$order['order_id']]);
-    $summary = [];
-    foreach ($stmt->fetchAll() as $row) {
-        $summary[] = $row['name'] . ($row['qty'] > 1 ? " (x{$row['qty']})" : "");
-    }
-    $order['summary'] = implode(", ", $summary);
-}
-unset($order);
+$orders = $ordersManager->getOrdersWithSummaries();
 
 // Modal: fetch specific order and its items
 if (isset($_GET['view_order'])) {
     $view_id = (int)$_GET['view_order'];
-    $stmt = $pdo->prepare("SELECT * FROM orders WHERE order_id = ? AND event_id = ?");
-    $stmt->execute([$view_id, $activePubId]);
-    $modal_order = $stmt->fetch();
+    $modal_order = $ordersManager->getOrderById($view_id);
     if ($modal_order) {
-        $stmt = $pdo->prepare("SELECT oi.*, mi.name, mi.category FROM order_items oi JOIN menu_items mi ON oi.item_id = mi.item_id WHERE oi.order_id = ?");
-        $stmt->execute([$view_id]);
-        $modal_items = $stmt->fetchAll();
+        $modal_items = $ordersManager->getOrderItems($view_id);
     }
 }
 ?>

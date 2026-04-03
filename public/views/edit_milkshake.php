@@ -1,7 +1,7 @@
 <?php
 /* --- 1. Edit Milkshake Bootstrap --- */
 require_once(__DIR__ . '/../../private/initialize.php');
-require_once(PRIVATE_PATH . '/src/services/InventoryManager.php');
+require_once(PRIVATE_PATH . '/src/services/inventory_manager.php');
 
 $pdo = db();
 $activePubId = $_SESSION['active_pub_id'];
