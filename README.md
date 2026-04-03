@@ -37,16 +37,17 @@ quick-start.bat
 
 ### Required Ports
 
-For the system to function correctly, you must allow incoming connections to **both** of these ports:
+For normal use, you only need to allow incoming connections to **8081**:
 
 - **8081** — WebSocket server (used for real-time updates to clients)
-- **8082** — Broadcast API (used for backend to trigger broadcasts)
 
-If either port is blocked, real-time updates or broadcasts will not work.
+Port **8082** is the internal broadcast API used by the PHP backend to talk to the websocket container over the Docker network. It is not exposed on the host in the default compose setup, so it does not need a firewall rule.
 
-By default, the websocket server listens on port 8081 for client connections and on port 8082 for broadcast API requests. If you run the stack locally, Windows Defender Firewall may block these ports.
+If 8081 is blocked, real-time updates will not work.
 
-**To allow the broadcast through the firewall:**
+By default, the websocket server listens on port 8081 for client connections. If you run the stack locally, Windows Defender Firewall may block this port.
+
+**To allow websocket traffic through the firewall:**
 
 1. When you first run the websocket server, Windows may prompt you to allow access. Click **Allow access**.
 
@@ -55,13 +56,11 @@ By default, the websocket server listens on port 8081 for client connections and
    **PowerShell (Windows):**
    ```powershell
    New-NetFirewallRule -DisplayName "Flashit RealTime WS (8081)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8081
-   New-NetFirewallRule -DisplayName "Flashit Broadcast API (8082)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8082
    ```
 
    **Linux (ufw):**
    ```sh
    sudo ufw allow 8081/tcp comment 'Flashit RealTime WS'
-   sudo ufw allow 8082/tcp comment 'Flashit Broadcast API'
    ```
 
 This ensures that all clients on your network can receive real-time updates.
