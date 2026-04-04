@@ -2,6 +2,7 @@
 require_once(__DIR__ . "/../../private/initialize.php");
 require_once(PRIVATE_PATH . '/src/services/inventory_manager.php');
 require_once(PRIVATE_PATH . '/src/services/order_manager.php');
+require_once(PRIVATE_PATH . '/src/services/broadcast.php');
 
 $pdo = db();
 $activePubId = $_SESSION['active_pub_id'] ?? null;
@@ -14,7 +15,7 @@ $milkshakes = $inventory->getItemsByCategory('milkshake', true);
 $toasts = $inventory->getItemsByCategory('toast', true);
 
 // --- 2. Handle POST Actions ---
-// UPDATE ORDER
+// UPDATE ORDER: receive form, update DB, broadcast event, return JSON (AJAX) or redirect
 if (isset($_POST['update_order'])) {
     $order_id = (int)$_POST['order_id'];
     $main_status = $_POST['main_status'] ?? 'Pending';
@@ -27,35 +28,156 @@ if (isset($_POST['update_order'])) {
             $_POST['oi_status'] ?? [],
             $_POST['oi_comment'] ?? []
         );
+
+        broadcast([
+            'type' => 'order_updated',
+            'order_id' => $order_id,
+            'status' => $main_status,
+        ]);
+
+        if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => true, 'order_id' => $order_id]);
+            exit;
+        }
+
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     } catch (Throwable $e) {
+        if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
     }
 }
-// DELETE ORDER
+
+// DELETE ORDER: receive form, delete from DB, broadcast event, return JSON (AJAX) or redirect
 if (isset($_POST['delete_order'])) {
     $order_id = (int)$_POST['order_id'];
     try {
         $ordersManager->deleteOrder($order_id);
+
+        broadcast([
+            'type' => 'order_deleted',
+            'order_id' => $order_id,
+        ]);
+
+        if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => true, 'order_id' => $order_id]);
+            exit;
+        }
+
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     } catch (Throwable $e) {
+        if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
     }
 }
 
 
-// --- 3. Fetch Orders ---
+// --- 3. Fetch Orders / Modal Data ---
+// Build main order list; if view_order set, load that specific order too
 $modal_order = null;
 $modal_items = [];
 $orders = $ordersManager->getOrdersWithSummaries();
 
-// Modal: fetch specific order and its items
+// If viewing specific order, load it and its items
 if (isset($_GET['view_order'])) {
     $view_id = (int)$_GET['view_order'];
     $modal_order = $ordersManager->getOrderById($view_id);
     if ($modal_order) {
         $modal_items = $ordersManager->getOrderItems($view_id);
     }
+}
+
+// AJAX modal mode: return only modal HTML, exit if order missing
+$ajaxModalOnly = isset($_GET['ajax_modal']) && $_GET['ajax_modal'] === '1';
+if ($ajaxModalOnly) {
+    if (!$modal_order) {
+        http_response_code(404);
+        exit;
+    }
+    ?>
+    <div class="modal-overlay js-order-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2 style="margin:0">Order #<?= htmlspecialchars($modal_order['pub_order_number'] ?? $modal_order['order_number'] ?? $modal_order['order_id']) ?></h2>
+                    <span style="font-size:0.9rem; color:var(--text-sub)"><?= htmlspecialchars($modal_order['customer_name']) ?></span>
+                </div>
+                <button type="button" class="close-btn js-modal-close">&times;</button>
+            </div>
+
+            <form action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="POST" style="display:contents;" class="js-order-edit-form">
+                <?= csrf_token_input() ?>
+                <input type="hidden" name="order_id" value="<?= $modal_order['order_id'] ?>">
+
+                <div class="modal-body">
+                    <div class="row-split" style="margin-bottom: 2rem;">
+                        <div class="form-group">
+                            <label>Beställningsstatus</label>
+                            <select name="main_status">
+                                <?php $s = $modal_order['status']; ?>
+                                <option value="Pending" <?= $s=='Pending'?'selected':'' ?>>Väntar</option>
+                                <option value="In Progress" <?= $s=='In Progress'?'selected':'' ?>>Pågår</option>
+                                <option value="Done" <?= $s=='Done'?'selected':'' ?>>Klar</option>
+                                <option value="Delivered" <?= $s=='Delivered'?'selected':'' ?>>Levererad</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Huvudkommentar</label>
+                            <input type="text" name="main_comment" value="<?= htmlspecialchars($modal_order['order_comment'] ?? '') ?>">
+                        </div>
+                    </div>
+
+                    <h3 style="border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">Artiklar</h3>
+
+                    <?php foreach($modal_items as $item): ?>
+                        <div class="item-row">
+                            <h4>
+                                <?= $item['category'] === 'milkshake' ? '🥤' : '🥪' ?>
+                                <?= htmlspecialchars($item['name']) ?>
+                            </h4>
+                            <div class="row-split">
+                                <div>
+                                    <label>Status</label>
+                                    <select name="oi_status[<?= $item['order_item_id'] ?>]" style="padding:0.25rem;">
+                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Väntar</option>
+                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>Pågår</option>
+                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Klar</option>
+                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Levererad</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Notering</label>
+                                    <input type="text" name="oi_comment[<?= $item['order_item_id'] ?>]" value="<?= htmlspecialchars($item['item_comment']) ?>" placeholder="Lägg till notering...">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="submit" name="delete_order" class="btn btn-danger js-delete-order" style="width:auto; margin:0;">Radera beställning</button>
+                    <button type="submit" name="update_order" class="btn" style="width:auto; margin:0;">Spara ändringar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php
+    exit;
 }
 ?>
 
@@ -653,75 +775,6 @@ if (isset($_GET['view_order'])) {
 
     </main>
 
-    <?php if ($modal_order): ?>
-    <div class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <h2 style="margin:0">Order #<?= htmlspecialchars($modal_order['pub_order_number'] ?? $modal_order['order_number'] ?? $modal_order['order_id']) ?></h2>
-                    <span style="font-size:0.9rem; color:var(--text-sub)"><?= htmlspecialchars($modal_order['customer_name']) ?></span>
-                </div>
-                <a href="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" class="close-btn">&times;</a>
-            </div>
-
-            <form action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="POST" style="display:contents;">
-                <?= csrf_token_input() ?>
-                <input type="hidden" name="order_id" value="<?= $modal_order['order_id'] ?>">
-                
-                <div class="modal-body">
-                    <div class="row-split" style="margin-bottom: 2rem;">
-                        <div class="form-group">
-                            <label>Beställningsstatus</label>
-                            <select name="main_status">
-                                <?php $s = $modal_order['status']; ?>
-                                <option value="Pending" <?= $s=='Pending'?'selected':'' ?>>Väntar</option>
-                                <option value="In Progress" <?= $s=='In Progress'?'selected':'' ?>>Pågår</option>
-                                <option value="Done" <?= $s=='Done'?'selected':'' ?>>Klar</option>
-                                <option value="Delivered" <?= $s=='Delivered'?'selected':'' ?>>Levererad</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Huvudkommentar</label>
-                            <input type="text" name="main_comment" value="<?= htmlspecialchars($modal_order['order_comment'] ?? '') ?>">
-                        </div>
-                    </div>
-
-                    <h3 style="border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">Artiklar</h3>
-
-                    <?php foreach($modal_items as $item): ?>
-                        <div class="item-row">
-                            <h4>
-                                <?= $item['category'] === 'milkshake' ? '🥤' : '🥪' ?>
-                                <?= htmlspecialchars($item['name']) ?>
-                            </h4>
-                            <div class="row-split">
-                                <div>
-                                    <label>Status</label>
-                                    <select name="oi_status[<?= $item['order_item_id'] ?>]" style="padding:0.25rem;">
-                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Väntar</option>
-                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>Pågår</option>
-                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Klar</option>
-                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Levererad</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label>Notering</label>
-                                    <input type="text" name="oi_comment[<?= $item['order_item_id'] ?>]" value="<?= htmlspecialchars($item['item_comment']) ?>" placeholder="Lägg till notering...">
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="submit" name="delete_order" class="btn btn-danger" style="width:auto; margin:0;" onclick="return confirm('Radera hela beställningen?');">Radera beställning</button>
-                    <button type="submit" name="update_order" class="btn" style="width:auto; margin:0;">Spara ändringar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    <?php endif; ?>
-
     <!-- Create Order Modal -->
     <div id="create-order-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="create-order-title">
         <div class="modal-content">
@@ -793,23 +846,27 @@ if (isset($_GET['view_order'])) {
     <script src="/assets/js/ws.js"></script>
     <script src="/assets/js/cashier.js"></script>
     <script>
-        // AJAX partial update for order list
+        // Fetch order list fragment (AJAX request)
         async function updateOrderList() {
             try {
                 const resp = await fetch(window.location.pathname + '?ajax=1');
                 if (!resp.ok) throw new Error('Kunde inte hämta beställningar');
                 const html = await resp.text();
+                
                 const temp = document.createElement('div');
                 temp.innerHTML = html;
                 const newContainer = temp.querySelector('#order-container');
+                
                 if (newContainer) {
                     document.getElementById('order-container').replaceWith(newContainer);
+                    // Reapply view preference after replacing container
+                    document.dispatchEvent(new CustomEvent('cashier:orders-updated'));
                 }
             } catch (err) {
                 console.error('Kunde inte uppdatera orderlistan:', err);
             }
         }
-        // Alias for ws.js compatibility
+        // Alias for WebSocket handler to refresh order list on realtime updates
         window.loadOrders = updateOrderList;
     </script>
 </body>
