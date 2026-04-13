@@ -21,19 +21,11 @@ ensure_pub_tracking();
 // 4. Protection Logic
 $loggedIn = is_logged_in();
 $currentUri = $_SERVER['REQUEST_URI'];
-$isPublicPage = false;
 
-$publicKeywords = ['index.php', 'bar-view.php', '/public/menu']; 
-
-foreach ($publicKeywords as $keyword) {
-    if (strpos($currentUri, $keyword) !== false) {
-        $isPublicPage = true;
-        break;
-    }
-}
+$isPublicPage = is_public_path($currentUri);
 
 if (!$loggedIn && !$isPublicPage) {
-    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) || strpos($currentUri, '/api/') !== false) {
+    if (is_api_or_ajax_request($currentUri)) {
         header('Content-Type: application/json');
         http_response_code(401);
         echo json_encode(["error" => "Login required"]);

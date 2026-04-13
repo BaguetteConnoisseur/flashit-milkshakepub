@@ -42,6 +42,54 @@ function require_csrf_token($fieldName = 'csrf_token') {
 }
 
 /**
+ * Returns a normalized request path from a URI.
+ */
+function normalize_request_path($uri) {
+    $path = parse_url((string) $uri, PHP_URL_PATH);
+
+    if (!is_string($path) || $path === '') {
+        return '/';
+    }
+
+    $normalized = rtrim($path, '/');
+    return $normalized === '' ? '/' : $normalized;
+}
+
+/**
+ * Defines which paths are publicly accessible without login.
+ */
+function is_public_path($uri) {
+    $path = normalize_request_path($uri);
+
+    $publicExactPaths = [
+        '/',
+        '/index.php',
+        '/views/bar-view.php',
+    ];
+
+    if (in_array($path, $publicExactPaths, true)) {
+        return true;
+    }
+
+    // Keep existing behavior for menu routes under /public/menu.
+    return strpos($path, '/public/menu') === 0;
+}
+
+/**
+ * Detects if request should receive JSON auth errors.
+ */
+function is_api_or_ajax_request($uri) {
+    $path = normalize_request_path($uri);
+
+    if (strpos($path, '/api/') === 0 || strpos($path, '/public/api/') === 0) {
+        return true;
+    }
+
+    $requestedWith = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
+    return is_string($requestedWith) && strcasecmp($requestedWith, 'XMLHttpRequest') === 0;
+}
+
+/**
  * Ensures the session has the current active pub/event info.
  * Sets $_SESSION['active_pub_id'] and $_SESSION['active_pub_name'] if not set.
  * Returns the current pub/event id or null.

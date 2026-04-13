@@ -1,4 +1,10 @@
-const ws = new WebSocket("ws://" + window.location.host + "/ws/");
+// Build WebSocket URL with public flag if needed
+let wsUrl = "ws://" + window.location.host + "/ws/";
+if (typeof isPublicBarView !== 'undefined' && isPublicBarView) {
+    wsUrl += "?public=1";
+}
+
+const ws = new WebSocket(wsUrl);
 
 ws.onopen = () => {
     setStatus('live');

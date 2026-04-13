@@ -31,18 +31,28 @@ function heartbeat() {
 wss.on('connection', async function connection(ws, req) {
   const cookies = cookie.parse(req.headers.cookie || '');
   const sessionId = cookies.PHPSESSID;
-  if (!sessionId) {
-    console.warn('Rejected WebSocket connection: missing session cookie');
-    ws.close();
-    return;
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const isPublic = url.searchParams.get('public') === '1';
+  
+  // Allow public connections OR valid sessions
+  if (!isPublic) {
+    if (!sessionId) {
+      console.warn('Rejected WebSocket connection: missing session cookie');
+      ws.close();
+      return;
+    }
+    const valid = await isSessionValid(sessionId);
+    if (!valid) {
+      console.warn('Rejected WebSocket connection: invalid session');
+      ws.close();
+      return;
+    }
+  } else {
+    console.log('Public connected (read-only)');
   }
-  const valid = await isSessionValid(sessionId);
-  if (!valid) {
-    console.warn('Rejected WebSocket connection: invalid session');
-    ws.close();
-    return;
-  }
+  
   ws.isAlive = true;
+  ws.isPublic = isPublic;
   ws.on('pong', heartbeat);
   console.log('Client connected');
 
