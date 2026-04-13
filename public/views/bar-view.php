@@ -1,345 +1,392 @@
 <?php
-/* --- 1. Bar Display View Bootstrap --- */
+/* --- Bar Display View --- */
 require_once(__DIR__ . '/../../private/initialize.php');
 
 $pdo = db();
 $activePubId = isset($_SESSION['active_pub_id']) ? (int)$_SESSION['active_pub_id'] : null;
 
-/* --- 2. Data Fetching + AJAX Partial --- */
-
+/* --- AJAX partial: returns three column divs --- */
 if (isset($_GET['fetch_view'])) {
-    // Fetch orders with pre-aggregated item status counters using order_items/menu_items
-    $query = "
-        SELECT
-            o.order_id,
-            o.order_number,
-            o.customer_name,
-            o.status AS order_status,
-            o.created_at
+    $stmt = $pdo->prepare("
+        SELECT o.order_id, o.order_number, o.customer_name,
+               o.status AS order_status, o.created_at
         FROM orders o
         WHERE o.event_id = :event_id
           AND o.created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
         ORDER BY o.created_at DESC
-    ";
-    $stmt = $pdo->prepare($query);
+    ");
     $stmt->execute(['event_id' => $activePubId]);
     $orders = $stmt->fetchAll();
 
-
-    // Buckets
-    $preparing = [];
-    $inProgress = [];
-    $doneDelivered = [];
-
+    $preparing = []; $inProgress = []; $doneDelivered = [];
     foreach ($orders as $o) {
-        $status = strtolower($o['order_status']);
-        if ($status === 'pending' || $status === 'received') {
-            $o['display_status'] = ucfirst($status) === 'Received' ? 'Preparing' : ucfirst($status);
+        $s = strtolower($o['order_status']);
+        if ($s === 'pending' || $s === 'received') {
+            $o['display_status'] = 'Väntar';
             $preparing[] = $o;
-        } elseif ($status === 'in progress') {
-            $o['display_status'] = 'In-progress';
+        } elseif ($s === 'in progress') {
+            $o['display_status'] = 'Tillagas';
             $inProgress[] = $o;
-        } elseif ($status === 'done' || $status === 'delivered') {
-            $o['display_status'] = ucfirst($status);
+        } elseif ($s === 'done' || $s === 'delivered') {
+            $o['display_status'] = ($s === 'done') ? 'Klar' : 'Hämtad';
+            $o['is_delivered'] = ($s === 'delivered');
             $doneDelivered[] = $o;
         }
     }
 
-    /* --- 3. Render HTML Fragments --- */
-    
-    // 1. PREPARING COLUMN
+    // Col 1 – Waiting
     echo '<div id="col-preparing">';
     if (empty($preparing)) {
-         echo '<div class="empty-msg">No orders preparing</div>';
+        echo '<div class="empty-msg">Inga väntande beställningar</div>';
     } else {
         foreach ($preparing as $o) {
-            $displayOrderNumber = $o['order_number'] ?? $o['order_id'];
-            echo '<div class="card card-preparing">
-                    <div class="row-top">
-                        <span class="ord-num">#' . htmlspecialchars($displayOrderNumber) . '</span>
-                        <span class="status-pill badge-prep">' . $o['display_status'] . '</span>
-                    </div>
-                    <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
-                  </div>';
+            $num = htmlspecialchars($o['order_number'] ?? $o['order_id']);
+            $name = htmlspecialchars($o['customer_name']);
+            echo "<div class=\"order-card status-waiting\" data-order-id=\"{$o['order_id']}\">
+                    <span class=\"order-num\">#{$num}</span>
+                    <span class=\"customer-name\">{$name}</span>
+                  </div>";
         }
     }
     echo '</div>';
 
-    // 2. IN-PROGRESS COLUMN
+    // Col 2 – In progress
     echo '<div id="col-inprogress">';
     if (empty($inProgress)) {
-         echo '<div class="empty-msg">No orders in progress</div>';
+        echo '<div class="empty-msg">Inga aktiva beställningar</div>';
     } else {
         foreach ($inProgress as $o) {
-            $displayOrderNumber = $o['order_number'] ?? $o['order_id'];
-            echo '<div class="card card-inProgress">
-                    <div class="row-top">
-                        <span class="ord-num">#' . htmlspecialchars($displayOrderNumber) . '</span>
-                        <span class="status-pill badge-cook">' . $o['display_status'] . '</span>
-                    </div>
-                    <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
-                  </div>';
+            $num = htmlspecialchars($o['order_number'] ?? $o['order_id']);
+            $name = htmlspecialchars($o['customer_name']);
+            echo "<div class=\"order-card status-progress\" data-order-id=\"{$o['order_id']}\">
+                    <span class=\"order-num\">#{$num}</span>
+                    <span class=\"customer-name\">{$name}</span>
+                  </div>";
         }
     }
     echo '</div>';
 
-    // 3. DONE/DELIVERED COLUMN
+    // Col 3 – Done / Delivered
     echo '<div id="col-done-delivered">';
     if (empty($doneDelivered)) {
-         echo '<div class="empty-msg">No completed orders</div>';
+        echo '<div class="empty-msg">Inga klara beställningar</div>';
     } else {
         foreach ($doneDelivered as $o) {
-            $badgeClass = ($o['display_status'] === 'Done') ? 'badge-done' : 'badge-del';
-            $extraClass = ($o['display_status'] === 'Delivered') ? ' delivered' : '';
-            $statusKey = strtolower($o['display_status']);
-            $displayOrderNumber = $o['order_number'] ?? $o['order_id'];
-            
-            echo '<div class="card card-doneDelivered' . $extraClass . '" data-order-id="' . htmlspecialchars($o['order_id']) . '" data-display-status="' . htmlspecialchars($statusKey) . '">
-                    <div class="row-top">
-                        <span class="ord-num">#' . htmlspecialchars($displayOrderNumber) . '</span>
-                        <span class="status-pill ' . $badgeClass . '">' . $o['display_status'] . '</span>
-                    </div>
-                    <div class="cust-name">' . htmlspecialchars($o['customer_name']) . '</div>
-                  </div>';
+            $num = htmlspecialchars($o['order_number'] ?? $o['order_id']);
+            $name = htmlspecialchars($o['customer_name']);
+            $isDel = !empty($o['is_delivered']);
+            $extra = $isDel ? ' is-delivered' : '';
+            $badgeClass = $isDel ? 'badge-delivered' : 'badge-done';
+            echo "<div class=\"order-card status-done{$extra}\" data-order-id=\"{$o['order_id']}\" data-delivered=\"" . ($isDel ? '1' : '0') . "\">
+                    <span class=\"order-num\">#{$num}</span>
+                    <span class=\"customer-name\">{$name}</span>
+                  </div>";
         }
     }
     echo '</div>';
-
     exit;
 }
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
-    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kund display</title>
+    <title>Flashit Milkshake Pub — Beställningsstatus</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
     <style>
-        /* --- 4. Layout & Theme --- */
         :root {
-            /* Light Mode Palette */
-            --bg: #f3f4f6;          /* Light Grey Background */
-            --header-bg: #ffffff;   /* White Header */
-            --column-border: #e5e7eb;
-            
-            --text-main: #1f2937;   /* Dark Grey Text */
-            --text-sub: #6b7280;    /* Light Grey Text */
-            
-            --card-bg: #ffffff;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            
-            /* Status Colors */
-            --color-recv: #6b7280;  /* Grey for Received */
-            --color-prep: #3b82f6;  /* Blue for Preparing */
-            --color-cook: #f59e0b;  /* Orange for Cooking */
-            --color-ready: #f59e0b; /* Orange for Ready */
-            --color-done: #22c55e;  /* Green for Done */
-            --color-del: #9ca3af;   /* Light Grey for Delivered */
+            --bg:           #f3f4f6;
+            --panel:        #ffffff;
+            --border:       #e5e7eb;
+            --column-border:#e5e7eb;
+            --col-center:   #ffffff;
+
+            --text-main:    #1f2937;
+            --text-sub:     #6b7280;
+            --text-num:     #9ca3af;
+
+            --waiting-glow: #3b82f6;
+            --progress-glow:#f59e0b;
+            --done-glow:    #22c55e;
+
+            --waiting-bg:   #eff6ff;
+            --progress-bg:  #fef3c7;
+            --done-bg:      #dcfce7;
         }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            margin: 0;
-            background-color: var(--bg);
-            color: var(--text-main);
             font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-            height: 100vh;
+            background: var(--bg);
+            color: var(--text-main);
+            height: 100dvh;
             overflow: hidden;
             display: flex;
             flex-direction: column;
         }
 
-        /* Top Header */
-        header {
-            background: var(--header-bg);
-            padding: 1.5rem 2rem;
-            text-align: center;
-            border-bottom: 1px solid var(--column-border);
-            letter-spacing: 1px;
-            text-transform: uppercase;
+        /* ── Header ── */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            height: 72px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 2rem;
             font-weight: 800;
-            font-size: 1.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            letter-spacing: -0.02em;
             color: var(--text-main);
         }
+        .brand-icon { font-size: 1.6rem; }
 
-        /* Main Grid */
-        .display-board {
+        .top-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        #clock {
+            font-family: 'Space Mono', monospace;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: 0.04em;
+        }
+
+        #connection-status {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            color: var(--text-sub);
+            transition: color 0.3s, background 0.3s;
+        }
+        #connection-status[data-status="live"]  { color: #16a34a; background: rgba(34,197,94,.1); border-color: rgba(34,197,94,.3); }
+        #connection-status[data-status="offline"],
+        #connection-status[data-status="reconnecting"] { color: #dc2626; background: rgba(220,38,38,.1); border-color: rgba(220,38,38,.3); }
+
+        /* ── Column headers ── */
+        .col-labels {
             display: grid;
-            grid-template-columns: 1fr 1.2fr 1fr; /* Center column slightly wider */
-            height: 100%;
+            grid-template-columns: 1fr 1fr 1fr;
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .col-label {
+            padding: 0.85rem 1.5rem;
+            font-size: 1.2rem;
+            font-weight: 800;
+            letter-spacing: 0.15em;
+            text-align: center;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            border-bottom: 3px solid var(--column-border);
+        }
+        .col-label:last-child { border-right: none; }
+        .col-label.active-col { color: var(--progress-glow); border-bottom-color: var(--progress-glow); }
+        .col-label.done-col   { color: var(--done-glow); border-bottom-color: var(--done-glow); }
+
+        /* ── Board ── */
+        .board {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            flex: 1;
             overflow: hidden;
         }
 
-        /* Columns */
-        .column {
-            padding: 1.5rem;
-            border-right: 1px dashed var(--column-border);
+        .col {
+            padding: 1.25rem;
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
-            background: var(--bg);
+            gap: 0.75rem;
         }
-        .column:last-child { border-right: none; }
+        .col:last-child { border-right: none; }
+        .col-mid { background: var(--col-center); }
 
-        .col-header {
-            font-size: 1.25rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            text-align: center;
-            padding-bottom: 1rem;
-            margin-bottom: 1rem;
-            border-bottom: 2px solid var(--column-border);
+        /* Scrollbar */
+        .col::-webkit-scrollbar { width: 4px; }
+        .col::-webkit-scrollbar-track { background: transparent; }
+        .col::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        /* ── Order cards ── */
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .order-card {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            padding: 1rem 1.1rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            animation: cardIn 0.3s ease both;
+            transition: opacity 0.4s;
+        }
+
+        .status-waiting {
+            background: var(--waiting-bg);
+            border-left: 3px solid var(--waiting-glow);
+        }
+        .status-progress {
+            background: var(--progress-bg);
+            border-left: 3px solid var(--progress-glow);
+            box-shadow: 0 0 12px rgba(245,158,11,.1);
+        }
+        .status-done {
+            background: var(--done-bg);
+            border-left: 3px solid var(--done-glow);
+            box-shadow: 0 0 12px rgba(34,197,94,.1);
+        }
+        .status-done.is-delivered {
+            opacity: 0.4;
+            border-left-color: var(--text-sub);
+            background: transparent;
+            box-shadow: none;
+        }
+        .status-done.is-delivered .customer-name {
+            text-decoration: line-through;
             color: var(--text-sub);
         }
 
-        /* Middle Column Emphasis */
-        .col-center { background: #ffffff; border-left: 1px solid var(--column-border); border-right: 1px solid var(--column-border); }
-        .col-center .col-header { color: var(--color-done); border-bottom-color: var(--color-done); }
-
-        /* List Container */
-        .order-list {
-            flex-grow: 1;
-            overflow-y: hidden; 
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
+        .order-num {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            font-size: 0.7rem;
+            color: var(--text-num);
+            font-weight: 700;
+            letter-spacing: 0.05em;
         }
 
-        .empty-msg { text-align: center; color: var(--text-sub); opacity: 0.6; margin-top: 2rem; font-style: italic; }
-
-        /* Cards */
-        .card {
-            background: var(--card-bg);
-            padding: 1.25rem;
-            border-radius: 8px;
-            box-shadow: var(--shadow);
-            border: 1px solid #e5e7eb;
-            position: relative;
-        }
-        
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        .customer-name {
+            font-size: 1.55rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            color: var(--text-main);
         }
 
-        .row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-        .ord-num { font-family: monospace; font-size: 1.1rem; color: var(--text-sub); font-weight: 600; }
-        .cust-name { font-size: 1.6rem; font-weight: 800; color: var(--text-main); line-height: 1.2; }
-        
-        .status-pill { font-size: 0.75rem; text-transform: uppercase; font-weight: bold; padding: 4px 10px; border-radius: 99px; }
+        /* Done column — make customer name pop more */
+        .col:last-child .customer-name { font-size: 1.75rem; }
 
-        /* --- 5. Specific Styles per status --- */
-
-        /* 1. Preparing (Received / Preparing) */
-        .card-preparing { border-left: 4px solid var(--color-prep); }
-        .badge-recv { background: #f3f4f6; color: var(--color-recv); }
-        .badge-prep { background: #eff6ff; color: var(--color-prep); }
-
-        /* 2. In Progress (Cooking / Ready) */
-        .card-inProgress { border-left: 4px solid var(--color-cook); }
-        .badge-cook { background: #fef3c7; color: var(--color-cook); }
-        .badge-ready { background: #fef3c7; color: var(--color-ready); }
-
-        /* 3. Done & Delivered (Done / Delivered) */
-        .card-doneDelivered { 
-            border-left: 6px solid var(--color-done); 
-            box-shadow: 0 10px 15px -3px rgba(34, 197, 94, 0.15);
+        /* Empty state */
+        .empty-msg {
+            color: var(--text-sub);
+            font-size: 0.8rem;
+            text-align: center;
+            margin-top: 2rem;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            opacity: 0.5;
         }
-        .card-doneDelivered .cust-name { font-size: 2rem; color: #000; }
-        .badge-done { background: #dcfce7; color: #166534; font-size: 0.9rem; padding: 6px 12px; }
-        .badge-del { background: #f3f4f6; color: var(--color-del); }
-        
-
-        /* Delivered styling within Done & Delivered */
-        .card-doneDelivered.delivered { opacity: 0.6; background: #f9fafb; }
-        .card-doneDelivered.delivered .cust-name { text-decoration: line-through; color: var(--text-sub); }
-
     </style>
 </head>
 <body>
 
-    <header>
-        Wait List
-    </header>
-    <div class="display-board">
-        <div class="column">
-            <div class="col-header">RECEIVED</div>
-            <div id="list-preparing" class="order-list"></div>
+    <div class="top-bar">
+        <div class="brand">
+            <span class="brand-icon">🥤</span>
+            Flashit Milkshake Pub
         </div>
-        <div class="column col-center">
-            <div class="col-header">In-progress</div>
-            <div id="list-inprogress" class="order-list"></div>
+        <div class="top-right">
+            <div id="clock">--:--:--</div>
+            <div id="connection-status">● Ansluter…</div>
         </div>
-        <div class="column">
-            <div class="col-header">Done/Delivered</div>
-            <div id="list-done-delivered" class="order-list"></div>
-        </div>
+    </div>
+
+    <div class="col-labels">
+        <div class="col-label">Väntar</div>
+        <div class="col-label active-col">Tillagas</div>
+        <div class="col-label done-col">Klar / levereras</div>
+    </div>
+
+    <div class="board">
+        <div class="col" id="list-preparing"></div>
+        <div class="col col-mid" id="list-inprogress"></div>
+        <div class="col" id="list-done-delivered"></div>
     </div>
 
     <script src="/assets/js/ws.js"></script>
     <script>
-        const DELIVERY_HIDE_DELAY_MS = 10000;
+        // ── Clock ──
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent =
+                String(now.getHours()).padStart(2,'0') + ':' +
+                String(now.getMinutes()).padStart(2,'0') + ':' +
+                String(now.getSeconds()).padStart(2,'0');
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ── Delivered grace period ──
+        const HIDE_DELAY_MS = 12000;
         const deliveredFirstSeen = new Map();
 
         function applyDeliveredGracePeriod() {
-            const doneList = document.getElementById('list-done-delivered');
-            if (!doneList) return;
-
+            const list = document.getElementById('list-done-delivered');
+            if (!list) return;
             const now = Date.now();
-            const currentDeliveredIds = new Set();
-            const deliveredCards = doneList.querySelectorAll('.card-doneDelivered.delivered');
+            const currentIds = new Set();
 
-            deliveredCards.forEach(card => {
-                const orderId = card.dataset.orderId;
-                if (!orderId) return;
-
-                currentDeliveredIds.add(orderId);
-
-                if (!deliveredFirstSeen.has(orderId)) {
-                    deliveredFirstSeen.set(orderId, now);
-                    return;
-                }
-
-                const firstSeenAt = deliveredFirstSeen.get(orderId);
-                if (now - firstSeenAt >= DELIVERY_HIDE_DELAY_MS) {
-                    card.remove();
-                }
+            list.querySelectorAll('.order-card[data-delivered="1"]').forEach(card => {
+                const id = card.dataset.orderId;
+                if (!id) return;
+                currentIds.add(id);
+                if (!deliveredFirstSeen.has(id)) { deliveredFirstSeen.set(id, now); return; }
+                if (now - deliveredFirstSeen.get(id) >= HIDE_DELAY_MS) card.remove();
             });
 
-            for (const orderId of Array.from(deliveredFirstSeen.keys())) {
-                if (!currentDeliveredIds.has(orderId)) {
-                    deliveredFirstSeen.delete(orderId);
-                }
+            for (const id of Array.from(deliveredFirstSeen.keys())) {
+                if (!currentIds.has(id)) deliveredFirstSeen.delete(id);
             }
 
-            if (!doneList.querySelector('.card')) {
-                doneList.innerHTML = '<div class="empty-msg">No completed orders</div>';
+            if (!list.querySelector('.order-card')) {
+                list.innerHTML = '<div class="empty-msg">Inga klara beställningar</div>';
             }
         }
 
-        // Fetch and update the three columns using the bar-view.php AJAX partial
+        // ── Load / refresh columns ──
         async function loadOrders() {
             try {
                 const r = await fetch(window.location.pathname + '?fetch_view=1');
                 const html = await r.text();
-                // Create a temporary container to parse the returned HTML
-                const temp = document.createElement('div');
-                temp.innerHTML = html;
-                // Replace each column by id
-                const colPreparing = document.getElementById('list-preparing');
-                const colInProgress = document.getElementById('list-inprogress');
-                const colDoneDelivered = document.getElementById('list-done-delivered');
-                const newPreparing = temp.querySelector('#col-preparing');
-                const newInProgress = temp.querySelector('#col-inprogress');
-                const newDoneDelivered = temp.querySelector('#col-done-delivered');
-                if (colPreparing && newPreparing) colPreparing.innerHTML = newPreparing.innerHTML;
-                if (colInProgress && newInProgress) colInProgress.innerHTML = newInProgress.innerHTML;
-                if (colDoneDelivered && newDoneDelivered) colDoneDelivered.innerHTML = newDoneDelivered.innerHTML;
+                const tmp = document.createElement('div');
+                tmp.innerHTML = html;
+
+                const map = [
+                    ['list-preparing',    'col-preparing'],
+                    ['list-inprogress',   'col-inprogress'],
+                    ['list-done-delivered','col-done-delivered'],
+                ];
+                map.forEach(([listId, srcId]) => {
+                    const dest = document.getElementById(listId);
+                    const src  = tmp.querySelector('#' + srcId);
+                    if (dest && src) dest.innerHTML = src.innerHTML;
+                });
+
                 applyDeliveredGracePeriod();
-            } catch (e) {
-                console.error('Failed to load orders:', e);
+            } catch(e) {
+                console.error('[bar-view] Failed to load orders:', e);
             }
         }
 
