@@ -17,6 +17,7 @@ $toasts = $inventory->getItemsByCategory('toast', true);
 // --- 2. Handle POST Actions ---
 // UPDATE ORDER: receive form, update DB, broadcast event, return JSON (AJAX) or redirect
 if (isset($_POST['update_order'])) {
+    require_csrf_token();
     $order_id = (int)$_POST['order_id'];
     $main_status = $_POST['main_status'] ?? 'Pending';
     $main_comment = trim($_POST['main_comment'] ?? '');
@@ -57,6 +58,7 @@ if (isset($_POST['update_order'])) {
 
 // DELETE ORDER: receive form, delete from DB, broadcast event, return JSON (AJAX) or redirect
 if (isset($_POST['delete_order'])) {
+    require_csrf_token();
     $order_id = (int)$_POST['order_id'];
     try {
         $ordersManager->deleteOrder($order_id);

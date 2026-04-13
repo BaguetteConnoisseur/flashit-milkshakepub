@@ -9,6 +9,11 @@ header('Content-Type: application/json');
 // 1. Grab the JSON data sent from your frontend
 $input = file_get_contents('php://input');
 $request = json_decode($input, true);
+if (!is_array($request)) {
+    http_response_code(400);
+    echo json_encode(["error" => "Invalid JSON payload"]);
+    exit;
+}
 $csrf_token = $request['csrf_token'] ?? '';
 if (!csrf_token_is_valid($csrf_token)) {
     http_response_code(403);

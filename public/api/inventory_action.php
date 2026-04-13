@@ -21,7 +21,8 @@ if ($isJson) {
 $csrfToken = $data['csrf_token'] ?? '';
 if (!csrf_token_is_valid($csrfToken)) {
     http_response_code(403);
-    exit('Ogiltig begäran. Ladda om sidan och försök igen.');
+    echo json_encode(['success' => false, 'error' => 'Ogiltig begaran. Ladda om sidan och forsok igen.']);
+    exit;
 }
 
 try {

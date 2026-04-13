@@ -6,6 +6,11 @@ require_once __DIR__ . "/../../private/src/services/broadcast.php";
 header('Content-Type: application/json');
 
 $data = json_decode(file_get_contents('php://input'), true);
+if (!is_array($data)) {
+    http_response_code(400);
+    echo json_encode(["error" => "Invalid JSON payload"]);
+    exit;
+}
 $csrf_token = $data['csrf_token'] ?? '';
 if (!csrf_token_is_valid($csrf_token)) {
     http_response_code(403);
