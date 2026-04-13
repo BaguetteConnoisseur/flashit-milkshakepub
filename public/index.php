@@ -6,7 +6,7 @@ require_once("/var/www/html/private/initialize.php");
 $errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : false;
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
