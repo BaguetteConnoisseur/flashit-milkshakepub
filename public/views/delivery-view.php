@@ -269,11 +269,16 @@ require_once(__DIR__ . '/../../private/initialize.php');
         // Sort: ready to deliver (all done) first, then in progress, then fully delivered at bottom
         data.sort((a, b) => {
             function sortRank(order) {
-                // Rank 0: Order is fully delivered
-                if (order.status === 'Delivered') return 2;
-                // Rank 1: All items are Done/Delivered but order not yet marked Delivered (ready to deliver, placed at the top)
-                if (Array.isArray(order.items) && order.items.length > 0 && order.items.every(item => item.status === 'Done' || item.status === 'Delivered')) return 0;
-                // Rank 2: Still in progress (in the middle)
+                const items = Array.isArray(order.items) ? order.items : [];
+                const hasItems = items.length > 0;
+                const allDelivered = hasItems && items.every(item => item.status === 'Delivered');
+                const allDoneOrDelivered = hasItems && items.every(item => item.status === 'Done' || item.status === 'Delivered');
+
+                // Rank 2: Fully delivered should always be at the bottom.
+                if (order.status === 'Delivered' || allDelivered) return 2;
+                // Rank 0: Ready to deliver (all items done/delivered, but not fully delivered).
+                if (allDoneOrDelivered) return 0;
+                // Rank 1: Still in progress.
                 return 1;
             }
             const aRank = sortRank(a);
