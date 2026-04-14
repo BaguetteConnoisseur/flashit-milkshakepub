@@ -149,11 +149,14 @@ if ($leaderboardPubId === null) {
 }
 
 // Pub history
+$pubHistoryInitialVisible = 10;
 $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended_at, e.is_active,
     (SELECT COUNT(*) FROM orders o WHERE o.event_id = e.event_id) AS total_orders,
     (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = e.event_id AND mi.category = 'milkshake') AS total_milkshakes,
     (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = e.event_id AND mi.category = 'toast') AS total_toasts
     FROM pub_events e ORDER BY e.started_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+
+$hasMorePubHistory = count($pubHistory) > $pubHistoryInitialVisible;
 
 ?>
 
@@ -425,6 +428,30 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
             max-width: 260px;
         }
 
+        .pub-history-more {
+            margin-top: 0.75rem;
+            text-align: center;
+        }
+
+        .pub-history-more button {
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            color: #4b5563;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 0.35rem 0.7rem;
+            border-radius: 999px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+
+        .pub-history-more button:hover {
+            background: #e5e7eb;
+            border-color: #d1d5db;
+            color: #374151;
+        }
+
         #leaderboard-section.is-loading {
             opacity: 0.65;
             transition: opacity 0.15s ease;
@@ -579,8 +606,8 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($pubHistory as $pub): ?>
-                            <tr>
+                        <?php foreach ($pubHistory as $index => $pub): ?>
+                            <tr class="<?= $index >= $pubHistoryInitialVisible ? 'pub-history-extra-row' : '' ?>" <?= $index >= $pubHistoryInitialVisible ? 'hidden' : '' ?>>
                                 <td>
                                     <?= htmlspecialchars($pub['event_name']) ?>
                                     <?php if ((int) $pub['is_active'] === 1): ?>
@@ -596,6 +623,12 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+
+                <?php if ($hasMorePubHistory): ?>
+                    <div class="pub-history-more">
+                        <button type="button" id="show-all-pub-history">Visa alla pubar (<?= count($pubHistory) ?>)</button>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </section>
 
@@ -704,6 +737,19 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
                         }
                     }
                 }
+            });
+
+            document.addEventListener('click', function (event) {
+                const target = event.target;
+                if (!(target instanceof HTMLButtonElement) || target.id !== 'show-all-pub-history') {
+                    return;
+                }
+
+                document.querySelectorAll('.pub-history-extra-row').forEach(function (row) {
+                    row.hidden = false;
+                });
+
+                target.remove();
             });
         })();
     </script>
