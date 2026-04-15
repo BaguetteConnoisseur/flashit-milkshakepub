@@ -5,6 +5,9 @@ require_once(__DIR__ . '/../../private/initialize.php');
 $pdo = db();
 $activePubId = isset($_SESSION['active_pub_id']) ? (int)$_SESSION['active_pub_id'] : null;
 
+/* --- Configuration --- */
+$BAR_VIEW_MAX_VISIBLE_CARDS = 7;
+
 /* --- AJAX partial: returns three column divs --- */
 if (isset($_GET['fetch_view'])) {
     $stmt = $pdo->prepare("
@@ -39,12 +42,24 @@ if (isset($_GET['fetch_view'])) {
     if (empty($preparing)) {
         echo '<div class="empty-msg">Inga väntande beställningar</div>';
     } else {
-        foreach ($preparing as $o) {
+        $total = count($preparing);
+        $visible = ($total > $BAR_VIEW_MAX_VISIBLE_CARDS) ? $BAR_VIEW_MAX_VISIBLE_CARDS - 1 : $total;
+
+        for ($i = 0; $i < $visible; $i++) {
+            $o = $preparing[$i];
             $num = htmlspecialchars($o['order_number'] ?? $o['order_id']);
             $name = htmlspecialchars($o['customer_name']);
             echo "<div class=\"order-card status-waiting\" data-order-id=\"{$o['order_id']}\">
                     <span class=\"order-num\">#{$num}</span>
                     <span class=\"customer-name\">{$name}</span>
+                  </div>";
+        }
+
+        if ($total > $BAR_VIEW_MAX_VISIBLE_CARDS) {
+            $remaining = $total - ($BAR_VIEW_MAX_VISIBLE_CARDS - 1);
+            echo "<div class=\"order-card overflow-card\" aria-label=\"{$remaining} fler beställningar\">
+                    <span class=\"overflow-count\">+{$remaining}</span>
+                    <span class=\"overflow-text\">fler beställningar</span>
                   </div>";
         }
     }
@@ -55,12 +70,24 @@ if (isset($_GET['fetch_view'])) {
     if (empty($inProgress)) {
         echo '<div class="empty-msg">Inga aktiva beställningar</div>';
     } else {
-        foreach ($inProgress as $o) {
+        $total = count($inProgress);
+        $visible = ($total > $BAR_VIEW_MAX_VISIBLE_CARDS) ? $BAR_VIEW_MAX_VISIBLE_CARDS - 1 : $total;
+
+        for ($i = 0; $i < $visible; $i++) {
+            $o = $inProgress[$i];
             $num = htmlspecialchars($o['order_number'] ?? $o['order_id']);
             $name = htmlspecialchars($o['customer_name']);
             echo "<div class=\"order-card status-progress\" data-order-id=\"{$o['order_id']}\">
                     <span class=\"order-num\">#{$num}</span>
                     <span class=\"customer-name\">{$name}</span>
+                  </div>";
+        }
+
+        if ($total > $BAR_VIEW_MAX_VISIBLE_CARDS) {
+            $remaining = $total - ($BAR_VIEW_MAX_VISIBLE_CARDS - 1);
+            echo "<div class=\"order-card overflow-card\" aria-label=\"{$remaining} fler beställningar\">
+                    <span class=\"overflow-count\">+{$remaining}</span>
+                    <span class=\"overflow-text\">fler beställningar</span>
                   </div>";
         }
     }
@@ -71,7 +98,11 @@ if (isset($_GET['fetch_view'])) {
     if (empty($doneDelivered)) {
         echo '<div class="empty-msg">Inga klara beställningar</div>';
     } else {
-        foreach ($doneDelivered as $o) {
+        $total = count($doneDelivered);
+        $visible = ($total > $BAR_VIEW_MAX_VISIBLE_CARDS) ? $BAR_VIEW_MAX_VISIBLE_CARDS - 1 : $total;
+
+        for ($i = 0; $i < $visible; $i++) {
+            $o = $doneDelivered[$i];
             $num = htmlspecialchars($o['order_number'] ?? $o['order_id']);
             $name = htmlspecialchars($o['customer_name']);
             $isDel = !empty($o['is_delivered']);
@@ -80,6 +111,14 @@ if (isset($_GET['fetch_view'])) {
             echo "<div class=\"order-card status-done{$extra}\" data-order-id=\"{$o['order_id']}\" data-delivered=\"" . ($isDel ? '1' : '0') . "\">
                     <span class=\"order-num\">#{$num}</span>
                     <span class=\"customer-name\">{$name}</span>
+                  </div>";
+        }
+
+        if ($total > $BAR_VIEW_MAX_VISIBLE_CARDS) {
+            $remaining = $total - ($BAR_VIEW_MAX_VISIBLE_CARDS - 1);
+            echo "<div class=\"order-card overflow-card\" aria-label=\"{$remaining} fler beställningar\">
+                    <span class=\"overflow-count\">+{$remaining}</span>
+                    <span class=\"overflow-text\">fler beställningar</span>
                   </div>";
         }
     }
@@ -276,6 +315,30 @@ if (isset($_GET['fetch_view'])) {
             color: var(--text-num);
             font-weight: 700;
             letter-spacing: 0.05em;
+        }
+
+        .overflow-card {
+            background: #f9fafb;
+            border: 1px dashed #cbd5e1;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 65px;
+        }
+
+        .overflow-count {
+            font-size: 1.3rem;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--text-main);
+        }
+
+        .overflow-text {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-sub);
+            font-weight: 700;
         }
 
         .customer-name {
