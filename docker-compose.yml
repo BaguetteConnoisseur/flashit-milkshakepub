@@ -50,8 +50,6 @@ services:
       - .env
     environment:
       - BROADCAST_SECRET=${BROADCAST_SECRET}
-    ports:
-      - "8081:8081"
     healthcheck:
       test: ["CMD-SHELL", "node -e 'const net=require(\"net\");const socket=net.connect(8082,\"127.0.0.1\",()=>{socket.end();process.exit(0);});socket.on(\"error\",()=>process.exit(1));'"]
       interval: 10s

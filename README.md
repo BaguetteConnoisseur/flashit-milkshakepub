@@ -37,33 +37,21 @@ quick-start.bat
 
 ### Required Ports
 
-For normal use, you only need to allow incoming connections to **8081**:
+For production use, only the reverse proxy/web server entrypoint should be open externally:
 
-- **8081** — WebSocket server (used for real-time updates to clients)
+- **80/443** — HTTP/HTTPS at the edge (Nginx or your front reverse proxy)
 
-Port **8082** is the internal broadcast API used by the PHP backend to talk to the websocket container over the Docker network. It is not exposed on the host in the default compose setup, so it does not need a firewall rule.
+Port **8081** (websocket) is now internal-only and reached through Nginx at `/ws/`.
 
-If 8081 is blocked, real-time updates will not work.
+Port **8082** is the internal broadcast API used by the PHP backend to talk to the websocket container over the Docker network. It is not exposed on the host, so it does not need a firewall rule.
 
-By default, the websocket server listens on port 8081 for client connections. If you run the stack locally, Windows Defender Firewall may block this port.
+In this compose setup, the app is bound to `127.0.0.1:8080` for local host-only access. Put a front proxy in front of it for public URL access.
 
-**To allow websocket traffic through the firewall:**
+If your public reverse proxy can reach this app on localhost, real-time updates work through `/ws/` without opening an extra websocket firewall port.
 
-1. When you first run the websocket server, Windows may prompt you to allow access. Click **Allow access**.
+This keeps the websocket service hidden from the outside network while preserving instant updates.
 
-2. To add the rule manually, you can use the Windows Firewall GUI or run one of these commands in an administrator PowerShell:
-
-   **PowerShell (Windows):**
-   ```powershell
-   New-NetFirewallRule -DisplayName "Flashit RealTime WS (8081)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8081
-   ```
-
-   **Linux (ufw):**
-   ```sh
-   sudo ufw allow 8081/tcp comment 'Flashit RealTime WS'
-   ```
-
-This ensures that all clients on your network can receive real-time updates.
+No dedicated inbound firewall rule for websocket port 8081 is required.
 
 ## Useful Commands
 - Start: `docker compose up -d --build`
