@@ -49,6 +49,7 @@ function handle_login_post() {
 
     // 2. Handle Login
     if (isset($_POST['login'])) {
+        require_csrf_token();
         $pass = $_POST['password'] ?? '';
 
         // Check password using password_verify and hashed env var

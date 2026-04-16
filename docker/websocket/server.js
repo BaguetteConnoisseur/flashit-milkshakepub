@@ -54,6 +54,15 @@ wss.on('connection', async function connection(ws, req) {
   ws.isAlive = true;
   ws.isPublic = isPublic;
   ws.on('pong', heartbeat);
+  ws.on('message', () => {
+    // Clients are read-only; reject inbound messages to reduce abuse surface.
+    try {
+      ws.close(1008, 'read-only');
+    } catch (err) {
+      console.error('Failed to close read-only client:', err);
+      ws.terminate();
+    }
+  });
   console.log('Client connected');
 
   ws.on('error', (err) => {
