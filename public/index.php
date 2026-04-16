@@ -301,7 +301,7 @@ $errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : 
                     </div>
                 <?php endif; ?>
                 
-                <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+                <form method="post" action="/">
                     <?= csrf_token_input() ?>
                     <div class="form-group">
                         <input type="password" name="password" placeholder="Lösenord" required autocomplete="current-password">
@@ -311,13 +311,13 @@ $errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : 
             </div>
 
             <div class="public-screen-link">
-                <a class="btn-open-bar" href="views/bar-view.php">
+                <a class="btn-open-bar" href="/bar">
                     Öppna Barvy
                 </a>
             </div>
         <?php else: ?>
             <div class="logout-wrapper">
-                <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" style="display: inline;">
+                <form method="post" action="/" style="display: inline;">
                     <?= csrf_token_input() ?>
                     <button type="submit" name="logout-account" class="btn-logout">
                         Logga ut
@@ -326,49 +326,49 @@ $errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : 
             </div>
 
             <div class="views-grid">
-                <a href="views/startup-view.php" class="view-card startup">
+                <a href="/startup" class="view-card startup">
                     <div class="view-card-icon">🚀</div>
                     <h3>Uppstart</h3>
                     <p>Starta ny pub och gå direkt till lagervy eller kassörvy i ett steg.</p>
                 </a>
 
-                <a href="views/cashier-view.php" class="view-card cashier">
+                <a href="/cashier" class="view-card cashier">
                     <div class="view-card-icon">💰</div>
                     <h3>Kassörsvy</h3>
                     <p>Hantera beställningar och behandla kundtransaktioner.</p>
                 </a>
 
-                <a href="views/delivery-view.php" class="view-card delivery">
+                <a href="/delivery" class="view-card delivery">
                     <div class="view-card-icon">🚚</div>
                     <h3>Leveransvy</h3>
                     <p>Hantera leveranser och servering av beställda produkter.</p>
                 </a>
 
-                <a href="views/milkshake-view.php" class="view-card milkshake">
+                <a href="/milkshake" class="view-card milkshake">
                     <div class="view-card-icon">🥤</div>
                     <h3>Milkshakestation</h3>
                     <p>Förbered milkshakes och uppdatera beställningsstatus i realtid.</p>
                 </a>
 
-                <a href="views/toast-view.php" class="view-card toast">
+                <a href="/toast" class="view-card toast">
                     <div class="view-card-icon">🍞</div>
                     <h3>Toaststation</h3>
                     <p>Hantera toastförberedelser och spåra orderns framsteg.</p>
                 </a>
 
-                <a href="views/bar-view.php" class="view-card bar">
+                <a href="/bar" class="view-card bar">
                     <div class="view-card-icon">📊</div>
                     <h3>Barvy</h3>
                     <p>Översikt över alla beställningar och köksstatusvisning för att visa up på bardatorn.</p>
                 </a>
 
-                <a href="views/statistics-view.php" class="view-card stats">
+                <a href="/statistics" class="view-card stats">
                     <div class="view-card-icon">📈</div>
                     <h3>Statistik</h3>
                     <p>Se försäljning per smak, totaler och hantera rensning av orderhistorik.</p>
                 </a>
 
-                <a href="views/inventory_manager.php" class="view-card inventory">
+                <a href="/inventory_manager" class="view-card inventory">
                     <div class="view-card-icon">📦</div>
                     <h3>Lagerhanterare</h3>
                     <p>Hantera menyalternativ och ingredienser.</p>

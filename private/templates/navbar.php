@@ -90,12 +90,12 @@
 </style>
 
 <nav class="admin-navbar">
-    <a href="<?= WWW_ROOT . '/index.php' ?>" class="navbar-brand">
+    <a href="/" class="navbar-brand">
         <span class="logo-icon">🥤</span>
         FlashIT
     </a>
     
-    <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" style="margin: 0;">
+    <form method="post" action="" style="margin: 0;">
         <?= csrf_token_input() ?>
         <button type="submit" name="logout-account" class="logout-btn">
             Logga ut

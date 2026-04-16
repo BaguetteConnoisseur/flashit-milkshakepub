@@ -42,7 +42,7 @@ if (isset($_POST['update_order'])) {
             exit;
         }
 
-        header("Location: " . $_SERVER['PHP_SELF']);
+        header('Location: ' . app_url('cashier'));
         exit;
     } catch (Throwable $e) {
         if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
@@ -51,7 +51,7 @@ if (isset($_POST['update_order'])) {
             echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
             exit;
         }
-        header("Location: " . $_SERVER['PHP_SELF']);
+        header('Location: ' . app_url('cashier'));
         exit;
     }
 }
@@ -74,7 +74,7 @@ if (isset($_POST['delete_order'])) {
             exit;
         }
 
-        header("Location: " . $_SERVER['PHP_SELF']);
+        header('Location: ' . app_url('cashier'));
         exit;
     } catch (Throwable $e) {
         if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
@@ -83,7 +83,7 @@ if (isset($_POST['delete_order'])) {
             echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
             exit;
         }
-        header("Location: " . $_SERVER['PHP_SELF']);
+        header('Location: ' . app_url('cashier'));
         exit;
     }
 }
@@ -122,7 +122,7 @@ if ($ajaxModalOnly) {
                 <button type="button" class="close-btn js-modal-close">&times;</button>
             </div>
 
-            <form action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="POST" style="display:contents;" class="js-order-edit-form">
+            <form action="/cashier" method="POST" style="display:contents;" class="js-order-edit-form">
                 <?= csrf_token_input() ?>
                 <input type="hidden" name="order_id" value="<?= $modal_order['order_id'] ?>">
 
@@ -186,8 +186,8 @@ if ($ajaxModalOnly) {
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
-    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kassa station</title>
@@ -699,7 +699,7 @@ if ($ajaxModalOnly) {
 <body>
 
     <nav class="page-nav">
-        <a href="<?= WWW_ROOT ?>/index.php" class="home-btn">
+        <a href="/" class="home-btn">
             <span class="home-icon">🏠</span>
             Hem
         </a>
@@ -845,8 +845,8 @@ if ($ajaxModalOnly) {
         </div>
     </div>
     
-    <script src="/assets/js/ws.js"></script>
-    <script src="/assets/js/cashier.js"></script>
+    <script src="<?= app_asset_url('js/ws.js') ?>"></script>
+    <script src="<?= app_asset_url('js/cashier.js') ?>"></script>
     <script>
         // Fetch order list fragment (AJAX request)
         async function updateOrderList() {

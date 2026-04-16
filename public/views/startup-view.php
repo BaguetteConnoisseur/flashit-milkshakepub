@@ -71,8 +71,8 @@ if (isset($_POST['start_new_pub'])) {
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
-    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Uppstart</title>
@@ -219,7 +219,7 @@ if (isset($_POST['start_new_pub'])) {
         <section class="card">
             <h2>📋 Steg 1: Starta ett nytt MSP event</h2>
             <p style="color: var(--text-sub); margin-bottom: 1rem;">Börja med att skapa ett nytt pub-event när ni ska sälja. Detta håller ordning på alla beställningar för kvällen.</p>
-            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+            <form method="post" action="/startup">
                 <?= csrf_token_input() ?>
                 <div class="row">
                     <input type="text" name="new_msp_name" placeholder="Namn på MSP (t.ex. MSP LP4 2026)" required>
@@ -233,7 +233,7 @@ if (isset($_POST['start_new_pub'])) {
             <h2>🏪 Steg 2: Hantera smaker</h2>
             <p style="color: var(--text-sub); margin-bottom: 1rem;">Aktivera de milkshakes och toasts ni vill sälja idag. Här kan ni också lägga till nya smaker och redigera befintliga.</p>
             <div class="quick-links">
-                <a class="link-btn" href="inventory_manager.php">Öppna Lagerhanterare</a>
+                <a class="link-btn" href="/inventory_manager">Öppna Lagerhanterare</a>
             </div>
         </section>
 
@@ -242,11 +242,11 @@ if (isset($_POST['start_new_pub'])) {
             <h2>🎯 Steg 3: Använda huvudvyerna</h2>
             <p style="color: var(--text-sub); margin-bottom: 1rem;">Dessa vyer används under själva försäljningen. Öppna dem på separata skärmar/flikar för olika roller:</p>
             <div class="quick-links">
-                <a class="link-btn" href="cashier-view.php">💰 Kassörsvy</a>
-                <a class="link-btn" href="milkshake-view.php">🥤 Milkshake-vy</a>
-                <a class="link-btn" href="toast-view.php">🍞 Toast-vy</a>
-                <a class="link-btn" href="delivery-view.php">📦 Leveransvy</a>
-                <a class="link-btn" href="bar-view.php">🍺 Barvy</a>
+                <a class="link-btn" href="/cashier">💰 Kassörsvy</a>
+                <a class="link-btn" href="/milkshake">🥤 Milkshake-vy</a>
+                <a class="link-btn" href="/toast">🍞 Toast-vy</a>
+                <a class="link-btn" href="/delivery">📦 Leveransvy</a>
+                <a class="link-btn" href="/bar">🍺 Barvy</a>
             </div>
             <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.9rem;">
                 <strong>Tips:</strong> Kassören tar emot beställningar, köket gör milkshakes/toasts, och baren levererar färdiga produkter till kunder.
@@ -261,7 +261,7 @@ if (isset($_POST['start_new_pub'])) {
                 <div style="padding: 0.75rem; background: #f9fafb; border-radius: 6px; border-left: 3px solid var(--primary);">
                     <strong>📈 Statistik</strong> - Översikt av försäljning och orderstatistik för aktivt event
                     <div style="margin-top: 0.5rem;">
-                        <a class="link-btn" href="statistics-view.php" style="font-size: 0.85rem; padding: 0.5rem 0.7rem;">Öppna Statistik</a>
+                        <a class="link-btn" href="/statistics" style="font-size: 0.85rem; padding: 0.5rem 0.7rem;">Öppna Statistik</a>
                     </div>
                 </div>
             </div>

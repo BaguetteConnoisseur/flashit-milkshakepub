@@ -7,8 +7,8 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
-    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <title>Toast station</title>
     <style>
         :root {
@@ -287,8 +287,8 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
     </div>
 
-    <script src="/assets/js/ws.js"></script>
-    <script src="/assets/js/shared.js"></script>
+    <script src="<?= app_asset_url('js/ws.js') ?>"></script>
+    <script src="<?= app_asset_url('js/shared.js') ?>"></script>
     <script>
     // --- 1. Globals & Utility Functions ---
     window.CSRF_TOKEN = '<?php echo $_SESSION['csrf_token'] ?? '' ?>';
@@ -391,7 +391,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 
     // --- 3. API Logic ---
     function update(id, status, csrf_token) {
-        fetch("/api/update_item.php", {
+        fetch("<?= app_api_url('update_item.php') ?>", {
             method: "POST",
             body: JSON.stringify({item_id: id, status: status, csrf_token: csrf_token || window.CSRF_TOKEN || ''}),
             headers: {"Content-Type": "application/json"}
@@ -451,7 +451,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 
     // --- 5. Main Loader ---
     async function loadOrders() {
-        const r = await fetch("/api/get_active_orders.php");
+        const r = await fetch("<?= app_api_url('get_active_orders.php') ?>");
         let data = await r.json();
         const grid = document.getElementById("ticket-grid");
         grid.innerHTML = '';

@@ -5,8 +5,8 @@ require_once(__DIR__ . '/../../private/initialize.php');
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
-    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leverans station</title>
@@ -120,8 +120,8 @@ require_once(__DIR__ . '/../../private/initialize.php');
     </div>
     <?php include(TEMPLATE_PATH . "/public_footer.php"); ?>
 
-    <script src="/assets/js/ws.js"></script>
-    <script src="/assets/js/shared.js"></script>
+    <script src="<?= app_asset_url('js/ws.js') ?>"></script>
+    <script src="<?= app_asset_url('js/shared.js') ?>"></script>
     <script>
     // --- DOM helpers for card rendering ---
     function createOrderCard(order) {
@@ -228,7 +228,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
     async function updateOrderStatus(orderId, status) {
         const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
         try {
-            await fetch('/api/update_order.php', {
+            await fetch('<?= app_api_url('update_order.php') ?>', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ order_id: orderId, status, csrf_token: csrfToken })
@@ -243,7 +243,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
     async function deliverItem(orderItemId, btn) {
         btn.disabled = true;
         const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
-        await fetch('/api/update_item.php', {
+        await fetch('<?= app_api_url('update_item.php') ?>', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ item_id: orderItemId, status: 'Delivered', csrf_token: csrfToken })
@@ -256,7 +256,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
     // --- Main loader: fetch and render orders ---
 
     async function loadOrders() {
-        const r = await fetch("/api/get_event_orders.php");
+        const r = await fetch("<?= app_api_url('get_event_orders.php') ?>");
         let data = await r.json();
         const grid = document.getElementById("ticket-grid");
         grid.innerHTML = '';

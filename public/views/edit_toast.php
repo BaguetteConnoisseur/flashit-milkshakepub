@@ -14,11 +14,11 @@ $item = null;
 if ($itemId > 0) {
     $item = $inventory->getItemById($itemId);
     if (!$item || $item['category'] !== 'toast') {
-        header('Location: inventory_manager.php');
+        header('Location: ' . app_url('inventory_manager'));
         exit;
     }
 } else {
-    header('Location: inventory_manager.php');
+    header('Location: ' . app_url('inventory_manager'));
     exit;
 }
 
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'ingredients' => $ingredients,
                 'color' => $color
             ]);
-            header('Location: inventory_manager.php');
+            header('Location: ' . app_url('inventory_manager'));
             exit;
         }
     }
@@ -49,8 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
-    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redigera Toast</title>
@@ -195,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <section class="card">
-            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>?id=<?= (int)$item['item_id'] ?>">
+            <form method="post" action="/edit_toast?id=<?= (int)$item['item_id'] ?>">
                 <?= csrf_token_input() ?>
                 <input type="hidden" name="toast-id" value="<?= (int) $item['item_id'] ?>">
 

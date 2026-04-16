@@ -133,7 +133,7 @@ if (isset($_GET['fetch_view'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flashit Milkshake Pub — Beställningsstatus</title>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
@@ -388,7 +388,7 @@ if (isset($_GET['fetch_view'])) {
         <div class="col" id="list-done-delivered"></div>
     </div>
 
-    <script src="/assets/js/ws.js"></script>
+    <script src="<?= app_asset_url('js/ws.js') ?>"></script>
     <script>
         // ── Clock ──
         function updateClock() {

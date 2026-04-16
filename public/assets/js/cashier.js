@@ -10,6 +10,7 @@
 
 
 // --- 1. Modal open/close and quantity adjustment ---
+const APP_BASE_PATH = window.APP_BASE_PATH || '';
 function openCreateOrderModal() {
     initializeCreateOrderRows();
     document.getElementById('create-order-modal').style.display = 'flex';
@@ -352,7 +353,7 @@ document.getElementById('create-order-form').addEventListener('submit', async fu
     if (spinner) spinner.style.display = 'inline-block';
     
     try {
-        const resp = await fetch('/api/create_order.php', {
+        const resp = await fetch(APP_BASE_PATH + '/api/create_order.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

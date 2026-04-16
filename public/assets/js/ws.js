@@ -1,5 +1,7 @@
+const APP_BASE_PATH = window.APP_BASE_PATH || '';
+
 // Build WebSocket URL with public flag if needed
-let wsUrl = "ws://" + window.location.host + "/ws/";
+let wsUrl = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + APP_BASE_PATH + '/ws/';
 if (typeof isPublicBarView !== 'undefined' && isPublicBarView) {
     wsUrl += "?public=1";
 }
