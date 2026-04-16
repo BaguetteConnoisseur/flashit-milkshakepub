@@ -37,25 +37,12 @@ quick-start.bat
    ```
 5. Open [http://localhost:8080/](http://localhost:8080/)
 
-## Firewall Note
+## Required Ports
 
-### Required Ports
-
-For production use, only the reverse proxy/web server entrypoint should be open externally:
-
-- **80/443** — HTTP/HTTPS at the edge (Nginx or your front reverse proxy)
-
-Port **8081** (websocket) is now internal-only and reached through Nginx at `/ws/`.
-
-Port **8082** is the internal broadcast API used by the PHP backend to talk to the websocket container over the Docker network. It is not exposed on the host, so it does not need a firewall rule.
-
-In this compose setup, the app is bound to `127.0.0.1:8080` for local host-only access. Put a front proxy in front of it for public URL access.
-
-If your public reverse proxy can reach this app on localhost, real-time updates work through `/ws/` without opening an extra websocket firewall port.
-
-This keeps the websocket service hidden from the outside network while preserving instant updates.
-
-No dedicated inbound firewall rule for websocket port 8081 is required.
+- **80/443**: external HTTP/HTTPS entrypoint for Nginx or the front reverse proxy
+- **8080**: local host binding for the app in this compose setup
+- **8081**: internal websocket service, reached through Nginx at `/ws/`
+- **8082**: internal broadcast API used by PHP to reach the websocket container over the Docker network
 
 ## Useful Commands
 - Start: `docker compose up -d --build`
