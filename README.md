@@ -27,15 +27,11 @@ quick-start.bat
    Copy-Item .env.example .env
    ```
 2. Edit `.env` and set strong, unique credentials.
-3. Create the external Traefik network once (if missing):
-   ```sh
-   docker network create traefik
-   ```
-4. Start the stack:
+3. Start the stack:
    ```sh
    docker compose up -d --build
    ```
-5. Open [http://localhost:8080/](http://localhost:8080/)
+4. Open [http://localhost:8080/](http://localhost:8080/)
 
 ## Required Ports
 
