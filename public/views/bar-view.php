@@ -388,6 +388,7 @@ if (isset($_GET['fetch_view'])) {
         <div class="col" id="list-done-delivered"></div>
     </div>
 
+    <script> window.isPublicView = true; </script>
     <script src="<?= app_asset_url('js/ws.js') ?>"></script>
     <script>
         // ── Clock ──
