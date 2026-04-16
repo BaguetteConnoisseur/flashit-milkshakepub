@@ -13,8 +13,18 @@ services:
     depends_on:
       - backend
       - db
+    networks:
+      default:
+      traefik:
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "traefik"
+      traefik.http.routers.flashit-msp.rule: "Host(`msp.chalmers.it`)"
+      traefik.http.routers.flashit-msp.tls: "true"
+      traefik.http.routers.flashit-msp.tls.certresolver: "cfResolver"
+      traefik.http.services.flashit-msp.loadbalancer.server.port: "80"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost"]
+      test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -76,3 +86,7 @@ services:
 
 volumes:
   php-sessions:
+
+networks:
+  traefik:
+    external: true

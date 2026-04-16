@@ -31,6 +31,6 @@ if (!$loggedIn && !$isPublicPage) {
         echo json_encode(["error" => "Login required"]);
         exit;
     }
-    header("Location: /index.php");
+    header('Location: ' . app_url(''));
     exit;
 }

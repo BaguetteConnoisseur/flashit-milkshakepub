@@ -41,6 +41,20 @@ function require_csrf_token($fieldName = 'csrf_token') {
     }
 }
 
+function app_url($path = '') {
+    $path = ltrim((string) $path, '/');
+
+    return '/' . $path;
+}
+
+function app_asset_url($path) {
+    return app_url('assets/' . ltrim((string) $path, '/'));
+}
+
+function app_api_url($path) {
+    return app_url('api/' . ltrim((string) $path, '/'));
+}
+
 /**
  * Returns a normalized request path from a URI.
  */
@@ -64,6 +78,7 @@ function is_public_path($uri) {
     $publicExactPaths = [
         '/',
         '/index.php',
+        '/bar',
         '/views/bar-view.php',
     ];
 

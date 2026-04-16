@@ -43,7 +43,7 @@ function handle_login_post() {
             );
         }
         session_destroy();
-        header("Location: /index.php");
+        header('Location: ' . app_url(''));
         exit;
     }
 
@@ -59,7 +59,7 @@ function handle_login_post() {
 
             // Reset failed attempts on success
             $_SESSION['login_attempts'] = [];
-            header("Location: /index.php");
+            header('Location: ' . app_url(''));
             exit;
         } else {
             // Record failed attempt timestamp
