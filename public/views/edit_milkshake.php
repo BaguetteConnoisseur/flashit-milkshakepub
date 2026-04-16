@@ -198,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="actions">
                     <button type="submit" class="btn btn-primary" name="save-milkshake">Spara</button>
-                    <a class="btn btn-secondary" href="inventory_manager.php">Avbryt</a>
+                    <a class="btn btn-secondary" href="<?= app_url('inventory_manager') ?>">Avbryt</a>
                 </div>
             </form>
         </section>
