@@ -48,7 +48,7 @@ quick-start.bat
 
 ## Contributors
 This project was created and is managed by:
-- [Filur](https://www.github.com/Filuren123)
 - [Ponky](https://www.github.com/BaguetteConnoisseur)
+- [Filur](https://www.github.com/Filuren123)
 
 From FlashIT'25.
