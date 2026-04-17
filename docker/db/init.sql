@@ -39,12 +39,14 @@ CREATE TABLE IF NOT EXISTS orders (
     event_id INT UNSIGNED NOT NULL,
     order_number INT UNSIGNED NULL,
     customer_name VARCHAR(100) NOT NULL,
+    order_origin ENUM('customer', 'staff') NOT NULL DEFAULT 'customer',
     status ENUM('Pending', 'In Progress', 'Done', 'Delivered') DEFAULT 'Pending',
     order_comment TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_orders_event FOREIGN KEY (event_id) REFERENCES pub_events(event_id),
     UNIQUE KEY uq_event_order_num (event_id, order_number),
-    INDEX idx_order_status (status)
+    INDEX idx_order_status (status),
+    INDEX idx_order_origin (order_origin)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
 -- 6. ORDER LINE ITEMS

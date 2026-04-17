@@ -84,9 +84,13 @@ class OrderManager {
 
             $customerName = $request['customer_name'] ?? $defaultCustomerName;
             $orderComment = $request['order_comment'] ?? null;
+            $orderOrigin = (string) ($request['order_origin'] ?? 'customer');
+            if (!in_array($orderOrigin, ['customer', 'staff'], true)) {
+                $orderOrigin = 'customer';
+            }
 
-            $stmt = $this->db->prepare('INSERT INTO orders (event_id, order_number, customer_name, order_comment) VALUES (?, ?, ?, ?)');
-            $stmt->execute([$this->eventId, $nextOrderNumber, $customerName, $orderComment]);
+            $stmt = $this->db->prepare('INSERT INTO orders (event_id, order_number, customer_name, order_origin, order_comment) VALUES (?, ?, ?, ?, ?)');
+            $stmt->execute([$this->eventId, $nextOrderNumber, $customerName, $orderOrigin, $orderComment]);
             $orderId = (int) $this->db->lastInsertId();
 
             $placeholders = implode(',', array_fill(0, count($slugs), '?'));
@@ -304,7 +308,7 @@ class OrderManager {
         $selectOrderStatus = $includeOrderStatus ? 'o.status,' : '';
         $sql = "
             SELECT
-                o.order_id, o.created_at, o.customer_name, o.order_comment, o.order_number, {$selectOrderStatus}
+                o.order_id, o.created_at, o.customer_name, o.order_origin, o.order_comment, o.order_number, {$selectOrderStatus}
                 COALESCE(JSON_ARRAYAGG(
                     CASE WHEN oi.order_item_id IS NOT NULL THEN
                         JSON_OBJECT(

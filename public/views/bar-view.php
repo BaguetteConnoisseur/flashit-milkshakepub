@@ -15,6 +15,7 @@ if (isset($_GET['fetch_view'])) {
                o.status AS order_status, o.created_at
         FROM orders o
         WHERE o.event_id = :event_id
+                    AND COALESCE(o.order_origin, 'customer') = 'customer'
           AND o.created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
         ORDER BY o.created_at DESC
     ");

@@ -302,6 +302,8 @@ document.addEventListener('DOMContentLoaded', function () {
 document.getElementById('create-order-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = this;
+    const staffOrderCheckbox = form.querySelector('#is_staff_order');
+    const orderOrigin = staffOrderCheckbox && staffOrderCheckbox.checked ? 'staff' : 'customer';
     const customerName = form.customer_name.value.trim();
     const orderComment = form.order_comment.value.trim();
     const csrfToken = form.querySelector('input[name="csrf_token"]').value;
@@ -343,6 +345,7 @@ document.getElementById('create-order-form').addEventListener('submit', async fu
     const payload = {
         csrf_token: csrfToken,
         customer_name: customerName,
+        order_origin: orderOrigin,
         order_comment: orderComment,
         items: items
     };

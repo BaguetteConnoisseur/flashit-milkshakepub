@@ -607,6 +607,17 @@ if ($ajaxModalOnly) {
             font-weight: 700;
             text-transform: uppercase;
         }
+        .origin-badge {
+            display: inline-block;
+            padding: 0.2rem 0.45rem;
+            border-radius: 99px;
+            font-size: 0.66rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: #e0f2fe;
+            color: #075985;
+            margin-top: 0.15rem;
+        }
         .badge-pending { background: #fff7ed; color: #c2410c; }
         .badge-in-progress { background: #fef3c7; color: #92400e; }
         .badge-done { background: #dcfce7; color: #166534; }
@@ -736,10 +747,11 @@ if ($ajaxModalOnly) {
                 <?php foreach($orders as $order): 
                     $statusClass = strtolower($order['status']) === 'delivered' ? 'status-delivered' : '';
                     $badgeClass = 'badge-' . str_replace(' ', '-', strtolower($order['status']));
+                    $isStaffOrder = ($order['order_origin'] ?? 'customer') === 'staff';
                 ?>
                     <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
                         <div class="card-header">
-                            <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?></span>
+                            <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?><?php if ($isStaffOrder): ?><span class="origin-badge">Personal</span><?php endif; ?></span>
                             <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
                         </div>
                         <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
@@ -758,10 +770,11 @@ if ($ajaxModalOnly) {
             <?php foreach($orders as $order): 
                 $statusClass = strtolower($order['status']) === 'delivered' ? 'status-delivered' : '';
                 $badgeClass = 'badge-' . str_replace(' ', '-', strtolower($order['status']));
+                $isStaffOrder = ($order['order_origin'] ?? 'customer') === 'staff';
             ?>
                 <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
                     <div class="card-header">
-                        <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?></span>
+                        <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?><?php if ($isStaffOrder): ?><span class="origin-badge">Personal</span><?php endif; ?></span>
                         <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
                     </div>
                     <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
@@ -790,6 +803,12 @@ if ($ajaxModalOnly) {
                     <div class="form-group">
                         <label for="customer_name">Kundnamn</label>
                         <input type="text" id="customer_name" name="customer_name" required placeholder="t.ex. Fillidutten" aria-required="true">
+                    </div>
+                    <div class="form-group" style="margin-top: -0.35rem;">
+                        <label style="display:flex; gap:0.5rem; align-items:center; cursor:pointer; font-weight:500;">
+                            <input type="checkbox" id="is_staff_order" name="is_staff_order" style="width:auto; margin:0;">
+                            Personalbeställning
+                        </label>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div>

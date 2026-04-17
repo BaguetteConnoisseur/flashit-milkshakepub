@@ -90,7 +90,8 @@ $stmt = $db->prepare("SELECT o.order_id,
     FROM orders o
     JOIN order_items oi ON o.order_id = oi.order_id
     JOIN menu_items mi ON oi.item_id = mi.item_id
-    WHERE o.event_id = ?
+        WHERE o.event_id = ?
+            AND COALESCE(o.order_origin, 'customer') = 'customer'
     GROUP BY o.order_id");
 $stmt->execute([$selectedPubId]);
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $orderRow) {

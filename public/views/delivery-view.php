@@ -50,6 +50,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
 
         .card-header { padding: 1.25rem; border-bottom: 1px solid #f3f4f6; background: #f9fafb; }
         .meta { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-sub); text-transform: uppercase; margin-bottom: 0.5rem; }
+        .origin-badge { display: inline-block; margin-left: 0.75rem; padding: 0.15rem 0.45rem; border-radius: 999px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; background: #e0f2fe; color: #075985; }
         .customer { font-size: 1.25rem; font-weight: 700; }
         .order-note { margin-top: 0.5rem; background: var(--note-order-bg); color: var(--note-order-text); padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }
 
@@ -145,9 +146,10 @@ require_once(__DIR__ . '/../../private/initialize.php');
         // Card header
         const header = document.createElement('div');
         header.className = 'card-header';
+        const isKitchenOrder = (order.order_origin || 'customer') === 'staff';
         header.innerHTML = `
             <div class="meta">
-                <span>#${order.order_number}</span>
+                <span>#${order.order_number}${isKitchenOrder ? '<span class="origin-badge">PERSONAL</span>' : ''}</span>
                 <span>${order.created_at ? new Date(order.created_at).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'}) : ''}</span>
             </div>
             <div class="customer">
