@@ -601,10 +601,10 @@ if ($pricingCalculationRequested) {
                 <button type="button" id="calculate-revenue-btn">Beräkna</button>
             </div>
 
-            <div id="revenue-calculator-result" class="kpi" style="margin-bottom: 0;">
+            <div id="revenue-calculator-result" class="kpi" style="margin-bottom: 0; display: none;">
                 <div class="kpi-label">Beräknad intäkt för <?= htmlspecialchars($selectedPubName) ?></div>
-                <div class="kpi-value" id="revenue-calculator-total" style="font-size: 2rem;">-</div>
-                <p id="revenue-calculator-breakdown" style="margin: 0.5rem 0 0; color: var(--text-sub); line-height: 1.5;">Fyll i priser och tryck på Beräkna.</p>
+                <div class="kpi-value" id="revenue-calculator-total" style="font-size: 2rem;"></div>
+                <p id="revenue-calculator-breakdown" style="margin: 0.5rem 0 0; color: var(--text-sub); line-height: 1.5;"></p>
             </div>
         </section>
 
@@ -788,6 +788,7 @@ if ($pricingCalculationRequested) {
             const revenueCalculator = document.getElementById('revenue-calculator');
             if (revenueCalculator) {
                 const calculateButton = document.getElementById('calculate-revenue-btn');
+                const resultBox = document.getElementById('revenue-calculator-result');
                 const totalOutput = document.getElementById('revenue-calculator-total');
                 const breakdownOutput = document.getElementById('revenue-calculator-breakdown');
                 const comboPriceInput = revenueCalculator.querySelector('input[name="combo_price"]');
@@ -809,6 +810,10 @@ if ($pricingCalculationRequested) {
                 }
 
                 function calculateRevenue() {
+                    if (resultBox) {
+                        resultBox.style.display = 'block';
+                    }
+
                     const comboPrice = parsePrice(comboPriceInput.value);
                     const milkshakePrice = parsePrice(milkshakePriceInput.value);
                     const toastPrice = parsePrice(toastPriceInput.value);
@@ -826,16 +831,6 @@ if ($pricingCalculationRequested) {
                 }
 
                 calculateButton.addEventListener('click', calculateRevenue);
-                [comboPriceInput, milkshakePriceInput, toastPriceInput].forEach(function (input) {
-                    input.addEventListener('keydown', function (event) {
-                        if (event.key === 'Enter') {
-                            event.preventDefault();
-                            calculateRevenue();
-                        }
-                    });
-                });
-
-                calculateRevenue();
             }
 
             document.addEventListener('change', async function (event) {
