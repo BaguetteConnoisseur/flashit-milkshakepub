@@ -80,6 +80,28 @@ $stmt = $db->prepare("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.ord
 $stmt->execute([$selectedPubId]);
 $totalToastsSold = (int) $stmt->fetchColumn();
 
+// Compute combo revenue per order so items from different orders never get paired together.
+$revenueComboCount = 0;
+$nonComboMilkshakes = 0;
+$nonComboToasts = 0;
+$stmt = $db->prepare("SELECT o.order_id,
+    SUM(CASE WHEN mi.category = 'milkshake' THEN 1 ELSE 0 END) AS milkshakes,
+    SUM(CASE WHEN mi.category = 'toast' THEN 1 ELSE 0 END) AS toasts
+    FROM orders o
+    JOIN order_items oi ON o.order_id = oi.order_id
+    JOIN menu_items mi ON oi.item_id = mi.item_id
+    WHERE o.event_id = ?
+    GROUP BY o.order_id");
+$stmt->execute([$selectedPubId]);
+foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $orderRow) {
+    $orderMilkshakes = (int) $orderRow['milkshakes'];
+    $orderToasts = (int) $orderRow['toasts'];
+
+    $revenueComboCount += min($orderMilkshakes, $orderToasts);
+    $nonComboMilkshakes += max(0, $orderMilkshakes - $orderToasts);
+    $nonComboToasts += max(0, $orderToasts - $orderMilkshakes);
+}
+
 // Per-item sales for selected pub
 $milkshakeSales = $db->prepare("SELECT mi.name, COUNT(*) AS total_sold FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'milkshake' GROUP BY mi.item_id, mi.name ORDER BY total_sold DESC, mi.name ASC");
 $milkshakeSales->execute([$selectedPubId]);
@@ -157,6 +179,50 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
     FROM pub_events e ORDER BY e.started_at DESC")->fetchAll(PDO::FETCH_ASSOC);
 
 $hasMorePubHistory = count($pubHistory) > $pubHistoryInitialVisible;
+
+// Revenue calculator for active pub sales
+$comboPriceInput = $_GET['combo_price'] ?? '35';
+$milkshakePriceInput = $_GET['milkshake_price'] ?? '20';
+$toastPriceInput = $_GET['toast_price'] ?? '20';
+$pricingCalculationRequested = isset($_GET['calculate_revenue']);
+$pricingError = null;
+$pubRevenue = null;
+$comboCount = $revenueComboCount;
+$nonComboMilkshakesCount = $nonComboMilkshakes;
+$nonComboToastsCount = $nonComboToasts;
+$comboPrice = null;
+$milkshakePrice = null;
+$toastPrice = null;
+
+
+$parsePrice = static function ($rawValue) {
+    $normalized = str_replace([' ', ','], ['', '.'], trim((string) $rawValue));
+    if ($normalized === '' || !is_numeric($normalized)) {
+        return null;
+    }
+
+    $value = (float) $normalized;
+    if ($value < 0) {
+        return null;
+    }
+
+    return round($value, 2);
+};
+
+if ($pricingCalculationRequested) {
+    $comboPrice = $parsePrice($comboPriceInput);
+    $milkshakePrice = $parsePrice($milkshakePriceInput);
+    $toastPrice = $parsePrice($toastPriceInput);
+
+    if ($comboPrice === null || $milkshakePrice === null || $toastPrice === null) {
+        $pricingError = 'Fyll i giltiga priser (0 eller högre) för combo, milkshake och toast.';
+    } else {
+        $pubRevenue =
+            ($comboCount * $comboPrice)
+            + ($nonComboMilkshakesCount * $milkshakePrice)
+            + ($nonComboToastsCount * $toastPrice);
+    }
+}
 
 ?>
 
@@ -497,6 +563,53 @@ $hasMorePubHistory = count($pubHistory) > $pubHistoryInitialVisible;
             </div>
         </div>
 
+        <section class="card" style="margin-bottom: 1.5rem;" id="revenue-calculator" data-combo-count="<?= (int) $comboCount ?>" data-non-combo-milkshakes="<?= (int) $nonComboMilkshakesCount ?>" data-non-combo-toasts="<?= (int) $nonComboToastsCount ?>" data-selected-pub-name="<?= htmlspecialchars($selectedPubName) ?>">
+            <h2>Intäktskalkylator (aktiv pub)</h2>
+            <p style="color: var(--text-sub); margin-top: 0;">
+                Kombos räknas som matchade par av milkshake + toast. Resten räknas som ordinarie pris.
+            </p>
+
+            <div class="pub-tools" style="margin-bottom: 1rem;">
+                <?php if ($leaderboardPubId !== null): ?>
+                    <input type="hidden" name="leaderboard_pub_id" value="<?= (int) $leaderboardPubId ?>">
+                <?php endif; ?>
+
+                <input
+                    type="text"
+                    inputmode="decimal"
+                    name="combo_price"
+                    placeholder="Combo-pris"
+                    value="<?= htmlspecialchars((string) $comboPriceInput) ?>"
+                    required
+                >
+                <input
+                    type="text"
+                    inputmode="decimal"
+                    name="milkshake_price"
+                    placeholder="Milkshake-pris"
+                    value="<?= htmlspecialchars((string) $milkshakePriceInput) ?>"
+                    required
+                >
+                <input
+                    type="text"
+                    inputmode="decimal"
+                    name="toast_price"
+                    placeholder="Toast-pris"
+                    value="<?= htmlspecialchars((string) $toastPriceInput) ?>"
+                    required
+                >
+                <button type="button" id="calculate-revenue-btn">Beräkna</button>
+            </div>
+
+            <div id="revenue-calculator-result" class="kpi" style="margin-bottom: 0;">
+                <div class="kpi-label">Beräknad intäkt för <?= htmlspecialchars($selectedPubName) ?></div>
+                <div class="kpi-value" id="revenue-calculator-total" style="font-size: 2rem;">-</div>
+                <p id="revenue-calculator-breakdown" style="margin: 0.5rem 0 0; color: var(--text-sub); line-height: 1.5;">Fyll i priser och tryck på Beräkna.</p>
+            </div>
+        </section>
+
+        <p class="subtitle" style="margin: 0 0 1rem;">Allmän statistik:</p>
+
         <div class="grid-2">
             <section class="card">
                 <h2>Milkshakeförsäljning per smak</h2>
@@ -671,6 +784,59 @@ $hasMorePubHistory = count($pubHistory) > $pubHistoryInitialVisible;
         (function () {
             const leaderboardSectionSelector = '#leaderboard-section';
             let activeRequest = null;
+
+            const revenueCalculator = document.getElementById('revenue-calculator');
+            if (revenueCalculator) {
+                const calculateButton = document.getElementById('calculate-revenue-btn');
+                const totalOutput = document.getElementById('revenue-calculator-total');
+                const breakdownOutput = document.getElementById('revenue-calculator-breakdown');
+                const comboPriceInput = revenueCalculator.querySelector('input[name="combo_price"]');
+                const milkshakePriceInput = revenueCalculator.querySelector('input[name="milkshake_price"]');
+                const toastPriceInput = revenueCalculator.querySelector('input[name="toast_price"]');
+                const comboCount = parseInt(revenueCalculator.dataset.comboCount, 10) || 0;
+                const nonComboMilkshakes = parseInt(revenueCalculator.dataset.nonComboMilkshakes, 10) || 0;
+                const nonComboToasts = parseInt(revenueCalculator.dataset.nonComboToasts, 10) || 0;
+                const selectedPubName = revenueCalculator.dataset.selectedPubName || '';
+
+                function parsePrice(value) {
+                    const normalized = String(value || '').trim().replace(',', '.');
+                    const parsed = Number(normalized);
+                    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+                }
+
+                function formatPrice(value) {
+                    return value.toFixed(2).replace('.', ',');
+                }
+
+                function calculateRevenue() {
+                    const comboPrice = parsePrice(comboPriceInput.value);
+                    const milkshakePrice = parsePrice(milkshakePriceInput.value);
+                    const toastPrice = parsePrice(toastPriceInput.value);
+
+                    if (comboPrice === null || milkshakePrice === null || toastPrice === null) {
+                        totalOutput.textContent = '-';
+                        breakdownOutput.textContent = 'Fyll i giltiga priser (0 eller högre) för combo, milkshake och toast.';
+                        return;
+                    }
+
+                    const revenue = (comboCount * comboPrice) + (nonComboMilkshakes * milkshakePrice) + (nonComboToasts * toastPrice);
+
+                    totalOutput.textContent = `${formatPrice(revenue)} kr`;
+                    breakdownOutput.textContent = `${comboCount} combo × ${formatPrice(comboPrice)} kr + ${nonComboMilkshakes} milkshake × ${formatPrice(milkshakePrice)} kr + ${nonComboToasts} toast × ${formatPrice(toastPrice)} kr`;
+                }
+
+                calculateButton.addEventListener('click', calculateRevenue);
+                [comboPriceInput, milkshakePriceInput, toastPriceInput].forEach(function (input) {
+                    input.addEventListener('keydown', function (event) {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            calculateRevenue();
+                        }
+                    });
+                });
+
+                calculateRevenue();
+            }
 
             document.addEventListener('change', async function (event) {
                 const target = event.target;
