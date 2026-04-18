@@ -193,7 +193,7 @@ if ($ajaxModalOnly) {
     <title>Kassa station</title>
     <style>
         :root {
-            --primary: #2563eb;
+            --primary: #2c80e0;
             --bg-light: #f3f4f6;
             --surface: #ffffff;
             --text-main: #1f2937;
@@ -408,7 +408,7 @@ if ($ajaxModalOnly) {
         .qty-plus {
             background: #eff6ff;
             border-color: #bfdbfe;
-            color: #1d4ed8;
+            color: #2c80e0;
         }
         
         .qty-btn:hover {
@@ -428,8 +428,8 @@ if ($ajaxModalOnly) {
         }
 
         .qty-plus:hover {
-            background: #2563eb;
-            border-color: #2563eb;
+            background: #2c80e0;
+            border-color: #2c80e0;
         }
         
         .quantity-input { 

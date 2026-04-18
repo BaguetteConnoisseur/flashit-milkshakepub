@@ -46,7 +46,7 @@
 
     .admin-navbar a:not(.navbar-brand),
     .admin-navbar button {
-        color: #667eea;
+        color: #7ea4dd;
         text-decoration: none;
         padding: 6px 12px;
         border-radius: 6px;
@@ -56,16 +56,16 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        border: 1.5px solid #667eea;
+        border: 1.5px solid #7ea4dd;
         background: none;
         cursor: pointer;
     }
 
     .admin-navbar a:not(.navbar-brand):hover,
     .admin-navbar button:hover {
-        background-color: rgba(102, 126, 234, 0.1);
-        color: #764ba2;
-        border-color: #764ba2;
+        background-color: rgba(126, 164, 221, 0.14);
+        color: #6f93c8;
+        border-color: #6f93c8;
     }
 
     .admin-navbar .logout-btn {

@@ -244,12 +244,14 @@ if ($pricingCalculationRequested) {
             --border: #e5e7eb;
             --text-main: #1f2937;
             --text-sub: #6b7280;
-            --primary: #2563eb;
+            --text-muted: #9ca3af;
+            --primary: #2c80e0;
             --danger: #dc2626;
             --success-bg: #dcfce7;
             --success-text: #166534;
             --error-bg: #fee2e2;
             --error-text: #991b1b;
+            --error-border: #fecaca;
         }
 
         body {
@@ -291,7 +293,7 @@ if ($pricingCalculationRequested) {
         .notice.error {
             background: var(--error-bg);
             color: var(--error-text);
-            border: 1px solid #fecaca;
+            border: 1px solid var(--error-border);
         }
 
         .card {
@@ -311,7 +313,7 @@ if ($pricingCalculationRequested) {
             display: flex;
             flex-wrap: wrap;
             gap: 0.75rem;
-            align-items: center;
+            align-items: flex-end;
         }
 
         .pub-tools input,
@@ -321,6 +323,24 @@ if ($pricingCalculationRequested) {
             border-radius: 8px;
             border: 1px solid var(--border);
             font-size: 0.95rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .input-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .input-group input {
+            margin: 0;
         }
 
         .pub-tools button {
@@ -364,7 +384,6 @@ if ($pricingCalculationRequested) {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 1rem;
-            margin-bottom: 1.5rem;
         }
 
         .list {
@@ -403,7 +422,7 @@ if ($pricingCalculationRequested) {
         }
 
         .danger-zone {
-            border: 1px solid #fecaca;
+            border: 1px solid var(--error-border);
             border-radius: 10px;
             padding: 1rem;
             background: #fff1f2;
@@ -418,8 +437,8 @@ if ($pricingCalculationRequested) {
             display: inline-block;
             margin-left: 0.4rem;
             font-size: 0.72rem;
-            background: #dcfce7;
-            color: #166534;
+            background: var(--success-bg);
+            color: var(--success-text);
             padding: 0.15rem 0.4rem;
             border-radius: 999px;
             font-weight: 700;
@@ -502,7 +521,7 @@ if ($pricingCalculationRequested) {
 
         .pub-history-more button {
             background: #f3f4f6;
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--border);
             color: #4b5563;
             font-size: 0.9rem;
             font-weight: 600;
@@ -565,40 +584,46 @@ if ($pricingCalculationRequested) {
         </div>
 
         <section class="card" style="margin-bottom: 1.5rem;" id="revenue-calculator" data-combo-count="<?= (int) $comboCount ?>" data-non-combo-milkshakes="<?= (int) $nonComboMilkshakesCount ?>" data-non-combo-toasts="<?= (int) $nonComboToastsCount ?>" data-selected-pub-name="<?= htmlspecialchars($selectedPubName) ?>">
-            <h2>Intäktskalkylator (aktiv pub)</h2>
-            <p style="color: var(--text-sub); margin-top: 0;">
-                Kombos räknas som matchade par av milkshake + toast. Resten räknas som ordinarie pris.
-            </p>
+            <h2>Intäktskalkylator för aktiv pub</h2>
 
             <div class="pub-tools" style="margin-bottom: 1rem;">
                 <?php if ($leaderboardPubId !== null): ?>
                     <input type="hidden" name="leaderboard_pub_id" value="<?= (int) $leaderboardPubId ?>">
                 <?php endif; ?>
 
-                <input
-                    type="text"
-                    inputmode="decimal"
-                    name="combo_price"
-                    placeholder="Combo-pris"
-                    value="<?= htmlspecialchars((string) $comboPriceInput) ?>"
-                    required
-                >
-                <input
-                    type="text"
-                    inputmode="decimal"
-                    name="milkshake_price"
-                    placeholder="Milkshake-pris"
-                    value="<?= htmlspecialchars((string) $milkshakePriceInput) ?>"
-                    required
-                >
-                <input
-                    type="text"
-                    inputmode="decimal"
-                    name="toast_price"
-                    placeholder="Toast-pris"
-                    value="<?= htmlspecialchars((string) $toastPriceInput) ?>"
-                    required
-                >
+                <div class="input-group">
+                    <label for="combo_price">Combo pris:</label>
+                    <input
+                        id="combo_price"
+                        type="text"
+                        inputmode="decimal"
+                        name="combo_price"
+                        value="<?= htmlspecialchars((string) $comboPriceInput) ?>"
+                        required
+                    >
+                </div>
+                <div class="input-group">
+                    <label for="milkshake_price">Milkshake pris:</label>
+                    <input
+                        id="milkshake_price"
+                        type="text"
+                        inputmode="decimal"
+                        name="milkshake_price"
+                        value="<?= htmlspecialchars((string) $milkshakePriceInput) ?>"
+                        required
+                    >
+                </div>
+                <div class="input-group">
+                    <label for="toast_price">Toast pris:</label>
+                    <input
+                        id="toast_price"
+                        type="text"
+                        inputmode="decimal"
+                        name="toast_price"
+                        value="<?= htmlspecialchars((string) $toastPriceInput) ?>"
+                        required
+                    >
+                </div>
                 <button type="button" id="calculate-revenue-btn">Beräkna</button>
             </div>
 
@@ -614,14 +639,14 @@ if ($pricingCalculationRequested) {
         <div class="grid-2">
             <section class="card">
                 <h2>Milkshakeförsäljning per smak</h2>
-                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
+                <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
                 <?php if (empty($milkshakeAverages)): ?>
                     <p class="empty">Ingen milkshake-försäljning ännu.</p>
                 <?php else: ?>
                     <?php $topMilkshakeAverageSales = array_slice($milkshakeAverages, 0, 5); ?>
                     <ol class="list">
                         <?php foreach ($topMilkshakeAverageSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
+                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: var(--text-muted); font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
                 <?php endif; ?>
@@ -629,21 +654,21 @@ if ($pricingCalculationRequested) {
 
             <section class="card">
                 <h2>Toastförsäljning per smak</h2>
-                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
+                <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
                 <?php if (empty($toastAverages)): ?>
                     <p class="empty">Ingen toast-försäljning ännu.</p>
                 <?php else: ?>
                     <?php $topToastAverageSales = array_slice($toastAverages, 0, 5); ?>
                     <ol class="list">
                         <?php foreach ($topToastAverageSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
+                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: var(--text-muted); font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
                 <?php endif; ?>
             </section>
         </div>
 
-        <section id="leaderboard-section" class="card" style="margin-top: 1rem;">
+        <section id="leaderboard-section" class="card";">
             <div class="leaderboard-header">
                 <div>
                     <h2 class="leaderboard-title">Topplista</h2>

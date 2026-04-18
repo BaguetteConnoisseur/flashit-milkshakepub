@@ -85,7 +85,7 @@ if (isset($_POST['start_new_pub'])) {
             --border: #e5e7eb;
             --text-main: #1f2937;
             --text-sub: #6b7280;
-            --primary: #2563eb;
+            --primary: #2c80e0;
             --danger: #dc2626;
             --success-bg: #dcfce7;
             --success-text: #166534;

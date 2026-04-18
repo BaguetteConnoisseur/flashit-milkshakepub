@@ -20,9 +20,9 @@ $activePubName = $_SESSION['active_pub_name'];
             --text-main: #1f2937;
             --text-sub: #6b7280;
             --border: #e5e7eb;
-            --primary: #2563eb;
+            --primary: #2c80e0;
             --danger: #ef4444;
-            --accent-milkshake: #3b82f6;
+            --accent-milkshake: #2c80e0;
             --accent-toast: #f97316;
         }
 
