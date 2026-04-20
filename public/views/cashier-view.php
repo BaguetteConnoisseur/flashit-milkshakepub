@@ -127,7 +127,7 @@ if ($ajaxModalOnly) {
                 <input type="hidden" name="order_id" value="<?= $modal_order['order_id'] ?>">
 
                 <div class="modal-body">
-                    <div class="row-split" style="margin-bottom: 2rem;">
+                    <div class="row-split" style="margin-bottom: 1rem;">
                         <div class="form-group">
                             <label>Beställningsstatus</label>
                             <select name="main_status">
@@ -722,7 +722,7 @@ if ($ajaxModalOnly) {
     <section class="col-create">
         <p class="panel-kicker">Kassaarbetsyta</p>
         <h2>Ny beställning</h2>
-        <p class="panel-subtext">Skapa beställningar snabbt, tryck på artikelnamn för detaljer och skicka vidare till stationerna.</p>
+        <p class="panel-subtext">Skapa beställningar snabbt och skicka vidare till stationerna.</p>
         <button type="button" class="btn" onclick="openCreateOrderModal()">+ Ny beställning</button>
     </section>
 

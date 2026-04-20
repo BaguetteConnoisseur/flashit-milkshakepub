@@ -68,9 +68,8 @@ $stmt = $db->prepare("SELECT COUNT(*) FROM orders WHERE event_id = ?");
 $stmt->execute([$selectedPubId]);
 $totalOrders = (int) $stmt->fetchColumn();
 
-$stmt = $db->prepare("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE o.event_id = ?");
-$stmt->execute([$selectedPubId]);
-$totalItemsSold = (int) $stmt->fetchColumn();
+// Combo calculations calculated below 
+$totalCombosSold = 0;
 
 $stmt = $db->prepare("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'milkshake'");
 $stmt->execute([$selectedPubId]);
@@ -102,6 +101,8 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $orderRow) {
     $nonComboMilkshakes += max(0, $orderMilkshakes - $orderToasts);
     $nonComboToasts += max(0, $orderToasts - $orderMilkshakes);
 }
+
+$totalCombosSold = $revenueComboCount;
 
 // Per-item sales for selected pub
 $milkshakeSales = $db->prepare("SELECT mi.name, COUNT(*) AS total_sold FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'milkshake' GROUP BY mi.item_id, mi.name ORDER BY total_sold DESC, mi.name ASC");
@@ -501,6 +502,7 @@ if ($pricingCalculationRequested) {
             margin-left: auto;
             flex-wrap: nowrap;
             gap: 0.5rem;
+            align-items: center;
         }
 
         .leaderboard-filter label {
@@ -570,11 +572,11 @@ if ($pricingCalculationRequested) {
                 <div class="kpi-value"><?= $totalOrders ?></div>
             </div>
             <div class="kpi">
-                <div class="kpi-label">Sålda produkter</div>
-                <div class="kpi-value"><?= $totalItemsSold ?></div>
+                <div class="kpi-label">Beställda combos</div>
+                <div class="kpi-value"><?= $totalCombosSold ?></div>
             </div>
             <div class="kpi">
-                <div class="kpi-label">Sålda milkshakes</div>
+                <div class="kpi-label">Beställda milkshakes</div>
                 <div class="kpi-value"><?= $totalMilkshakesSold ?></div>
             </div>
             <div class="kpi">
