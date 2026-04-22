@@ -2,15 +2,18 @@
 // index.php
 require_once("/var/www/html/private/initialize.php");
 
-// handle_login_post now returns a string error if login fails, or false if nothing happened
-$errorMessage = handle_login_post();
+// Only process login/logout on POST requests
+$errorMessage = ($_SERVER['REQUEST_METHOD'] === 'POST') ? handle_login_post() : false;
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flashit Milkshake Pub - Dashboard</title>    <style>
+    <title>Flashit Milkshake Pub - Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/logo/favicon.svg">
+    <link rel="alternate icon" type="image/png" href="/assets/img/logo/favicon.png">
+    <style>
         * {
             margin: 0;
             padding: 0;
@@ -19,7 +22,7 @@ $errorMessage = handle_login_post();
         
         body {
             font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #09cdda 0%, #6c5ad1 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -84,7 +87,7 @@ $errorMessage = handle_login_post();
         .btn-login {
             width: 100%;
             padding: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #09cdda 0%, #6c5ad1 100%);
             color: white;
             border: none;
             border-radius: 8px;
@@ -181,7 +184,7 @@ $errorMessage = handle_login_post();
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(90deg, #09cdda 0%, #6c5ad1 100%);
             transform: scaleX(0);
             transition: transform 0.3s ease;
         }
@@ -204,7 +207,7 @@ $errorMessage = handle_login_post();
             justify-content: center;
             font-size: 28px;
             margin-bottom: 16px;
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            background: linear-gradient(135deg, rgba(9, 205, 218, 0.1) 0%, rgba(108, 90, 209, 0.1) 100%);
         }
         
         .view-card h3 {
@@ -291,13 +294,14 @@ $errorMessage = handle_login_post();
             <div class="login-card">
                 <h2>Välkommen tillbaka</h2>
                 
+
                 <?php if ($errorMessage): ?>
                     <div class="error-message">
-                        Ogiltiga uppgifter. Försök igen.
+                        <?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?>
                     </div>
                 <?php endif; ?>
                 
-                <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>">
+                <form method="post" action="/">
                     <?= csrf_token_input() ?>
                     <div class="form-group">
                         <input type="password" name="password" placeholder="Lösenord" required autocomplete="current-password">
@@ -307,13 +311,13 @@ $errorMessage = handle_login_post();
             </div>
 
             <div class="public-screen-link">
-                <a class="btn-open-bar" href="views/bar-view.php">
+                <a class="btn-open-bar" href="/bar">
                     Öppna Barvy
                 </a>
             </div>
         <?php else: ?>
             <div class="logout-wrapper">
-                <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" style="display: inline;">
+                <form method="post" action="/" style="display: inline;">
                     <?= csrf_token_input() ?>
                     <button type="submit" name="logout-account" class="btn-logout">
                         Logga ut
@@ -322,49 +326,49 @@ $errorMessage = handle_login_post();
             </div>
 
             <div class="views-grid">
-                <a href="views/startup-view.php" class="view-card startup">
+                <a href="/startup" class="view-card startup">
                     <div class="view-card-icon">🚀</div>
                     <h3>Uppstart</h3>
                     <p>Starta ny pub och gå direkt till lagervy eller kassörvy i ett steg.</p>
                 </a>
 
-                <a href="views/cashier-view.php" class="view-card cashier">
+                <a href="/cashier" class="view-card cashier">
                     <div class="view-card-icon">💰</div>
                     <h3>Kassörsvy</h3>
                     <p>Hantera beställningar och behandla kundtransaktioner.</p>
                 </a>
 
-                <a href="views/delivery-view.php" class="view-card delivery">
+                <a href="/delivery" class="view-card delivery">
                     <div class="view-card-icon">🚚</div>
                     <h3>Leveransvy</h3>
                     <p>Hantera leveranser och servering av beställda produkter.</p>
                 </a>
 
-                <a href="views/milkshake-view.php" class="view-card milkshake">
+                <a href="/milkshake" class="view-card milkshake">
                     <div class="view-card-icon">🥤</div>
                     <h3>Milkshakestation</h3>
                     <p>Förbered milkshakes och uppdatera beställningsstatus i realtid.</p>
                 </a>
 
-                <a href="views/toast-view.php" class="view-card toast">
+                <a href="/toast" class="view-card toast">
                     <div class="view-card-icon">🍞</div>
                     <h3>Toaststation</h3>
                     <p>Hantera toastförberedelser och spåra orderns framsteg.</p>
                 </a>
 
-                <a href="views/bar-view.php" class="view-card bar">
+                <a href="/bar" class="view-card bar">
                     <div class="view-card-icon">📊</div>
                     <h3>Barvy</h3>
                     <p>Översikt över alla beställningar och köksstatusvisning för att visa up på bardatorn.</p>
                 </a>
 
-                <a href="views/statistics-view.php" class="view-card stats">
+                <a href="/statistics" class="view-card stats">
                     <div class="view-card-icon">📈</div>
                     <h3>Statistik</h3>
                     <p>Se försäljning per smak, totaler och hantera rensning av orderhistorik.</p>
                 </a>
 
-                <a href="views/inventory_manager.php" class="view-card inventory">
+                <a href="/inventory_manager" class="view-card inventory">
                     <div class="view-card-icon">📦</div>
                     <h3>Lagerhanterare</h3>
                     <p>Hantera menyalternativ och ingredienser.</p>

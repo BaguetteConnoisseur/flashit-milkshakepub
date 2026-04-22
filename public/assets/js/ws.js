@@ -1,4 +1,12 @@
-const ws = new WebSocket("ws://" + window.location.host + "/ws/");
+const APP_BASE_PATH = window.APP_BASE_PATH || '';
+
+// Build WebSocket URL with public flag if needed
+let wsUrl = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + APP_BASE_PATH + '/ws/';
+if (typeof isPublicView !== 'undefined' && isPublicView) {
+    wsUrl += "?public=1";
+}
+
+const ws = new WebSocket(wsUrl);
 
 ws.onopen = () => {
     setStatus('live');

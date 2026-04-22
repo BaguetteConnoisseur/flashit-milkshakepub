@@ -1,10 +1,13 @@
 <?php
 require_once(__DIR__ . "/../../private/initialize.php");
-require_once(PRIVATE_PATH . '/src/services/inventoryManager.php');
+require_once(PRIVATE_PATH . '/src/services/inventory_manager.php');
+require_once(PRIVATE_PATH . '/src/services/order_manager.php');
+require_once(PRIVATE_PATH . '/src/services/broadcast.php');
 
 $pdo = db();
 $activePubId = $_SESSION['active_pub_id'] ?? null;
 $activePubName = $_SESSION['active_pub_name'] ?? '';
+$ordersManager = new OrderManager($pdo, $activePubId);
 
 // --- 1. Inventory for Create Form ---
 $inventory = new InventoryManager($pdo, $activePubId);
@@ -12,133 +15,185 @@ $milkshakes = $inventory->getItemsByCategory('milkshake', true);
 $toasts = $inventory->getItemsByCategory('toast', true);
 
 // --- 2. Handle POST Actions ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// UPDATE ORDER: receive form, update DB, broadcast event, return JSON (AJAX) or redirect
+if (isset($_POST['update_order'])) {
     require_csrf_token();
-    // CREATE ORDER
-    if (isset($_POST['create_order'])) {
-        $pdo->beginTransaction();
-        try {
-            $stmt = $pdo->prepare("SELECT COALESCE(MAX(order_number), 0) + 1 AS next_num FROM orders WHERE event_id = ? FOR UPDATE");
-            $stmt->execute([$activePubId]);
-            $order_number = (int)($stmt->fetchColumn() ?: 1);
-            $stmt = $pdo->prepare("INSERT INTO orders (event_id, order_number, customer_name, order_comment, status) VALUES (?, ?, ?, ?, 'Pending')");
-            $stmt->execute([
-                $activePubId,
-                $order_number,
-                trim($_POST['customer_name'] ?? ''),
-                trim($_POST['order_comment'] ?? '')
-            ]);
-            $order_id = $pdo->lastInsertId();
+    $order_id = (int)$_POST['order_id'];
+    $main_status = $_POST['main_status'] ?? 'Pending';
+    $main_comment = trim($_POST['main_comment'] ?? '');
+    try {
+        $ordersManager->updateOrder(
+            $order_id,
+            $main_status,
+            $main_comment,
+            $_POST['oi_status'] ?? [],
+            $_POST['oi_comment'] ?? []
+        );
 
-            // Milkshakes
-            foreach ($_POST['milkshakes'] ?? [] as $item_id => $qty) {
-                $qty = (int)$qty;
-                for ($i = 0; $i < $qty; $i++) {
-                    $comment = trim($_POST['milkshake_comments']['m_' . $item_id . '_' . $i] ?? '');
-                    $stmt = $pdo->prepare("INSERT INTO order_items (order_id, item_id, status, item_comment) VALUES (?, ?, 'Pending', ?)");
-                    $stmt->execute([$order_id, $item_id, $comment]);
-                }
-            }
-            // Toasts
-            foreach ($_POST['toasts'] ?? [] as $item_id => $qty) {
-                $qty = (int)$qty;
-                for ($i = 0; $i < $qty; $i++) {
-                    $comment = trim($_POST['toast_comments']['t_' . $item_id . '_' . $i] ?? '');
-                    $stmt = $pdo->prepare("INSERT INTO order_items (order_id, item_id, status, item_comment) VALUES (?, ?, 'Pending', ?)");
-                    $stmt->execute([$order_id, $item_id, $comment]);
-                }
-            }
-            $pdo->commit();
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit;
-        } catch (Throwable $e) {
-            $pdo->rollBack();
-            echo "<div style='color:red'>Fel: " . htmlspecialchars($e->getMessage()) . "</div>";
-        }
-    }
-    // UPDATE ORDER
-    if (isset($_POST['update_order'])) {
-        $order_id = (int)$_POST['order_id'];
-        $main_status = $_POST['main_status'] ?? 'Pending';
-        $main_comment = trim($_POST['main_comment'] ?? '');
-        $pdo->beginTransaction();
-        try {
-            $stmt = $pdo->prepare("UPDATE orders SET status = ?, order_comment = ? WHERE order_id = ? AND event_id = ?");
-            $stmt->execute([$main_status, $main_comment, $order_id, $activePubId]);
+        broadcast([
+            'type' => 'order_updated',
+            'order_id' => $order_id,
+            'status' => $main_status,
+        ]);
 
-            // Update order_items
-            foreach (($_POST['oi_status'] ?? []) as $oi_id => $status) {
-                $comment = $_POST['oi_comment'][$oi_id] ?? '';
-                $stmt = $pdo->prepare("UPDATE order_items SET status = ?, item_comment = ? WHERE order_item_id = ?");
-                $stmt->execute([$status, $comment, $oi_id]);
-            }
-            $pdo->commit();
-            header("Location: " . $_SERVER['PHP_SELF']);
+        if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => true, 'order_id' => $order_id]);
             exit;
-        } catch (Throwable $e) {
-            $pdo->rollBack();
         }
-    }
-    // DELETE ORDER
-    if (isset($_POST['delete_order'])) {
-        $order_id = (int)$_POST['order_id'];
-        $pdo->beginTransaction();
-        try {
-            $pdo->prepare("DELETE FROM order_items WHERE order_id = ?")->execute([$order_id]);
-            $pdo->prepare("DELETE FROM orders WHERE order_id = ? AND event_id = ?")->execute([$order_id, $activePubId]);
-            $pdo->commit();
-            header("Location: " . $_SERVER['PHP_SELF']);
+
+        header('Location: ' . app_url('cashier'));
+        exit;
+    } catch (Throwable $e) {
+        if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
             exit;
-        } catch (Throwable $e) {
-            $pdo->rollBack();
         }
+        header('Location: ' . app_url('cashier'));
+        exit;
     }
 }
 
-// --- 3. Fetch Orders ---
-$orders = [];
+// DELETE ORDER: receive form, delete from DB, broadcast event, return JSON (AJAX) or redirect
+if (isset($_POST['delete_order'])) {
+    require_csrf_token();
+    $order_id = (int)$_POST['order_id'];
+    try {
+        $ordersManager->deleteOrder($order_id);
+
+        broadcast([
+            'type' => 'order_deleted',
+            'order_id' => $order_id,
+        ]);
+
+        if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => true, 'order_id' => $order_id]);
+            exit;
+        }
+
+        header('Location: ' . app_url('cashier'));
+        exit;
+    } catch (Throwable $e) {
+        if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+        header('Location: ' . app_url('cashier'));
+        exit;
+    }
+}
+
+
+// --- 3. Fetch Orders / Modal Data ---
+// Build main order list; if view_order set, load that specific order too
 $modal_order = null;
 $modal_items = [];
-// Fetch all orders for this event
-$stmt = $pdo->prepare("SELECT * FROM orders WHERE event_id = ? ORDER BY created_at DESC");
-$stmt->execute([$activePubId]);
-$orders = $stmt->fetchAll();
+$orders = $ordersManager->getOrdersWithSummaries();
 
-// Attach summary for each order
-foreach ($orders as &$order) {
-    $stmt = $pdo->prepare("SELECT mi.name, mi.category, COUNT(*) as qty FROM order_items oi JOIN menu_items mi ON oi.item_id = mi.item_id WHERE oi.order_id = ? GROUP BY mi.item_id, mi.name, mi.category");
-    $stmt->execute([$order['order_id']]);
-    $summary = [];
-    foreach ($stmt->fetchAll() as $row) {
-        $summary[] = $row['name'] . ($row['qty'] > 1 ? " (x{$row['qty']})" : "");
-    }
-    $order['summary'] = implode(", ", $summary);
-}
-unset($order);
-
-// Modal: fetch specific order and its items
+// If viewing specific order, load it and its items
 if (isset($_GET['view_order'])) {
     $view_id = (int)$_GET['view_order'];
-    $stmt = $pdo->prepare("SELECT * FROM orders WHERE order_id = ? AND event_id = ?");
-    $stmt->execute([$view_id, $activePubId]);
-    $modal_order = $stmt->fetch();
+    $modal_order = $ordersManager->getOrderById($view_id);
     if ($modal_order) {
-        $stmt = $pdo->prepare("SELECT oi.*, mi.name, mi.category FROM order_items oi JOIN menu_items mi ON oi.item_id = mi.item_id WHERE oi.order_id = ?");
-        $stmt->execute([$view_id]);
-        $modal_items = $stmt->fetchAll();
+        $modal_items = $ordersManager->getOrderItems($view_id);
     }
+}
+
+// AJAX modal mode: return only modal HTML, exit if order missing
+$ajaxModalOnly = isset($_GET['ajax_modal']) && $_GET['ajax_modal'] === '1';
+if ($ajaxModalOnly) {
+    if (!$modal_order) {
+        http_response_code(404);
+        exit;
+    }
+    ?>
+    <div class="modal-overlay js-order-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2 style="margin:0">Order #<?= htmlspecialchars($modal_order['pub_order_number'] ?? $modal_order['order_number'] ?? $modal_order['order_id']) ?></h2>
+                    <span style="font-size:0.9rem; color:var(--text-sub)"><?= htmlspecialchars($modal_order['customer_name']) ?></span>
+                </div>
+                <button type="button" class="close-btn js-modal-close">&times;</button>
+            </div>
+
+            <form action="/cashier" method="POST" style="display:contents;" class="js-order-edit-form">
+                <?= csrf_token_input() ?>
+                <input type="hidden" name="order_id" value="<?= $modal_order['order_id'] ?>">
+
+                <div class="modal-body">
+                    <div class="row-split" style="margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Beställningsstatus</label>
+                            <select name="main_status">
+                                <?php $s = $modal_order['status']; ?>
+                                <option value="Pending" <?= $s=='Pending'?'selected':'' ?>>Väntar</option>
+                                <option value="In Progress" <?= $s=='In Progress'?'selected':'' ?>>Pågår</option>
+                                <option value="Done" <?= $s=='Done'?'selected':'' ?>>Klar</option>
+                                <option value="Delivered" <?= $s=='Delivered'?'selected':'' ?>>Levererad</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Huvudkommentar</label>
+                            <input type="text" name="main_comment" value="<?= htmlspecialchars($modal_order['order_comment'] ?? '') ?>">
+                        </div>
+                    </div>
+
+                    <h3 style="border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">Artiklar</h3>
+
+                    <?php foreach($modal_items as $item): ?>
+                        <div class="item-row">
+                            <h4>
+                                <?= $item['category'] === 'milkshake' ? '🥤' : '🥪' ?>
+                                <?= htmlspecialchars($item['name']) ?>
+                            </h4>
+                            <div class="row-split">
+                                <div>
+                                    <label>Status</label>
+                                    <select name="oi_status[<?= $item['order_item_id'] ?>]" style="padding:0.25rem;">
+                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Väntar</option>
+                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>Pågår</option>
+                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Klar</option>
+                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Levererad</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Notering</label>
+                                    <input type="text" name="oi_comment[<?= $item['order_item_id'] ?>]" value="<?= htmlspecialchars($item['item_comment']) ?>" placeholder="Lägg till notering...">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="submit" name="delete_order" class="btn btn-danger js-delete-order" style="width:auto; margin:0;">Radera beställning</button>
+                    <button type="submit" name="update_order" class="btn" style="width:auto; margin:0;">Spara ändringar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php
+    exit;
 }
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order System</title>
+    <title>Kassa station</title>
     <style>
         :root {
-            --primary: #2563eb;
+            --primary: #2c80e0;
             --bg-light: #f3f4f6;
             --surface: #ffffff;
             --text-main: #1f2937;
@@ -302,7 +357,28 @@ if (isset($_GET['view_order'])) {
             display: flex;
             align-items: center;
             gap: 0.45rem;
+            justify-content: flex-start;
+        }
+
+        button.add-item-btn {
+            background: #22c55e;
+            color: white;
+            height: 30px;
+            font-size: 0.9rem;
+            padding: 0 1rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
             justify-content: center;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.2s, transform 0.15s;
+            width: auto;
+        }
+        button.add-item-btn:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
         }
         
         .qty-btn {
@@ -332,7 +408,7 @@ if (isset($_GET['view_order'])) {
         .qty-plus {
             background: #eff6ff;
             border-color: #bfdbfe;
-            color: #1d4ed8;
+            color: #2c80e0;
         }
         
         .qty-btn:hover {
@@ -352,8 +428,8 @@ if (isset($_GET['view_order'])) {
         }
 
         .qty-plus:hover {
-            background: #2563eb;
-            border-color: #2563eb;
+            background: #2c80e0;
+            border-color: #2c80e0;
         }
         
         .quantity-input { 
@@ -407,7 +483,7 @@ if (isset($_GET['view_order'])) {
 
         .order-grid {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 1rem;
         }
 
@@ -531,6 +607,17 @@ if (isset($_GET['view_order'])) {
             font-weight: 700;
             text-transform: uppercase;
         }
+        .origin-badge {
+            display: inline-block;
+            padding: 0.2rem 0.45rem;
+            border-radius: 99px;
+            font-size: 0.66rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: #e0f2fe;
+            color: #075985;
+            margin-top: 0.15rem;
+        }
         .badge-pending { background: #fff7ed; color: #c2410c; }
         .badge-in-progress { background: #fef3c7; color: #92400e; }
         .badge-done { background: #dcfce7; color: #166534; }
@@ -623,18 +710,19 @@ if (isset($_GET['view_order'])) {
 <body>
 
     <nav class="page-nav">
-        <a href="<?= WWW_ROOT ?>/index.php" class="home-btn">
+        <a href="/" class="home-btn">
             <span class="home-icon">🏠</span>
             Hem
         </a>
     </nav>
+
 
     <main class="cashier-shell">
 
     <section class="col-create">
         <p class="panel-kicker">Kassaarbetsyta</p>
         <h2>Ny beställning</h2>
-        <p class="panel-subtext">Skapa beställningar snabbt, tryck på artikelnamn för detaljer och skicka vidare till stationerna.</p>
+        <p class="panel-subtext">Skapa beställningar snabbt och skicka vidare till stationerna.</p>
         <button type="button" class="btn" onclick="openCreateOrderModal()">+ Ny beställning</button>
     </section>
 
@@ -650,13 +738,43 @@ if (isset($_GET['view_order'])) {
             </div>
         </div>
         <div id="order-container" class="order-grid">
+            <?php
+            if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
+                if (ob_get_level() > 0) {
+                    ob_clean();
+                }
+                ?>
+                <?php foreach($orders as $order): 
+                    $statusClass = strtolower($order['status']) === 'delivered' ? 'status-delivered' : '';
+                    $badgeClass = 'badge-' . str_replace(' ', '-', strtolower($order['status']));
+                    $isStaffOrder = ($order['order_origin'] ?? 'customer') === 'staff';
+                ?>
+                    <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
+                        <div class="card-header">
+                            <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?><?php if ($isStaffOrder): ?><span class="origin-badge">Personal</span><?php endif; ?></span>
+                            <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
+                        </div>
+                        <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
+                        <div class="order-time"><?= isset($order['created_at']) ? date("H:i", strtotime($order['created_at'])) : '' ?></div>
+                        <hr style="border: 0; border-top: 1px solid var(--border); margin: 0.5rem 0;">
+                        <div class="order-summary">
+                            <?= $order['summary'] ? htmlspecialchars(substr($order['summary'], 0, 50)) . (strlen($order['summary']) > 50 ? '...' : '') : 'Inga artiklar' ?>
+                        </div>
+                    </a>
+                <?php endforeach; ?>
+                </div>
+                <?php
+                exit;
+            }
+            ?>
             <?php foreach($orders as $order): 
                 $statusClass = strtolower($order['status']) === 'delivered' ? 'status-delivered' : '';
                 $badgeClass = 'badge-' . str_replace(' ', '-', strtolower($order['status']));
+                $isStaffOrder = ($order['order_origin'] ?? 'customer') === 'staff';
             ?>
                 <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
                     <div class="card-header">
-                        <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?></span>
+                        <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?><?php if ($isStaffOrder): ?><span class="origin-badge">Personal</span><?php endif; ?></span>
                         <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
                     </div>
                     <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
@@ -672,101 +790,36 @@ if (isset($_GET['view_order'])) {
 
     </main>
 
-    <?php if ($modal_order): ?>
-    <div class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <h2 style="margin:0">Order #<?= htmlspecialchars($modal_order['pub_order_number'] ?? $modal_order['order_number'] ?? $modal_order['order_id']) ?></h2>
-                    <span style="font-size:0.9rem; color:var(--text-sub)"><?= htmlspecialchars($modal_order['customer_name']) ?></span>
-                </div>
-                <a href="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" class="close-btn">&times;</a>
-            </div>
-
-            <form action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="POST" style="display:contents;">
-                <?= csrf_token_input() ?>
-                <input type="hidden" name="order_id" value="<?= $modal_order['order_id'] ?>">
-                
-                <div class="modal-body">
-                    <div class="row-split" style="margin-bottom: 2rem;">
-                        <div class="form-group">
-                            <label>Beställningsstatus</label>
-                            <select name="main_status">
-                                <?php $s = $modal_order['status']; ?>
-                                <option value="Pending" <?= $s=='Pending'?'selected':'' ?>>Väntar</option>
-                                <option value="In Progress" <?= $s=='In Progress'?'selected':'' ?>>Pågår</option>
-                                <option value="Done" <?= $s=='Done'?'selected':'' ?>>Klar</option>
-                                <option value="Delivered" <?= $s=='Delivered'?'selected':'' ?>>Levererad</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Huvudkommentar</label>
-                            <input type="text" name="main_comment" value="<?= htmlspecialchars($modal_order['order_comment']) ?>">
-                        </div>
-                    </div>
-
-                    <h3 style="border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">Artiklar</h3>
-
-                    <?php foreach($modal_items as $item): ?>
-                        <div class="item-row">
-                            <h4>
-                                <?= $item['category'] === 'milkshake' ? '🥤' : '🥪' ?>
-                                <?= htmlspecialchars($item['name']) ?>
-                            </h4>
-                            <div class="row-split">
-                                <div>
-                                    <label>Status</label>
-                                    <select name="oi_status[<?= $item['order_item_id'] ?>]" style="padding:0.25rem;">
-                                        <option value="Pending" <?= $item['status']=='Pending'?'selected':'' ?>>Väntar</option>
-                                        <option value="In Progress" <?= $item['status']=='In Progress'?'selected':'' ?>>Pågår</option>
-                                        <option value="Done" <?= $item['status']=='Done'?'selected':'' ?>>Klar</option>
-                                        <option value="Delivered" <?= $item['status']=='Delivered'?'selected':'' ?>>Levererad</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label>Notering</label>
-                                    <input type="text" name="oi_comment[<?= $item['order_item_id'] ?>]" value="<?= htmlspecialchars($item['item_comment']) ?>" placeholder="Lägg till notering...">
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="submit" name="delete_order" class="btn btn-danger" style="width:auto; margin:0;" onclick="return confirm('Radera hela beställningen?');">Radera beställning</button>
-                    <button type="submit" name="update_order" class="btn" style="width:auto; margin:0;">Spara ändringar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    <?php endif; ?>
-
     <!-- Create Order Modal -->
-    <div id="create-order-modal" class="modal-overlay" style="display: none;">
+    <div id="create-order-modal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="create-order-title">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 style="margin: 0;">Ny beställning</h3>
-                <button type="button" class="close-btn" onclick="closeCreateOrderModal()">✕</button>
+                <h3 id="create-order-title" style="margin: 0;">Ny beställning</h3>
+                <button type="button" class="close-btn" aria-label="Stäng" onclick="closeCreateOrderModal()">✕</button>
             </div>
             <div class="modal-body">
-                <form id="create-order-form" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>" method="POST">
+                <form id="create-order-form" autocomplete="off">
                     <?= csrf_token_input() ?>
-                    
                     <div class="form-group">
-                        <label>Kundnamn</label>
-                        <input type="text" name="customer_name" required placeholder="t.ex. Fillidutten">
+                        <label for="customer_name">Kundnamn</label>
+                        <input type="text" id="customer_name" name="customer_name" required placeholder="t.ex. Fillidutten" aria-required="true">
                     </div>
-
+                    <div class="form-group" style="margin-top: -0.35rem;">
+                        <label style="display:flex; gap:0.5rem; align-items:center; cursor:pointer; font-weight:500;">
+                            <input type="checkbox" id="is_staff_order" name="is_staff_order" style="width:auto; margin:0;">
+                            Personalbeställning
+                        </label>
+                    </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div>
                             <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Milkshakes</label>
                             <div id="milkshakes-container">
                                 <?php foreach($milkshakes as $m): ?>
-                                    <div class="item-row" data-item-type="milkshake" data-item-id="<?= $m['item_id'] ?>">
+                                    <div class="item-row" data-item-type="milkshake" data-item-id="<?= $m['item_id'] ?>" data-item-slug="<?= htmlspecialchars($m['slug']) ?>">
                                         <h4><?= htmlspecialchars($m['name']) ?></h4>
-                                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
+                                        <div class="quantity-controls" style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
                                             <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('m_<?= $m['item_id'] ?>', -1)">−</button>
-                                            <input type="number" name="milkshakes[<?= $m['item_id'] ?>]" value="0" min="0" id="m_<?= $m['item_id'] ?>" class="quantity-input" onchange="updateItemComments(this)">
+                                            <input type="number" name="milkshakes[<?= $m['item_id'] ?>]" value="0" min="0" id="m_<?= $m['item_id'] ?>" class="quantity-input" onchange="updateItemComments(this)" aria-label="Antal <?= htmlspecialchars($m['name']) ?>">
                                             <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('m_<?= $m['item_id'] ?>', 1)">+</button>
                                         </div>
                                         <div id="comments-m_<?= $m['item_id'] ?>" class="item-comments" style="display: none;"></div>
@@ -779,11 +832,11 @@ if (isset($_GET['view_order'])) {
                             <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Toasts</label>
                             <div id="toasts-container">
                                 <?php foreach($toasts as $t): ?>
-                                    <div class="item-row" data-item-type="toast" data-item-id="<?= $t['item_id'] ?>">
+                                    <div class="item-row" data-item-type="toast" data-item-id="<?= $t['item_id'] ?>" data-item-slug="<?= htmlspecialchars($t['slug']) ?>">
                                         <h4><?= htmlspecialchars($t['name']) ?></h4>
-                                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
+                                        <div class="quantity-controls" style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
                                             <button type="button" class="qty-btn qty-minus" onclick="adjustQtyModal('t_<?= $t['item_id'] ?>', -1)">−</button>
-                                            <input type="number" name="toasts[<?= $t['item_id'] ?>]" value="0" min="0" id="t_<?= $t['item_id'] ?>" class="quantity-input" onchange="updateItemComments(this)">
+                                            <input type="number" name="toasts[<?= $t['item_id'] ?>]" value="0" min="0" id="t_<?= $t['item_id'] ?>" class="quantity-input" onchange="updateItemComments(this)" aria-label="Antal <?= htmlspecialchars($t['name']) ?>">
                                             <button type="button" class="qty-btn qty-plus" onclick="adjustQtyModal('t_<?= $t['item_id'] ?>', 1)">+</button>
                                         </div>
                                         <div id="comments-t_<?= $t['item_id'] ?>" class="item-comments" style="display: none;"></div>
@@ -794,135 +847,48 @@ if (isset($_GET['view_order'])) {
                     </div>
 
                     <div class="form-group">
-                        <label>Allmän kommentar</label>
-                        <textarea name="order_comment" rows="2" placeholder="Allmänna anteckningar..."></textarea>
+                        <label for="order_comment">Allmän kommentar</label>
+                        <textarea id="order_comment" name="order_comment" rows="2" placeholder="Allmänna anteckningar..."></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="close-btn" onclick="closeCreateOrderModal()" style="background: none; padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">Avbryt</button>
-                <button type="submit" form="create-order-form" name="create_order" class="btn" style="width: auto; margin: 0;">Skapa beställning</button>
+                <button type="button" class="close-btn" onclick="closeCreateOrderModal()" style="background: none; padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;" aria-label="Avbryt">Avbryt</button>
+                <button type="submit" form="create-order-form" name="create_order" class="btn" id="create-order-submit" style="width: auto; margin: 0;">
+                    <span id="create-order-spinner" style="display:none;vertical-align:middle;margin-right:0.5em;width:1em;height:1em;">
+                        <svg viewBox="0 0 50 50" style="width:1em;height:1em;" aria-hidden="true"><circle cx="25" cy="25" r="20" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-dasharray="31.4 31.4" transform="rotate(-90 25 25)"><animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite"/></circle></svg>
+                    </span>
+                    Skapa beställning
+                </button>
             </div>
         </div>
     </div>
     
+    <script src="<?= app_asset_url('js/ws.js') ?>"></script>
+    <script src="<?= app_asset_url('js/cashier.js') ?>"></script>
     <script>
-        function openCreateOrderModal() {
-            document.getElementById('create-order-modal').style.display = 'flex';
-        }
-
-        function closeCreateOrderModal() {
-            document.getElementById('create-order-modal').style.display = 'none';
-            document.getElementById('create-order-form').reset();
-        }
-
-        function adjustQtyModal(inputId, delta) {
-            const input = document.getElementById(inputId);
-            const currentValue = parseInt(input.value) || 0;
-            const newValue = Math.max(0, currentValue + delta);
-            input.value = newValue;
-            updateItemComments(input);
-        }
-
-        function updateItemComments(input) {
-            // Get the input field's ID and current quantity value
-            const inputId = input.id;
-            const qty = parseInt(input.value) || 0;
-            const commentsContainer = document.getElementById('comments-' + inputId);
-            
-            // Determine if this is milkshake (m) or toast (t)
-            const prefix = inputId.charAt(0);
-            const type = prefix === 'm' ? 'milkshake_comments' : 'toast_comments';
-            const baseId = inputId.substring(2);
-            
-            // Get the item name from the item row heading
-            const itemRow = input.closest('.item-row');
-            const itemName = itemRow ? itemRow.querySelector('h4').textContent : 'Artikel';
-            
-            // Save existing values before clearing
-            const savedValues = {};
-            commentsContainer.querySelectorAll('input[type="text"]').forEach(inp => {
-                const match = inp.name.match(/\[(.*?)\]/);
-                if (match) savedValues[match[1]] = inp.value;
-            });
-            
-            // Clear previous comment fields
-            commentsContainer.innerHTML = '';
-            
-            // If quantity > 0, create note fields for each item
-            if (qty > 0) {
-                commentsContainer.style.display = 'block';
-                // Loop through each unit and create a note field
-                for (let i = 0; i < qty; i++) {
-                    const commentKey = prefix + '_' + baseId + '_' + i;
-                    const div = document.createElement('div');
-                    div.style.marginBottom = '0.5rem';
-                    
-                    // Create input field
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.name = type + '[' + commentKey + ']';
-                    input.value = savedValues[commentKey] || '';
-                    input.placeholder = 'Lägg till notering...';
-                    input.style.cssText = 'width: 100%; padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;';
-                    
-                    // Create label
-                    const label = document.createElement('label');
-                    label.style.cssText = 'font-size: 0.85rem; color: var(--text-sub); display: block; margin-bottom: 0.25rem;';
-                    label.textContent = 'Notering för ' + itemName + ' ' + (i + 1);
-                    
-                    // Add label and input to container
-                    div.appendChild(label);
-                    div.appendChild(input);
-                    commentsContainer.appendChild(div);
+        // Fetch order list fragment (AJAX request)
+        async function updateOrderList() {
+            try {
+                const resp = await fetch(window.location.pathname + '?ajax=1');
+                if (!resp.ok) throw new Error('Kunde inte hämta beställningar');
+                const html = await resp.text();
+                
+                const temp = document.createElement('div');
+                temp.innerHTML = html;
+                const newContainer = temp.querySelector('#order-container');
+                
+                if (newContainer) {
+                    document.getElementById('order-container').replaceWith(newContainer);
+                    // Reapply view preference after replacing container
+                    document.dispatchEvent(new CustomEvent('cashier:orders-updated'));
                 }
-            } else {
-                // Hide comments container if quantity is 0
-                commentsContainer.style.display = 'none';
+            } catch (err) {
+                console.error('Kunde inte uppdatera orderlistan:', err);
             }
         }
-
-        // Close modal if clicking on overlay
-        document.getElementById('create-order-modal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeCreateOrderModal();
-            }
-        });
-        function setView(viewType) {
-            const container = document.getElementById('order-container');
-            const cardBtn = document.getElementById('card-view-btn');
-            const listBtn = document.getElementById('list-view-btn');
-            const cards = container.querySelectorAll('.order-card');
-            
-            // Update button states
-            cardBtn.classList.toggle('active', viewType === 'card');
-            listBtn.classList.toggle('active', viewType === 'list');
-            
-            // Update container class
-            container.className = viewType === 'card' ? 'order-grid' : 'order-list';
-            
-            // Update card classes
-            cards.forEach(card => {
-                card.classList.toggle('list-item', viewType === 'list');
-            });
-            
-            // Save preference
-            localStorage.setItem('cashierViewPreference', viewType);
-        }
-        
-        function adjustQuantity(inputId, delta) {
-            const input = document.getElementById(inputId);
-            const currentValue = parseInt(input.value) || 0;
-            const newValue = Math.max(0, currentValue + delta);
-            input.value = newValue;
-        }
-        
-        // Load saved preference on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            const savedView = localStorage.getItem('cashierViewPreference') || 'card';
-            setView(savedView);
-        });
+        // Alias for WebSocket handler to refresh order list on realtime updates
+        window.loadOrders = updateOrderList;
     </script>
-    
 </body>
 </html>

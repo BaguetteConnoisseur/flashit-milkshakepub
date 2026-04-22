@@ -8,10 +8,27 @@ function is_logged_in() {
 
 /**
  * Processes all auth-related POST requests (Login & Logout).
+ *
+ * Adds a simple session-based rate limiter for failed login attempts.
  */
 function handle_login_post() {
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         return false;
+    }
+
+    // --- Simple rate limiter: max 5 failed attempts per 5 minutes ---
+    if (!isset($_SESSION['login_attempts'])) {
+        $_SESSION['login_attempts'] = [];
+    }
+    // Remove attempts older than 10 minutes
+    $_SESSION['login_attempts'] = array_filter(
+        $_SESSION['login_attempts'],
+        function($ts) { return $ts > time() - 600; }
+    );
+    if (count($_SESSION['login_attempts']) >= 5) {
+        $minutes = ceil((600 - (time() - min($_SESSION['login_attempts']))) / 60);
+        return "För många misslyckade inloggningar. Vänta $minutes minut(er) och försök igen.";
     }
 
     // 1. Handle Logout
@@ -26,24 +43,34 @@ function handle_login_post() {
             );
         }
         session_destroy();
-        header("Location: /index.php");
+        header('Location: ' . app_url(''));
         exit;
     }
 
     // 2. Handle Login
     if (isset($_POST['login'])) {
+        require_csrf_token();
         $pass = $_POST['password'] ?? '';
 
-        // Only check password
-        if (hash_equals(ADMIN_PASS, (string)$pass)) {
+        // Check password using password_verify and hashed env var
+        if (password_verify($pass, ADMIN_PASS_HASH)) {
             session_regenerate_id(true);
             $_SESSION['logged_in'] = true;
             $_SESSION['last_login'] = time();
-            
-            header("Location: /index.php");
+
+            // Reset failed attempts on success
+            $_SESSION['login_attempts'] = [];
+            header('Location: ' . app_url(''));
             exit;
         } else {
-            return "Felaktigt lösenord.";
+            // Record failed attempt timestamp
+            $_SESSION['login_attempts'][] = time();
+            if (count($_SESSION['login_attempts']) >= 5) {
+                $minutes = ceil((600 - (time() - min($_SESSION['login_attempts']))) / 60);
+                return "För många misslyckade inloggningar. Vänta $minutes minut(er) och försök igen.";
+            } else {
+                return "Ogiltiga uppgifter. Försök igen.";
+            }
         }
     }
 

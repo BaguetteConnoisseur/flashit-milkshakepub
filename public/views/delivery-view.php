@@ -5,9 +5,11 @@ require_once(__DIR__ . '/../../private/initialize.php');
 <!DOCTYPE html>
 <html lang="sv">
 <head>
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leveransstation</title>
+    <title>Leverans station</title>
 
     <style>
         /* --- 5. Layout & Theme --- */
@@ -48,6 +50,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
 
         .card-header { padding: 1.25rem; border-bottom: 1px solid #f3f4f6; background: #f9fafb; }
         .meta { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-sub); text-transform: uppercase; margin-bottom: 0.5rem; }
+        .origin-badge { display: inline-block; margin-left: 0.75rem; padding: 0.15rem 0.45rem; border-radius: 999px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; background: #e0f2fe; color: #075985; }
         .customer { font-size: 1.25rem; font-weight: 700; }
         .order-note { margin-top: 0.5rem; background: var(--note-order-bg); color: var(--note-order-text); padding: 0.5rem; border-radius: 6px; font-size: 0.9rem; }
 
@@ -106,7 +109,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <div class="header">
         <h1>📦 Leveransstation</h1>
@@ -118,8 +121,8 @@ require_once(__DIR__ . '/../../private/initialize.php');
     </div>
     <?php include(TEMPLATE_PATH . "/public_footer.php"); ?>
 
-    <script src="/assets/js/ws.js"></script>
-    <script src="/assets/js/shared.js"></script>
+    <script src="<?= app_asset_url('js/ws.js') ?>"></script>
+    <script src="<?= app_asset_url('js/shared.js') ?>"></script>
     <script>
     // --- DOM helpers for card rendering ---
     function createOrderCard(order) {
@@ -143,9 +146,10 @@ require_once(__DIR__ . '/../../private/initialize.php');
         // Card header
         const header = document.createElement('div');
         header.className = 'card-header';
+        const isKitchenOrder = (order.order_origin || 'customer') === 'staff';
         header.innerHTML = `
             <div class="meta">
-                <span>#${order.order_number}</span>
+                <span>#${order.order_number}${isKitchenOrder ? '<span class="origin-badge">PERSONAL</span>' : ''}</span>
                 <span>${order.created_at ? new Date(order.created_at).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'}) : ''}</span>
             </div>
             <div class="customer">
@@ -226,7 +230,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
     async function updateOrderStatus(orderId, status) {
         const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
         try {
-            await fetch('/api/update_order.php', {
+            await fetch('<?= app_api_url('update_order.php') ?>', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ order_id: orderId, status, csrf_token: csrfToken })
@@ -241,7 +245,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
     async function deliverItem(orderItemId, btn) {
         btn.disabled = true;
         const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
-        await fetch('/api/update_item.php', {
+        await fetch('<?= app_api_url('update_item.php') ?>', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ item_id: orderItemId, status: 'Delivered', csrf_token: csrfToken })
@@ -254,7 +258,7 @@ require_once(__DIR__ . '/../../private/initialize.php');
     // --- Main loader: fetch and render orders ---
 
     async function loadOrders() {
-        const r = await fetch("/api/get_event_orders.php");
+        const r = await fetch("<?= app_api_url('get_event_orders.php') ?>");
         let data = await r.json();
         const grid = document.getElementById("ticket-grid");
         grid.innerHTML = '';
@@ -264,12 +268,20 @@ require_once(__DIR__ . '/../../private/initialize.php');
             return;
         }
 
-        // Sort: all items done first, then status 'Done', then others, all by order_number
+        // Sort: ready to deliver (all done) first, then in progress, then fully delivered at bottom
         data.sort((a, b) => {
             function sortRank(order) {
-                if (Array.isArray(order.items) && order.items.length > 0 && order.items.every(item => item.status === 'Done' || item.status === 'Delivered')) return 0; // All items done
-                if (order.status === 'Done') return 1; // Status done, but not all items done
-                return 2;
+                const items = Array.isArray(order.items) ? order.items : [];
+                const hasItems = items.length > 0;
+                const allDelivered = hasItems && items.every(item => item.status === 'Delivered');
+                const allDoneOrDelivered = hasItems && items.every(item => item.status === 'Done' || item.status === 'Delivered');
+
+                // Rank 2: Fully delivered should always be at the bottom.
+                if (order.status === 'Delivered' || allDelivered) return 2;
+                // Rank 0: Ready to deliver (all items done/delivered, but not fully delivered).
+                if (allDoneOrDelivered) return 0;
+                // Rank 1: Still in progress.
+                return 1;
             }
             const aRank = sortRank(a);
             const bRank = sortRank(b);

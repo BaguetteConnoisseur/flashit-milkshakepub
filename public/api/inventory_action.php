@@ -1,7 +1,13 @@
 <?php
 require_once(__DIR__ . '/../../private/initialize.php');
-require_once(__DIR__ . '/../../private/src/services/InventoryManager.php');
+require_once(__DIR__ . '/../../private/src/services/inventory_manager.php');
 header('Content-Type: application/json');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
+    exit;
+}
 
 $response = ['success' => false, 'error' => ''];
 $activePubId = $_SESSION['active_pub_id'];
@@ -21,7 +27,8 @@ if ($isJson) {
 $csrfToken = $data['csrf_token'] ?? '';
 if (!csrf_token_is_valid($csrfToken)) {
     http_response_code(403);
-    exit('Ogiltig begäran. Ladda om sidan och försök igen.');
+    echo json_encode(['success' => false, 'error' => 'Ogiltig begaran. Ladda om sidan och forsok igen.']);
+    exit;
 }
 
 try {

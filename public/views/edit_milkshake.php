@@ -1,7 +1,7 @@
 <?php
 /* --- 1. Edit Milkshake Bootstrap --- */
 require_once(__DIR__ . '/../../private/initialize.php');
-require_once(PRIVATE_PATH . '/src/services/InventoryManager.php');
+require_once(PRIVATE_PATH . '/src/services/inventory_manager.php');
 
 $pdo = db();
 $activePubId = $_SESSION['active_pub_id'];
@@ -14,11 +14,11 @@ $item = null;
 if ($itemId > 0) {
     $item = $inventory->getItemById($itemId);
     if (!$item || $item['category'] !== 'milkshake') {
-        header('Location: inventory_manager.php');
+        header('Location: ' . app_url('inventory_manager'));
         exit;
     }
 } else {
-    header('Location: inventory_manager.php');
+    header('Location: ' . app_url('inventory_manager'));
     exit;
 }
 
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'ingredients' => $ingredients,
                 'color' => $color
             ]);
-            header('Location: inventory_manager.php');
+            header('Location: ' . app_url('inventory_manager'));
             exit;
         }
     }
@@ -50,6 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="sv">
 <head>
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redigera Milkshake</title>
@@ -60,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             --text-main: #1f2937;
             --text-sub: #6b7280;
             --border: #e5e7eb;
-            --primary: #2563eb;
+            --primary: #2c80e0;
             --danger: #dc2626;
             --success-bg: #dcfce7;
             --success-text: #166534;
@@ -163,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
     <div class="container">
         <h1>Redigera milkshake</h1>
         <p class="subtitle">
@@ -173,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="feedback <?= $feedback['type'] ?>"><?= htmlspecialchars($feedback['message']) ?></div>
         <?php endif; ?>
         <section class="card">
-            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES, 'UTF-8') ?>?id=<?= (int)$item['item_id'] ?>">
+            <form method="post" action="/edit_milkshake?id=<?= (int)$item['item_id'] ?>">
                 <?= csrf_token_input() ?>
                 <input type="hidden" name="milkshake-id" value="<?= (int) $item['item_id'] ?>">
                 <div class="row">
@@ -196,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="actions">
                     <button type="submit" class="btn btn-primary" name="save-milkshake">Spara</button>
-                    <a class="btn btn-secondary" href="inventory_manager.php">Avbryt</a>
+                    <a class="btn btn-secondary" href="<?= app_url('inventory_manager') ?>">Avbryt</a>
                 </div>
             </form>
         </section>

@@ -7,7 +7,9 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Toast-station</title>
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
+    <title>Milkshake station</title>
     <style>
         :root {
             --bg: #f3f4f6;
@@ -135,7 +137,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             width: 100%;
         }
 
-        .bar-Pending, .bar-Received {
+        .bar-Pending {
             background-color: var(--status-pending);
         }
         .bar-Progress {
@@ -272,7 +274,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <div class="header">
         <div>
@@ -285,8 +287,8 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
     </div>
 
-    <script src="/assets/js/ws.js"></script>
-    <script src="/assets/js/shared.js"></script>
+    <script src="<?= app_asset_url('js/ws.js') ?>"></script>
+    <script src="<?= app_asset_url('js/shared.js') ?>"></script>
     <script>
     // --- 1. Globals & Utility Functions ---
     window.CSRF_TOKEN = '<?php echo $_SESSION['csrf_token'] ?? '' ?>';
@@ -373,7 +375,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 
     // --- 3. API Logic ---
     function update(id, status, csrf_token) {
-        fetch("/api/update_item.php", {
+        fetch("<?= app_api_url('update_item.php') ?>", {
             method: "POST",
             body: JSON.stringify({item_id: id, status: status, csrf_token: csrf_token || window.CSRF_TOKEN || ''}),
             headers: {"Content-Type": "application/json"}
@@ -433,7 +435,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 
     // --- 5. Main Loader ---
     async function loadOrders() {
-        const r = await fetch("/api/get_event_orders.php");
+        const r = await fetch("<?= app_api_url('get_active_orders.php') ?>");
         let data = await r.json();
         const grid = document.getElementById("ticket-grid");
         grid.innerHTML = '';
@@ -445,28 +447,24 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             return;
         }
 
-
-
-        // Flatten all milkshake items (excluding Delivered) with their parent order
+        // Collect all milkshake items with their parent order
         let allMilkshakeItems = [];
         data.forEach(order => {
-            (order.items || []).forEach(item => {
-                if (item.category === 'milkshake' && item.status !== 'Delivered') {
-                    allMilkshakeItems.push({ order, milkshakeItem: item });
-                }
+            const milkshakes = (order.items || []).filter(item => item.category === 'milkshake');
+            milkshakes.forEach(milkshakeItem => {
+                allMilkshakeItems.push({ order, milkshakeItem });
             });
         });
 
-        // Sort all milkshake items globally: Pending, In Progress, Done
-        const statusOrder = { 'Pending': 0, 'In Progress': 1, 'Done': 2 };
+        // Sort: all items with status 'Done' go last, others by their own order_id
         allMilkshakeItems.sort((a, b) => {
-            const aStatus = statusOrder[a.milkshakeItem.status] ?? 99;
-            const bStatus = statusOrder[b.milkshakeItem.status] ?? 99;
-            // If same status, sort by order_number
-            if (aStatus === bStatus) {
-                return (a.order.order_number ?? 0) - (b.order.order_number ?? 0);
+            const aDone = a.milkshakeItem.status === 'Done';
+            const bDone = b.milkshakeItem.status === 'Done';
+            if (aDone !== bDone) {
+                return aDone ? 1 : -1;
             }
-            return aStatus - bStatus;
+            // Both not done or both done: sort by order_id
+            return (a.order.order_id ?? 0) - (b.order.order_id ?? 0);
         });
 
         if (allMilkshakeItems.length === 0) {
@@ -478,7 +476,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         }
 
         // Render milkshake summary
-        renderMilkshakeSummary(milkshakeOrders);
+        renderMilkshakeSummary(data);
     }
 
 
@@ -503,7 +501,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
                 const item_id = form.querySelector('[name="order_milkshake_id"]').value;
                 let status = form.querySelector('[name="current_status"]').value;
                 const csrf_token = form.querySelector('[name="csrf_token"]').value;
-                if (status === 'Pending' || status === 'Received') status = 'In Progress';
+                if (status === 'Pending') status = 'In Progress';
                 else if (status === 'In Progress') status = 'Done';
                 else return;
                 update(item_id, status, csrf_token);

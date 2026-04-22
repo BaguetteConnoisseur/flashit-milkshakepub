@@ -8,11 +8,23 @@ services:
     volumes:
       - .:/var/www/html
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - php-sessions:/tmp
+      - php-sessions:/var/lib/php/sessions
     depends_on:
       - backend
       - db
+    networks:
+      default:
+      traefik:
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "traefik"
+      traefik.http.routers.flashit-msp.rule: "Host(`msp.chalmers.it`)"
+      traefik.http.routers.flashit-msp.tls: "true"
+      traefik.http.routers.flashit-msp.tls.certresolver: "cfResolver"
+      traefik.http.services.flashit-msp.loadbalancer.server.port: "80"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost"]
+      test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -24,6 +36,7 @@ services:
     restart: unless-stopped
     volumes:
       - .:/var/www/html
+      - php-sessions:/tmp
     env_file:
       - .env
     environment:
@@ -31,9 +44,10 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - ADMIN_PASS=${ADMIN_PASS}
+      - ADMIN_PASS_HASH=${ADMIN_PASS_HASH}
+      - BROADCAST_SECRET=${BROADCAST_SECRET}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/index.php"]
+      test: ["CMD-SHELL", "php-fpm -t >/dev/null 2>&1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -42,10 +56,12 @@ services:
   websocket:
     build: ./docker/websocket
     container_name: flashitmilkshakepub-websocket
-    ports:
-      - "8081:8081"
+    env_file:
+      - .env
+    environment:
+      - BROADCAST_SECRET=${BROADCAST_SECRET}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/"]
+      test: ["CMD-SHELL", "node -e 'const net=require(\"net\");const socket=net.connect(8082,\"127.0.0.1\",()=>{socket.end();process.exit(0);});socket.on(\"error\",()=>process.exit(1));'"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -67,3 +83,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+volumes:
+  php-sessions:
+
+networks:
+  traefik:
+    external: true

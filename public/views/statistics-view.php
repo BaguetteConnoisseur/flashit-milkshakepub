@@ -68,9 +68,8 @@ $stmt = $db->prepare("SELECT COUNT(*) FROM orders WHERE event_id = ?");
 $stmt->execute([$selectedPubId]);
 $totalOrders = (int) $stmt->fetchColumn();
 
-$stmt = $db->prepare("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE o.event_id = ?");
-$stmt->execute([$selectedPubId]);
-$totalItemsSold = (int) $stmt->fetchColumn();
+// Combo calculations calculated below 
+$totalCombosSold = 0;
 
 $stmt = $db->prepare("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'milkshake'");
 $stmt->execute([$selectedPubId]);
@@ -79,6 +78,31 @@ $totalMilkshakesSold = (int) $stmt->fetchColumn();
 $stmt = $db->prepare("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'toast'");
 $stmt->execute([$selectedPubId]);
 $totalToastsSold = (int) $stmt->fetchColumn();
+
+// Compute combo revenue per order so items from different orders never get paired together.
+$revenueComboCount = 0;
+$nonComboMilkshakes = 0;
+$nonComboToasts = 0;
+$stmt = $db->prepare("SELECT o.order_id,
+    SUM(CASE WHEN mi.category = 'milkshake' THEN 1 ELSE 0 END) AS milkshakes,
+    SUM(CASE WHEN mi.category = 'toast' THEN 1 ELSE 0 END) AS toasts
+    FROM orders o
+    JOIN order_items oi ON o.order_id = oi.order_id
+    JOIN menu_items mi ON oi.item_id = mi.item_id
+        WHERE o.event_id = ?
+            AND COALESCE(o.order_origin, 'customer') = 'customer'
+    GROUP BY o.order_id");
+$stmt->execute([$selectedPubId]);
+foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $orderRow) {
+    $orderMilkshakes = (int) $orderRow['milkshakes'];
+    $orderToasts = (int) $orderRow['toasts'];
+
+    $revenueComboCount += min($orderMilkshakes, $orderToasts);
+    $nonComboMilkshakes += max(0, $orderMilkshakes - $orderToasts);
+    $nonComboToasts += max(0, $orderToasts - $orderMilkshakes);
+}
+
+$totalCombosSold = $revenueComboCount;
 
 // Per-item sales for selected pub
 $milkshakeSales = $db->prepare("SELECT mi.name, COUNT(*) AS total_sold FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = ? AND mi.category = 'milkshake' GROUP BY mi.item_id, mi.name ORDER BY total_sold DESC, mi.name ASC");
@@ -149,17 +173,66 @@ if ($leaderboardPubId === null) {
 }
 
 // Pub history
+$pubHistoryInitialVisible = 10;
 $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended_at, e.is_active,
     (SELECT COUNT(*) FROM orders o WHERE o.event_id = e.event_id) AS total_orders,
     (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = e.event_id AND mi.category = 'milkshake') AS total_milkshakes,
     (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN menu_items mi ON oi.item_id = mi.item_id WHERE o.event_id = e.event_id AND mi.category = 'toast') AS total_toasts
     FROM pub_events e ORDER BY e.started_at DESC")->fetchAll(PDO::FETCH_ASSOC);
 
+$hasMorePubHistory = count($pubHistory) > $pubHistoryInitialVisible;
+
+// Revenue calculator for active pub sales
+$comboPriceInput = $_GET['combo_price'] ?? '35';
+$milkshakePriceInput = $_GET['milkshake_price'] ?? '20';
+$toastPriceInput = $_GET['toast_price'] ?? '20';
+$pricingCalculationRequested = isset($_GET['calculate_revenue']);
+$pricingError = null;
+$pubRevenue = null;
+$comboCount = $revenueComboCount;
+$nonComboMilkshakesCount = $nonComboMilkshakes;
+$nonComboToastsCount = $nonComboToasts;
+$comboPrice = null;
+$milkshakePrice = null;
+$toastPrice = null;
+
+
+$parsePrice = static function ($rawValue) {
+    $normalized = str_replace([' ', ','], ['', '.'], trim((string) $rawValue));
+    if ($normalized === '' || !is_numeric($normalized)) {
+        return null;
+    }
+
+    $value = (float) $normalized;
+    if ($value < 0) {
+        return null;
+    }
+
+    return round($value, 2);
+};
+
+if ($pricingCalculationRequested) {
+    $comboPrice = $parsePrice($comboPriceInput);
+    $milkshakePrice = $parsePrice($milkshakePriceInput);
+    $toastPrice = $parsePrice($toastPriceInput);
+
+    if ($comboPrice === null || $milkshakePrice === null || $toastPrice === null) {
+        $pricingError = 'Fyll i giltiga priser (0 eller högre) för combo, milkshake och toast.';
+    } else {
+        $pubRevenue =
+            ($comboCount * $comboPrice)
+            + ($nonComboMilkshakesCount * $milkshakePrice)
+            + ($nonComboToastsCount * $toastPrice);
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
 <html lang="sv">
 <head>
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Statistik</title>
@@ -172,12 +245,14 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
             --border: #e5e7eb;
             --text-main: #1f2937;
             --text-sub: #6b7280;
-            --primary: #2563eb;
+            --text-muted: #9ca3af;
+            --primary: #2c80e0;
             --danger: #dc2626;
             --success-bg: #dcfce7;
             --success-text: #166534;
             --error-bg: #fee2e2;
             --error-text: #991b1b;
+            --error-border: #fecaca;
         }
 
         body {
@@ -219,7 +294,7 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
         .notice.error {
             background: var(--error-bg);
             color: var(--error-text);
-            border: 1px solid #fecaca;
+            border: 1px solid var(--error-border);
         }
 
         .card {
@@ -239,7 +314,7 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
             display: flex;
             flex-wrap: wrap;
             gap: 0.75rem;
-            align-items: center;
+            align-items: flex-end;
         }
 
         .pub-tools input,
@@ -249,6 +324,24 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
             border-radius: 8px;
             border: 1px solid var(--border);
             font-size: 0.95rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .input-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .input-group input {
+            margin: 0;
         }
 
         .pub-tools button {
@@ -292,7 +385,6 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 1rem;
-            margin-bottom: 1.5rem;
         }
 
         .list {
@@ -331,7 +423,7 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
         }
 
         .danger-zone {
-            border: 1px solid #fecaca;
+            border: 1px solid var(--error-border);
             border-radius: 10px;
             padding: 1rem;
             background: #fff1f2;
@@ -346,8 +438,8 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
             display: inline-block;
             margin-left: 0.4rem;
             font-size: 0.72rem;
-            background: #dcfce7;
-            color: #166534;
+            background: var(--success-bg);
+            color: var(--success-text);
             padding: 0.15rem 0.4rem;
             border-radius: 999px;
             font-weight: 700;
@@ -410,6 +502,7 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
             margin-left: auto;
             flex-wrap: nowrap;
             gap: 0.5rem;
+            align-items: center;
         }
 
         .leaderboard-filter label {
@@ -421,6 +514,30 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
         .leaderboard-filter select {
             min-width: 190px;
             max-width: 260px;
+        }
+
+        .pub-history-more {
+            margin-top: 0.75rem;
+            text-align: center;
+        }
+
+        .pub-history-more button {
+            background: #f3f4f6;
+            border: 1px solid var(--border);
+            color: #4b5563;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 0.35rem 0.7rem;
+            border-radius: 999px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+
+        .pub-history-more button:hover {
+            background: #e5e7eb;
+            border-color: #d1d5db;
+            color: #374151;
         }
 
         #leaderboard-section.is-loading {
@@ -439,7 +556,7 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <div class="container">
         <h1>Statistik</h1>
@@ -455,11 +572,11 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
                 <div class="kpi-value"><?= $totalOrders ?></div>
             </div>
             <div class="kpi">
-                <div class="kpi-label">Sålda produkter</div>
-                <div class="kpi-value"><?= $totalItemsSold ?></div>
+                <div class="kpi-label">Beställda combos</div>
+                <div class="kpi-value"><?= $totalCombosSold ?></div>
             </div>
             <div class="kpi">
-                <div class="kpi-label">Sålda milkshakes</div>
+                <div class="kpi-label">Beställda milkshakes</div>
                 <div class="kpi-value"><?= $totalMilkshakesSold ?></div>
             </div>
             <div class="kpi">
@@ -468,17 +585,70 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
             </div>
         </div>
 
+        <section class="card" style="margin-bottom: 1.5rem;" id="revenue-calculator" data-combo-count="<?= (int) $comboCount ?>" data-non-combo-milkshakes="<?= (int) $nonComboMilkshakesCount ?>" data-non-combo-toasts="<?= (int) $nonComboToastsCount ?>" data-selected-pub-name="<?= htmlspecialchars($selectedPubName) ?>">
+            <h2>Intäktskalkylator för aktiv pub</h2>
+
+            <div class="pub-tools" style="margin-bottom: 1rem;">
+                <?php if ($leaderboardPubId !== null): ?>
+                    <input type="hidden" name="leaderboard_pub_id" value="<?= (int) $leaderboardPubId ?>">
+                <?php endif; ?>
+
+                <div class="input-group">
+                    <label for="combo_price">Combo pris:</label>
+                    <input
+                        id="combo_price"
+                        type="text"
+                        inputmode="decimal"
+                        name="combo_price"
+                        value="<?= htmlspecialchars((string) $comboPriceInput) ?>"
+                        required
+                    >
+                </div>
+                <div class="input-group">
+                    <label for="milkshake_price">Milkshake pris:</label>
+                    <input
+                        id="milkshake_price"
+                        type="text"
+                        inputmode="decimal"
+                        name="milkshake_price"
+                        value="<?= htmlspecialchars((string) $milkshakePriceInput) ?>"
+                        required
+                    >
+                </div>
+                <div class="input-group">
+                    <label for="toast_price">Toast pris:</label>
+                    <input
+                        id="toast_price"
+                        type="text"
+                        inputmode="decimal"
+                        name="toast_price"
+                        value="<?= htmlspecialchars((string) $toastPriceInput) ?>"
+                        required
+                    >
+                </div>
+                <button type="button" id="calculate-revenue-btn">Beräkna</button>
+            </div>
+
+            <div id="revenue-calculator-result" class="kpi" style="margin-bottom: 0; display: none;">
+                <div class="kpi-label">Beräknad intäkt för <?= htmlspecialchars($selectedPubName) ?></div>
+                <div class="kpi-value" id="revenue-calculator-total" style="font-size: 2rem;"></div>
+                <p id="revenue-calculator-breakdown" style="margin: 0.5rem 0 0; color: var(--text-sub); line-height: 1.5;"></p>
+            </div>
+        </section>
+
+        <p class="subtitle" style="margin: 0 0 1rem;">Allmän statistik:</p>
+
         <div class="grid-2">
             <section class="card">
                 <h2>Milkshakeförsäljning per smak</h2>
-                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
+                <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
                 <?php if (empty($milkshakeAverages)): ?>
                     <p class="empty">Ingen milkshake-försäljning ännu.</p>
                 <?php else: ?>
                     <?php $topMilkshakeAverageSales = array_slice($milkshakeAverages, 0, 5); ?>
                     <ol class="list">
                         <?php foreach ($topMilkshakeAverageSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
+                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: var(--text-muted); font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
                 <?php endif; ?>
@@ -486,21 +656,21 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
 
             <section class="card">
                 <h2>Toastförsäljning per smak</h2>
-                <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
+                <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
                 <?php if (empty($toastAverages)): ?>
                     <p class="empty">Ingen toast-försäljning ännu.</p>
                 <?php else: ?>
                     <?php $topToastAverageSales = array_slice($toastAverages, 0, 5); ?>
                     <ol class="list">
                         <?php foreach ($topToastAverageSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: #9ca3af; font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
+                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: var(--text-muted); font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
                         <?php endforeach; ?>
                     </ol>
                 <?php endif; ?>
             </section>
         </div>
 
-        <section id="leaderboard-section" class="card" style="margin-top: 1rem;">
+        <section id="leaderboard-section" class="card";">
             <div class="leaderboard-header">
                 <div>
                     <h2 class="leaderboard-title">Topplista</h2>
@@ -577,8 +747,8 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($pubHistory as $pub): ?>
-                            <tr>
+                        <?php foreach ($pubHistory as $index => $pub): ?>
+                            <tr class="<?= $index >= $pubHistoryInitialVisible ? 'pub-history-extra-row' : '' ?>" <?= $index >= $pubHistoryInitialVisible ? 'hidden' : '' ?>>
                                 <td>
                                     <?= htmlspecialchars($pub['event_name']) ?>
                                     <?php if ((int) $pub['is_active'] === 1): ?>
@@ -594,6 +764,12 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+
+                <?php if ($hasMorePubHistory): ?>
+                    <div class="pub-history-more">
+                        <button type="button" id="show-all-pub-history">Visa alla pubar (<?= count($pubHistory) ?>)</button>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </section>
 
@@ -636,6 +812,54 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
         (function () {
             const leaderboardSectionSelector = '#leaderboard-section';
             let activeRequest = null;
+
+            const revenueCalculator = document.getElementById('revenue-calculator');
+            if (revenueCalculator) {
+                const calculateButton = document.getElementById('calculate-revenue-btn');
+                const resultBox = document.getElementById('revenue-calculator-result');
+                const totalOutput = document.getElementById('revenue-calculator-total');
+                const breakdownOutput = document.getElementById('revenue-calculator-breakdown');
+                const comboPriceInput = revenueCalculator.querySelector('input[name="combo_price"]');
+                const milkshakePriceInput = revenueCalculator.querySelector('input[name="milkshake_price"]');
+                const toastPriceInput = revenueCalculator.querySelector('input[name="toast_price"]');
+                const comboCount = parseInt(revenueCalculator.dataset.comboCount, 10) || 0;
+                const nonComboMilkshakes = parseInt(revenueCalculator.dataset.nonComboMilkshakes, 10) || 0;
+                const nonComboToasts = parseInt(revenueCalculator.dataset.nonComboToasts, 10) || 0;
+                const selectedPubName = revenueCalculator.dataset.selectedPubName || '';
+
+                function parsePrice(value) {
+                    const normalized = String(value || '').trim().replace(',', '.');
+                    const parsed = Number(normalized);
+                    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+                }
+
+                function formatPrice(value) {
+                    return value.toFixed(2).replace('.', ',');
+                }
+
+                function calculateRevenue() {
+                    if (resultBox) {
+                        resultBox.style.display = 'block';
+                    }
+
+                    const comboPrice = parsePrice(comboPriceInput.value);
+                    const milkshakePrice = parsePrice(milkshakePriceInput.value);
+                    const toastPrice = parsePrice(toastPriceInput.value);
+
+                    if (comboPrice === null || milkshakePrice === null || toastPrice === null) {
+                        totalOutput.textContent = '-';
+                        breakdownOutput.textContent = 'Fyll i giltiga priser (0 eller högre) för combo, milkshake och toast.';
+                        return;
+                    }
+
+                    const revenue = (comboCount * comboPrice) + (nonComboMilkshakes * milkshakePrice) + (nonComboToasts * toastPrice);
+
+                    totalOutput.textContent = `${formatPrice(revenue)} kr`;
+                    breakdownOutput.textContent = `${comboCount} combo × ${formatPrice(comboPrice)} kr + ${nonComboMilkshakes} milkshake × ${formatPrice(milkshakePrice)} kr + ${nonComboToasts} toast × ${formatPrice(toastPrice)} kr`;
+                }
+
+                calculateButton.addEventListener('click', calculateRevenue);
+            }
 
             document.addEventListener('change', async function (event) {
                 const target = event.target;
@@ -702,6 +926,19 @@ $pubHistory = $db->query("SELECT e.event_id, e.event_name, e.started_at, e.ended
                         }
                     }
                 }
+            });
+
+            document.addEventListener('click', function (event) {
+                const target = event.target;
+                if (!(target instanceof HTMLButtonElement) || target.id !== 'show-all-pub-history') {
+                    return;
+                }
+
+                document.querySelectorAll('.pub-history-extra-row').forEach(function (row) {
+                    row.hidden = false;
+                });
+
+                target.remove();
             });
         })();
     </script>

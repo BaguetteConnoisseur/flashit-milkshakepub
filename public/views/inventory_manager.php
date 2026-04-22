@@ -5,8 +5,10 @@ $activePubName = $_SESSION['active_pub_name'];
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
 <head>
+    <link rel="icon" type="image/svg+xml" href="<?= app_asset_url('img/logo/favicon.svg') ?>">
+    <link rel="alternate icon" type="image/png" href="<?= app_asset_url('img/logo/favicon.png') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lagerhanterare</title>
@@ -18,9 +20,9 @@ $activePubName = $_SESSION['active_pub_name'];
             --text-main: #1f2937;
             --text-sub: #6b7280;
             --border: #e5e7eb;
-            --primary: #2563eb;
+            --primary: #2c80e0;
             --danger: #ef4444;
-            --accent-milkshake: #3b82f6;
+            --accent-milkshake: #2c80e0;
             --accent-toast: #f97316;
         }
 
@@ -211,7 +213,7 @@ $activePubName = $_SESSION['active_pub_name'];
     </style>
 </head>
 <body>
-    <?php require(TEMPLATE_PATH . "/admin_navbar.php"); ?>
+    <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <h1>Lagerhanterare: <?= htmlspecialchars($activePubName) ?></h1>
 
@@ -260,7 +262,7 @@ $activePubName = $_SESSION['active_pub_name'];
         </section>
     </template>
 
-    <script src="/assets/js/shared.js"></script>
+    <script src="<?= app_asset_url('js/shared.js') ?>"></script>
     <script>
     // --- SPA Inventory Manager JS ---
     const root = document.getElementById('inventory-root');
@@ -305,7 +307,7 @@ $activePubName = $_SESSION['active_pub_name'];
                             <td>
                                 <div class="action-stack">
                                     <button class="btn-action btn-add-pub" data-action="toggle" data-id="${item.item_id}" data-status="1">Lägg till</button>
-                                    <a href="edit_${category}.php?id=${item.item_id}" class="btn-action btn-edit-item">Redigera</a>
+                                    <a href="${category === 'milkshake' ? '/edit_milkshake' : '/edit_toast'}?id=${item.item_id}" class="btn-action btn-edit-item">Redigera</a>
                                 </div>
                             </td>
                         `;
@@ -324,14 +326,14 @@ $activePubName = $_SESSION['active_pub_name'];
     }
 
     async function fetchInventory() {
-        const res = await fetch('/api/get_inventory.php');
+        const res = await fetch('<?= app_api_url('get_inventory.php') ?>');
         if (!res.ok) throw new Error('Kunde inte hämta inventarielista');
         return await res.json();
     }
 
     async function sendAction(data) {
         const csrfToken = window.CSRF_TOKEN || (document.querySelector('input[name="csrf_token"]')?.value) || '';
-        const res = await fetch('/api/inventory_action.php', {
+        const res = await fetch('<?= app_api_url('inventory_action.php') ?>', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...data, csrf_token: csrfToken })

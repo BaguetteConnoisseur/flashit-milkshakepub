@@ -5,7 +5,7 @@ A modern, containerized web app for managing orders at FlashIT's MilkshakePub.
 ## Stack
 - **Frontend:** Nginx
 - **Backend:** PHP-FPM
-- **Database:** MySQL 8.4
+- **Database:** MySQL 8.4 (with PDO MySQL extension)
 - **WebSocket:** Node.js
 
 ## Prerequisites
@@ -31,7 +31,14 @@ quick-start.bat
    ```sh
    docker compose up -d --build
    ```
-4. Open [http://localhost:8080](http://localhost:8080)
+4. Open [http://localhost:8080/](http://localhost:8080/)
+
+## Required Ports
+
+- **80/443**: external HTTP/HTTPS entrypoint for Nginx or the front reverse proxy
+- **8080**: local host binding for the app in this compose setup
+- **8081**: internal websocket service, reached through Nginx at `/ws/`
+- **8082**: internal broadcast API used by PHP to reach the websocket container over the Docker network
 
 ## Useful Commands
 - Start: `docker compose up -d --build`
@@ -40,8 +47,8 @@ quick-start.bat
 - Logs: `docker compose logs -f`
 
 ## Contributors
-This project was originally created by:
-- [Filur](https://www.github.com/Filuren123)
+This project was created and is managed by:
 - [Ponky](https://www.github.com/BaguetteConnoisseur)
+- [Filur](https://www.github.com/Filuren123)
 
 From FlashIT'25.
