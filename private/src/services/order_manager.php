@@ -78,6 +78,10 @@ class OrderManager {
         $this->db->beginTransaction();
 
         try {
+            // Lock the event row so concurrent orders for the same event are sequenced.
+            $stmt = $this->db->prepare('SELECT event_id FROM pub_events WHERE event_id = ? FOR UPDATE');
+            $stmt->execute([$this->eventId]);
+
             $stmt = $this->db->prepare('SELECT COALESCE(MAX(order_number), 0) + 1 AS next_num FROM orders WHERE event_id = ?');
             $stmt->execute([$this->eventId]);
             $nextOrderNumber = (int) $stmt->fetchColumn();
