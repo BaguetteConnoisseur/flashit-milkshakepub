@@ -497,6 +497,7 @@ if ($ajaxModalOnly) {
             text-decoration: none;
             color: inherit;
             display: block;
+            min-width: 0;
         }
         .order-card:hover {
             transform: translateY(-2px);
@@ -565,11 +566,13 @@ if ($ajaxModalOnly) {
             display: flex;
             flex-direction: column;
             gap: 0.25rem;
+            min-width: 0;
         }
 
         .order-card.list-item .customer-name {
-            flex: 1;
+            flex: 1 1 220px;
             font-weight: 600;
+            min-width: 0;
         }
 
         .order-card.list-item .order-time {
@@ -580,9 +583,10 @@ if ($ajaxModalOnly) {
         }
 
         .order-card.list-item .order-summary {
-            flex: 2;
+            flex: 2 1 260px;
             font-size: 0.9rem;
             color: var(--text-sub);
+            min-width: 0;
         }
 
         .order-card.list-item hr {
@@ -593,11 +597,11 @@ if ($ajaxModalOnly) {
             border-color: var(--border);
         }
 
-        .card-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem; }
-        .order-number { font-size: 0.75rem; color: var(--text-sub); font-family: monospace; }
+        .card-header { display: flex; justify-content: space-between; align-items: start; gap: 0.5rem; margin-bottom: 0.5rem; min-width: 0; }
+        .order-number { font-size: 0.75rem; color: var(--text-sub); font-family: monospace; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
         .order-time { font-size: 0.75rem; color: var(--text-sub); }
-        .customer-name { font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem; }
-        .order-summary { font-size: 0.9rem; color: var(--text-sub); line-height: 1.4; }
+        .customer-name { font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem; overflow-wrap: anywhere; word-break: break-word; hyphens: auto; }
+        .order-summary { font-size: 0.9rem; color: var(--text-sub); line-height: 1.4; overflow-wrap: anywhere; word-break: break-word; }
         
         .status-badge {
             display: inline-block;
@@ -606,6 +610,7 @@ if ($ajaxModalOnly) {
             font-size: 0.7rem;
             font-weight: 700;
             text-transform: uppercase;
+            flex-shrink: 0;
         }
         .origin-badge {
             display: inline-block;
