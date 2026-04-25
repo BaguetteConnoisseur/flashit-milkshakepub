@@ -175,6 +175,14 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             line-height: 1.2;
         }
 
+        .ellipsis-single-line {
+            display: block;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .comment-box {
             padding: 0.75rem;
             border-radius: 6px;
@@ -215,6 +223,13 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             margin-bottom: 0.25rem;
             display: flex;
             justify-content: space-between;
+            gap: 0.5rem;
+            min-width: 0;
+        }
+
+        .linked-item-name {
+            flex: 1;
+            min-width: 0;
         }
 
         .controls {
@@ -317,7 +332,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         body.appendChild(meta);
 
         const itemName = document.createElement('div');
-        itemName.className = 'item-name';
+        itemName.className = 'item-name ellipsis-single-line';
         itemName.innerHTML = `${escapeHtml(milkshakeItem.name)}`;
         body.appendChild(itemName);
 
@@ -336,6 +351,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         }
 
         const customer = document.createElement('div');
+        customer.className = 'ellipsis-single-line';
         customer.style = 'font-size: 0.9rem; color: var(--text-sub); margin-bottom: 1rem;';
         customer.textContent = `Kund: ${order.customer_name ? escapeHtml(order.customer_name) : ''}`;
         body.appendChild(customer);

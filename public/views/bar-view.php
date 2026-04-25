@@ -279,6 +279,7 @@ if (isset($_GET['fetch_view'])) {
             flex-direction: column;
             gap: 0.3rem;
             padding: 1rem 1.1rem;
+            min-width: 0;
             border-radius: 10px;
             border: 1px solid var(--border);
             animation: cardIn 0.3s ease both;
@@ -348,6 +349,11 @@ if (isset($_GET['fetch_view'])) {
             letter-spacing: -0.02em;
             line-height: 1.1;
             color: var(--text-main);
+            display: block;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         /* Done column — make customer name pop more */
