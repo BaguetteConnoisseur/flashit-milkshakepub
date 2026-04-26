@@ -289,7 +289,14 @@ if ($ajaxModalOnly) {
         }
 
         .form-group { margin-bottom: 1rem; }
-        label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+        
+        label { 
+            display: block; 
+            font-size: 0.875rem; 
+            font-weight: 500; 
+            margin-bottom: 0.5rem; 
+        }
+
         input[type="text"], textarea, select {
             width: 100%;
             padding: 0.5rem;
@@ -597,12 +604,43 @@ if ($ajaxModalOnly) {
             border-color: var(--border);
         }
 
-        .card-header { display: flex; justify-content: space-between; align-items: start; gap: 0.5rem; margin-bottom: 0.5rem; min-width: 0; }
-        .order-number { font-size: 0.75rem; color: var(--text-sub); font-family: monospace; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
-        .order-time { font-size: 0.75rem; color: var(--text-sub); }
-        .customer-name { font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem; overflow-wrap: anywhere; word-break: break-word; hyphens: auto; }
-        .order-summary { font-size: 0.9rem; color: var(--text-sub); line-height: 1.4; overflow-wrap: anywhere; word-break: break-word; }
-        
+        .card-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            gap: 0.5rem; 
+            margin-bottom: 0.5rem; 
+            min-width: 0; 
+        }
+
+        .order-number { 
+            font-size: 0.75rem; 
+            color: var(--text-sub); 
+            font-family: monospace; 
+            min-width: 0; 
+            overflow-wrap: anywhere; 
+            word-break: break-word; 
+        }
+        .order-time { 
+            font-size: 0.75rem; 
+            color: var(--text-sub); 
+        }
+        .customer-name { 
+            font-weight: 700; 
+            font-size: 1.1rem; 
+            margin-bottom: 0.25rem; 
+            overflow-wrap: anywhere; 
+            word-break: break-word; 
+            hyphens: auto; 
+        }
+        .order-summary { 
+            font-size: 0.9rem; 
+            color: var(--text-sub); 
+            line-height: 1.4; 
+            overflow-wrap: anywhere; 
+            word-break: break-word; 
+        }
+
         .status-badge {
             display: inline-block;
             padding: 0.25rem 0.5rem;
@@ -621,7 +659,7 @@ if ($ajaxModalOnly) {
             text-transform: uppercase;
             background: #e0f2fe;
             color: #075985;
-            margin-top: 0.15rem;
+            flex-shrink: 0;
         }
         .badge-pending { background: #fff7ed; color: #c2410c; }
         .badge-in-progress { background: #fef3c7; color: #92400e; }
@@ -756,7 +794,8 @@ if ($ajaxModalOnly) {
                 ?>
                     <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
                         <div class="card-header">
-                            <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?><?php if ($isStaffOrder): ?><span class="origin-badge">Personal</span><?php endif; ?></span>
+                            <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?></span>
+                            <?php if ($isStaffOrder): ?><span class="origin-badge">Personal</span><?php endif; ?>
                             <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
                         </div>
                         <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
@@ -779,7 +818,8 @@ if ($ajaxModalOnly) {
             ?>
                 <a href="?view_order=<?= $order['order_id'] ?>" class="order-card <?= $statusClass ?>">
                     <div class="card-header">
-                        <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?><?php if ($isStaffOrder): ?><span class="origin-badge">Personal</span><?php endif; ?></span>
+                        <span class="order-number">Beställning: #<?= htmlspecialchars($order['order_number'] ?? $order['order_id']) ?></span>
+                        <?php if ($isStaffOrder): ?><span class="origin-badge">Personal</span><?php endif; ?>
                         <span class="status-badge <?= $badgeClass ?>"><?= $order['status'] ?></span>
                     </div>
                     <div class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></div>
