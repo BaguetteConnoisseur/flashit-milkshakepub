@@ -17,7 +17,7 @@ if (isset($_GET['fetch_view'])) {
         WHERE o.event_id = :event_id
                     AND COALESCE(o.order_origin, 'customer') = 'customer'
           AND o.created_at > DATE_SUB(NOW(), INTERVAL 12 HOUR)
-        ORDER BY o.created_at DESC
+        ORDER BY o.created_at ASC
     ");
     $stmt->execute(['event_id' => $activePubId]);
     $orders = $stmt->fetchAll();
@@ -347,13 +347,14 @@ if (isset($_GET['fetch_view'])) {
             font-size: 1.55rem;
             font-weight: 800;
             letter-spacing: -0.02em;
-            line-height: 1.1;
+            line-height: 1.25;
             color: var(--text-main);
             display: block;
             max-width: 100%;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding-bottom: 0.05rem;
         }
 
         /* Done column — make customer name pop more */
