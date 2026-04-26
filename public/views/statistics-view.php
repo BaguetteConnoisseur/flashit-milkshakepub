@@ -387,15 +387,6 @@ if ($pricingCalculationRequested) {
             gap: 1rem;
         }
 
-        .list {
-            margin: 0;
-            padding-left: 1.2rem;
-        }
-
-        .list li {
-            margin: 0.35rem 0;
-        }
-
         table {
             width: 100%;
             border-collapse: collapse;
@@ -451,33 +442,76 @@ if ($pricingCalculationRequested) {
             gap: 1rem;
         }
 
-        .board {
-            margin: 0;
-            padding: 0;
-            list-style: none;
-        }
-
-        .board li {
-            display: grid;
-            grid-template-columns: 2.2rem 1fr auto;
-            gap: 0.6rem;
-            align-items: center;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .board li:last-child {
-            border-bottom: none;
-        }
-
         .rank {
             font-weight: 800;
             color: var(--text-sub);
             text-align: center;
         }
 
-        .value {
+        .flavor-board {
+            display: flex;
+            flex-direction: column;
+            gap: 0.7rem;
+        }
+
+        .flavor-row {
+            display: grid;
+            grid-template-columns: 2.2rem 1fr auto;
+            gap: 0.75rem;
+            align-items: center;
+            padding: 0.8rem 0.9rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+        }
+
+        .flavor-row .rank {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #eff6ff;
+            color: var(--primary);
+            font-size: 0.85rem;
+        }
+
+        .flavor-main {
+            min-width: 0;
+        }
+
+        .flavor-name {
+            display: block;
             font-weight: 800;
+            font-size: 1rem;
+            line-height: 1.2;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .flavor-meta {
+            display: block;
+            margin-top: 0.2rem;
+            color: var(--text-sub);
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }
+
+        .flavor-value {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 3rem;
+            padding: 0.35rem 0.65rem;
+            border-radius: 999px;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            font-weight: 800;
+            color: var(--text-main);
         }
 
         .leaderboard-header {
@@ -640,37 +674,51 @@ if ($pricingCalculationRequested) {
 
         <div class="grid-2">
             <section class="card">
-                <h2>Milkshakeförsäljning per smak</h2>
-                <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
+                <h2 style="margin: 0 0 0.2rem;">Milkshakeförsäljning per smak</h2>
+                <p style="color: var(--text-sub); font-size: 0.9rem; margin: 0 0 0.5rem 0;">Genomsnittligt antal sålda per pub (topp 10)</p>
                 <?php if (empty($milkshakeAverages)): ?>
                     <p class="empty">Ingen milkshake-försäljning ännu.</p>
                 <?php else: ?>
-                    <?php $topMilkshakeAverageSales = array_slice($milkshakeAverages, 0, 5); ?>
-                    <ol class="list">
-                        <?php foreach ($topMilkshakeAverageSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: var(--text-muted); font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
+                    <?php $topMilkshakeAverageSales = array_slice($milkshakeAverages, 0, 10); ?>
+                    <div class="flavor-board">
+                        <?php foreach ($topMilkshakeAverageSales as $index => $row): ?>
+                            <div class="flavor-row">
+                                <span class="rank">#<?= $index + 1 ?></span>
+                                <div class="flavor-main">
+                                    <span class="flavor-name"><?= htmlspecialchars($row['name']) ?></span>
+                                    <span class="flavor-meta"><?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?></span>
+                                </div>
+                                <span class="flavor-value"><?= $row['avg_per_pub'] ?></span>
+                            </div>
                         <?php endforeach; ?>
-                    </ol>
+                    </div>
                 <?php endif; ?>
             </section>
 
             <section class="card">
-                <h2>Toastförsäljning per smak</h2>
-                <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 1rem;">Genomsnittligt antal sålda per pub (topp 5)</p>
+                <h2 style="margin: 0 0 0.2rem;">Toastförsäljning per smak</h2>
+                <p style="color: var(--text-sub); font-size: 0.9rem; margin: 0 0 0.5rem 0;">Genomsnittligt antal sålda per pub (topp 10)</p>
                 <?php if (empty($toastAverages)): ?>
                     <p class="empty">Ingen toast-försäljning ännu.</p>
                 <?php else: ?>
-                    <?php $topToastAverageSales = array_slice($toastAverages, 0, 5); ?>
-                    <ol class="list">
-                        <?php foreach ($topToastAverageSales as $row): ?>
-                            <li><?= htmlspecialchars($row['name']) ?> — <strong><?= $row['avg_per_pub'] ?></strong> <span style="color: var(--text-muted); font-size: 0.85rem;">(<?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?>)</span></li>
+                    <?php $topToastAverageSales = array_slice($toastAverages, 0, 10); ?>
+                    <div class="flavor-board">
+                        <?php foreach ($topToastAverageSales as $index => $row): ?>
+                            <div class="flavor-row">
+                                <span class="rank">#<?= $index + 1 ?></span>
+                                <div class="flavor-main">
+                                    <span class="flavor-name"><?= htmlspecialchars($row['name']) ?></span>
+                                    <span class="flavor-meta"><?= (int) $row['total_sold'] ?> totalt, <?= (int) $row['num_pubs_sold'] ?> pub<?= (int) $row['num_pubs_sold'] !== 1 ? 'ar' : '' ?></span>
+                                </div>
+                                <span class="flavor-value"><?= $row['avg_per_pub'] ?></span>
+                            </div>
                         <?php endforeach; ?>
-                    </ol>
+                    </div>
                 <?php endif; ?>
             </section>
         </div>
 
-        <section id="leaderboard-section" class="card";">
+        <section id="leaderboard-section" class="card">
             <div class="leaderboard-header">
                 <div>
                     <h2 class="leaderboard-title">Topplista</h2>
@@ -695,36 +743,44 @@ if ($pricingCalculationRequested) {
 
             <div class="leaderboard-grid" style="margin-top: 1rem;">
                 <div>
-                    <h3 style="margin: 0 0 0.8rem; font-size: 1.05rem;">Topp milkshakes</h3>
+                    <h3 style="margin: 0 0 0.2rem; font-size: 1.05rem;">Topp milkshakes</h3>
+                    <p style="color: var(--text-sub); font-size: 0.9rem; margin: 0 0 0.5rem 0;">Mest sålda milkshakes</p>
                     <?php if (empty($topMilkshakes)): ?>
                         <p class="empty">Inga milkshake-försäljningar ännu.</p>
                     <?php else: ?>
-                        <ol class="board">
+                        <div class="flavor-board">
                             <?php foreach ($topMilkshakes as $index => $row): ?>
-                                <li>
+                                <div class="flavor-row">
                                     <span class="rank">#<?= $index + 1 ?></span>
-                                    <span><?= htmlspecialchars($row['item_name']) ?></span>
-                                    <span class="value"><?= (int) $row['sold'] ?></span>
-                                </li>
+                                    <div class="flavor-main">
+                                        <span class="flavor-name"><?= htmlspecialchars($row['item_name']) ?></span>
+                                        <span class="flavor-meta">Total försäljning i vald vy</span>
+                                    </div>
+                                    <span class="flavor-value"><?= (int) $row['sold'] ?></span>
+                                </div>
                             <?php endforeach; ?>
-                        </ol>
+                        </div>
                     <?php endif; ?>
                 </div>
 
                 <div>
-                    <h3 style="margin: 0 0 0.8rem; font-size: 1.05rem;">Topp toasts</h3>
+                    <h3 style="margin: 0 0 0.2rem; font-size: 1.05rem;">Topp toasts</h3>
+                    <p style="color: var(--text-sub); font-size: 0.9rem; margin: 0 0 0.5rem 0;">Mest sålda toasts</p>
                     <?php if (empty($topToasts)): ?>
                         <p class="empty">Inga toast-försäljningar ännu.</p>
                     <?php else: ?>
-                        <ol class="board">
+                        <div class="flavor-board">
                             <?php foreach ($topToasts as $index => $row): ?>
-                                <li>
+                                <div class="flavor-row">
                                     <span class="rank">#<?= $index + 1 ?></span>
-                                    <span><?= htmlspecialchars($row['item_name']) ?></span>
-                                    <span class="value"><?= (int) $row['sold'] ?></span>
-                                </li>
+                                    <div class="flavor-main">
+                                        <span class="flavor-name"><?= htmlspecialchars($row['item_name']) ?></span>
+                                        <span class="flavor-meta">Total försäljning i vald vy</span>
+                                    </div>
+                                    <span class="flavor-value"><?= (int) $row['sold'] ?></span>
+                                </div>
                             <?php endforeach; ?>
-                        </ol>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
