@@ -37,11 +37,16 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 
         .header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
             margin-bottom: 2rem;
             border-bottom: 1px solid #e5e7eb;
             padding-bottom: 1rem;
+            gap: 0.5rem;
+        }
+
+        #toast-summary {
+            width: min(68vw, 860px);
+            max-width: 100%;
         }
 
         .summary-panel {
@@ -50,8 +55,9 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             border: 1px solid #e5e7eb;
             border-radius: 10px;
             padding: 0.75rem;
-            width: fit-content;
+            width: 100%;
             max-width: 100%;
+            box-sizing: border-box;
         }
 
         .summary-head {
@@ -64,6 +70,22 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             text-transform: uppercase;
             letter-spacing: 0.04em;
             font-weight: 700;
+        }
+
+        .summary-head-left {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+            margin-left: 0;
+        }
+
+        .summary-guide {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #92400e;
+            text-transform: none;
+            letter-spacing: 0;
+            line-height: 1.2;
         }
 
         .summary-total {
@@ -80,9 +102,10 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         .summary {
             display: flex;
             gap: 0.5rem;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            padding-bottom: 0.1rem;
+            flex-wrap: wrap;
+            overflow-x: hidden;
+            overflow-y: visible;
+            padding: 0.3rem 0 0.25rem;
         }
 
         .summary-item {
@@ -94,7 +117,28 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             align-items: center;
             justify-content: space-between;
             gap: 0.6rem;
-            flex: 0 0 auto;
+            flex: 0 1 auto;
+            cursor: pointer;
+            user-select: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .summary-item.is-active {
+            border-color: #f97316;
+            background: #fff7ed;
+            box-shadow: 0 10px 22px -14px rgba(249, 115, 22, 0.95);
+            transform: translateY(-1px);
+        }
+
+        .summary-item.is-preview {
+            border-color: #fdba74;
+            background: #fffbeb;
+        }
+
+        .summary-item:hover {
+            border-color: #f97316;
+            box-shadow: 0 8px 18px -14px rgba(249, 115, 22, 0.8);
+            transform: translateY(-1px);
         }
 
         .summary-name {
@@ -130,6 +174,15 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             flex-direction: column;
             border: 1px solid #e5e7eb;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .ticket-card.is-filter-match {
+            border-color: #f97316;
+            box-shadow: 0 14px 28px -16px rgba(249, 115, 22, 0.85);
+        }
+
+        .ticket-card.is-filter-dimmed {
+            opacity: 0.25;
         }
 
         .status-bar {
@@ -281,22 +334,14 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             margin-top: 4rem;
             width: 100%;
         }
-
-        #connection-status {
-            font-size: 0.8rem;
-            color: #10b981;
-        }
     </style>
 </head>
 <body>
     <?php require(TEMPLATE_PATH . "/navbar.php"); ?>
 
     <div class="header">
-        <div>
-            <h1>🥪 Toast-station</h1>
-            <div id="toast-summary"></div>
-        </div>
-        <div id="connection-status">● Live</div>
+        <h1>🥪 Toast-station</h1>
+        <div id="toast-summary"></div>
     </div>
     <div id="ticket-grid" class="grid">
         <div style="grid-column: 1/-1; text-align: center; color: var(--text-sub);">Laddar beställningar...</div>
@@ -307,7 +352,16 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
     <script>
     // --- 1. Globals & Utility Functions ---
     window.CSRF_TOKEN = '<?php echo $_SESSION['csrf_token'] ?? '' ?>';
+    let activeToastFilter = '';
+    let hoverToastFilter = '';
 
+    function normalizeToastName(name) {
+        return String(name || '').trim().toLowerCase();
+    }
+
+    function getEffectiveToastFilter() {
+        return activeToastFilter || hoverToastFilter;
+    }
 
     // --- 2. DOM Rendering ---
     function createToastCard(order, toastItem) {
@@ -315,6 +369,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         let statusClass = toastItem.status.replace(' ', '');
         if (toastItem.status === 'In Progress' || toastItem.status === 'InProgress') statusClass = 'Progress';
         card.className = `ticket-card bar-ticket-${statusClass}`;
+        card.dataset.toastName = normalizeToastName(toastItem.name);
 
         const statusBar = document.createElement('div');
         statusBar.className = `status-bar bar-${statusClass}`;
@@ -414,7 +469,7 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         });
     }
 
-    // --- 4. Toast Summary (PDO) ---
+    // --- 4. Toast Summary & Filtering ---
     function renderToastSummary(orders) {
         const mount = document.getElementById('toast-summary');
 
@@ -450,12 +505,15 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
         panel.className = 'summary-panel';
         panel.innerHTML = `
             <div class="summary-head">
-                <span>Ej påbörjade beställningar</span>
+                <div class="summary-head-left">
+                    <span>Ej påbörjade beställningar</span>
+                    <span class="summary-guide">Tips: Hovra eller klicka på en smak för att markera dess beställningar.</span>
+                </div>
                 <span class="summary-total">Totalt: ${total}</span>
             </div>
             <div class="summary">
                 ${summaryArr.map(item => `
-                    <div class="summary-item">
+                    <div class="summary-item" role="button" tabindex="0" data-summary-name="${escapeHtml(item.name)}" aria-pressed="false">
                         <span class="summary-name">${escapeHtml(item.name)}</span>
                         <span class="summary-count">${item.count}</span>
                     </div>
@@ -463,6 +521,44 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
             </div>
         `;
         mount.appendChild(panel);
+    }
+
+    function applyToastFilter(name) {
+        activeToastFilter = normalizeToastName(name);
+        applyToastFilterState();
+    }
+
+    function applyToastFilterState() {
+        const filterName = getEffectiveToastFilter();
+
+        const grid = document.getElementById('ticket-grid');
+        const summary = document.getElementById('toast-summary');
+        if (!grid || !summary) return;
+
+        const cards = grid.querySelectorAll('.ticket-card[data-toast-name]');
+        const chips = summary.querySelectorAll('.summary-item[data-summary-name]');
+
+        if (!filterName) {
+            cards.forEach(card => card.classList.remove('is-filter-match', 'is-filter-dimmed'));
+            chips.forEach(chip => chip.classList.remove('is-active', 'is-preview'));
+            chips.forEach(chip => chip.setAttribute('aria-pressed', 'false'));
+            return;
+        }
+
+        cards.forEach(card => {
+            const matches = card.dataset.toastName === filterName;
+            card.classList.toggle('is-filter-match', matches);
+            card.classList.toggle('is-filter-dimmed', !matches);
+        });
+
+        chips.forEach(chip => {
+            const normalized = normalizeToastName(chip.dataset.summaryName);
+            const activeMatch = !!activeToastFilter && normalized === activeToastFilter;
+            const previewMatch = !activeToastFilter && !!hoverToastFilter && normalized === hoverToastFilter;
+            chip.classList.toggle('is-active', activeMatch);
+            chip.classList.toggle('is-preview', previewMatch);
+            chip.setAttribute('aria-pressed', activeMatch ? 'true' : 'false');
+        });
     }
 
     // --- 5. Main Loader ---
@@ -509,12 +605,50 @@ require_once(PRIVATE_PATH . '/src/database/db.php');
 
         // Render toast summary
         renderToastSummary(data);
+        applyToastFilterState();
     }
 
 
 
     // --- 6. Event Binding ---
     document.addEventListener('DOMContentLoaded', () => {
+        const summary = document.getElementById('toast-summary');
+        if (summary) {
+            summary.addEventListener('click', function(e) {
+                const chip = e.target.closest('.summary-item[data-summary-name]');
+                if (!chip) return;
+                const selectedName = chip.dataset.summaryName || '';
+                applyToastFilter(normalizeToastName(selectedName) === activeToastFilter ? '' : selectedName);
+            });
+
+            summary.addEventListener('mouseover', function(e) {
+                if (activeToastFilter) return;
+                const chip = e.target.closest('.summary-item[data-summary-name]');
+                if (!chip) return;
+                hoverToastFilter = normalizeToastName(chip.dataset.summaryName || '');
+                applyToastFilterState();
+            });
+
+            summary.addEventListener('mouseout', function(e) {
+                if (activeToastFilter) return;
+                const fromChip = e.target.closest('.summary-item[data-summary-name]');
+                if (!fromChip) return;
+                const toChip = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('.summary-item[data-summary-name]') : null;
+                if (toChip) return;
+                hoverToastFilter = '';
+                applyToastFilterState();
+            });
+
+            summary.addEventListener('keydown', function(e) {
+                const chip = e.target.closest('.summary-item[data-summary-name]');
+                if (!chip) return;
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                const selectedName = chip.dataset.summaryName || '';
+                applyToastFilter(normalizeToastName(selectedName) === activeToastFilter ? '' : selectedName);
+            });
+        }
+
         const grid = document.getElementById('ticket-grid');
         grid.addEventListener('change', function(e) {
             if (e.target && e.target.name === 'manual_status') {
