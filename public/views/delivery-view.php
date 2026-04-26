@@ -104,8 +104,12 @@ require_once(__DIR__ . '/../../private/initialize.php');
             border-color: #d1d5db; 
         }
 
-        #connection-status { font-size: 0.8rem; color: #10b981; }
-        .empty-state { text-align: center; color: var(--text-sub); margin-top: 4rem; width: 100%; }
+        .empty-state { 
+            text-align: center; 
+            color: var(--text-sub); 
+            margin-top: 4rem; 
+            width: 100%; 
+        }
     </style>
 </head>
 <body>
@@ -113,7 +117,6 @@ require_once(__DIR__ . '/../../private/initialize.php');
 
     <div class="header">
         <h1>📦 Leveransstation</h1>
-        <div id="connection-status">● Live</div>
     </div>
 
     <div id="ticket-grid" class="grid">

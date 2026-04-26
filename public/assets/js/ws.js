@@ -50,6 +50,7 @@ const statusSelector = '#connection-status';
 function setStatus(status) {
     const el = document.querySelector(statusSelector);
     if (el && statusLabels[status]) {
+        el.dataset.status = status;
         el.textContent = statusLabels[status];
     }
 }
