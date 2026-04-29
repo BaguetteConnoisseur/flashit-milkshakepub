@@ -307,7 +307,7 @@ $activePubName = $_SESSION['active_pub_name'];
                             <td>
                                 <div class="action-stack">
                                     <button class="btn-action btn-add-pub" data-action="toggle" data-id="${item.item_id}" data-status="1">Lägg till</button>
-                                    <a href="${category === 'milkshake' ? '/edit_milkshake' : '/edit_toast'}?id=${item.item_id}" class="btn-action btn-edit-item">Redigera</a>
+                                    <a href="/edit-item?id=${item.item_id}" class="btn-action btn-edit-item">Redigera</a>
                                 </div>
                             </td>
                         `;
