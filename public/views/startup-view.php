@@ -58,6 +58,8 @@ if (isset($_POST['start_new_pub'])) {
 
                 $db->commit();
                 $activePubName = $pubName;
+                $_SESSION['active_pub_id'] = $activePubId;
+                $_SESSION['active_pub_name'] = $activePubName;
                 $feedback = ['type' => 'success', 'message' => 'Ny pub startad och menyn är redo.'];
             } catch (Throwable $e) {
                 $db->rollBack();

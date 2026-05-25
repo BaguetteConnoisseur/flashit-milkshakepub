@@ -112,15 +112,30 @@ function is_api_or_ajax_request($uri) {
 
 function ensure_pub_tracking() {
     $db = db();
-    if (!isset($_SESSION['active_pub_id'])) {
-        $stmt = $db->query("SELECT event_id, event_name FROM pub_events WHERE is_active = 1 LIMIT 1");
-        $event = $stmt->fetch();
-        if ($event) {
-            $_SESSION['active_pub_id'] = (int)$event['event_id'];
-            $_SESSION['active_pub_name'] = $event['event_name'];
+    $sessionEventId = isset($_SESSION['active_pub_id']) ? (int) $_SESSION['active_pub_id'] : 0;
+
+    if ($sessionEventId > 0) {
+        $stmt = $db->prepare("SELECT event_id, event_name FROM pub_events WHERE event_id = ? AND is_active = 1 LIMIT 1");
+        $stmt->execute([$sessionEventId]);
+        $currentEvent = $stmt->fetch();
+
+        if ($currentEvent) {
+            $_SESSION['active_pub_id'] = (int) $currentEvent['event_id'];
+            $_SESSION['active_pub_name'] = $currentEvent['event_name'];
+            return (int) $currentEvent['event_id'];
         }
     }
-    return isset($_SESSION['active_pub_id']) ? (int)$_SESSION['active_pub_id'] : null;
+
+    $stmt = $db->query("SELECT event_id, event_name FROM pub_events WHERE is_active = 1 ORDER BY event_id DESC LIMIT 1");
+    $event = $stmt->fetch();
+    if ($event) {
+        $_SESSION['active_pub_id'] = (int) $event['event_id'];
+        $_SESSION['active_pub_name'] = $event['event_name'];
+        return (int) $event['event_id'];
+    }
+
+    unset($_SESSION['active_pub_id'], $_SESSION['active_pub_name']);
+    return null;
 }
 
 /**
