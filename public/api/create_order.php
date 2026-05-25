@@ -6,7 +6,6 @@ require_once(__DIR__ . "/../../private/src/services/broadcast.php");
 $db = db();
 header('Content-Type: application/json');
 
-// 1. Grab the JSON data sent from your frontend
 $input = file_get_contents('php://input');
 $request = json_decode($input, true);
 if (!is_array($request)) {
@@ -25,7 +24,6 @@ try {
     $orders = new OrderManager($db, (int) $_SESSION['active_pub_id']);
     $order_id = $orders->createOrder($request);
 
-    // 5. Notify the stations (Bar, Toast, etc.)
     broadcast([
         "type" => "new_order",
         "order_id" => $order_id,

@@ -10,7 +10,6 @@ define("TEMPLATE_PATH", PRIVATE_PATH . '/templates');
 define("WWW_ROOT", '');
 
 // 2. Load Core Requirements 
-// We load db.php first so everything else can use the db() function
 require_once(PRIVATE_PATH . '/src/database/db.php');
 require_once(PRIVATE_PATH . '/auth.php');
 require_once(PRIVATE_PATH . '/functions.php');

@@ -1,14 +1,11 @@
 <?php
 function db() {
-    // Always use Stockholm time for all date/time functions
     date_default_timezone_set('Europe/Stockholm');
     static $pdo = null;
     if ($pdo === null) {
-        // Use the absolute path within the Docker container
         $configPath = __DIR__ . '/../../config.php';
 
         if (!file_exists($configPath)) {
-            // This will tell us exactly where it's looking if it fails
             header('Content-Type: application/json');
             echo json_encode(["error" => "Missing config file at: " . $configPath]);
             exit;
@@ -16,7 +13,6 @@ function db() {
 
         require_once($configPath);
 
-        // Now that the file is loaded, these constants will exist
         $dsn = "mysql:host=" . DB_SERVER . ";dbname=" . DB_NAME . ";charset=utf8mb4";
         
         try {

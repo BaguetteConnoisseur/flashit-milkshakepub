@@ -7,6 +7,7 @@ $activePubId = isset($_SESSION['active_pub_id']) ? (int)$_SESSION['active_pub_id
 
 /* --- Configuration --- */
 $BAR_VIEW_MAX_VISIBLE_CARDS = 7;
+$Delivery_Grace_Period_MS = 10000;
 
 /* --- AJAX partial: returns three column divs --- */
 if (isset($_GET['fetch_view'])) {
@@ -465,5 +466,5 @@ if (isset($_GET['fetch_view'])) {
         // Initial load
         document.addEventListener('DOMContentLoaded', loadOrders);
         // Run grace period check every second
-        setInterval(applyDeliveredGracePeriod, 10000);
+        setInterval(applyDeliveredGracePeriod, $Delivery_Grace_Period_MS);
     </script>

@@ -17,8 +17,6 @@
  * Usage:
  *   Call this after updating any order item's status:
  *     syncOrderStatusWithItems($pdo, $item_id);
- *
- * Extend this logic if you add new item/order statuses in the future.
  */
 
 function syncOrderStatusWithItems($pdo, $item_id) {
