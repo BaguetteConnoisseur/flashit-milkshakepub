@@ -1,13 +1,12 @@
 services:
   nginx:
-    image: nginx:latest
+    image: ghcr.io/filuren123/flashit-milkshakepub-nginx:latest
     container_name: flashitmilkshakepub-frontend
     restart: unless-stopped
     ports:
       - "8080:80"
     volumes:
       - .:/var/www/html
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
       - php-sessions:/tmp
       - php-sessions:/var/lib/php/sessions
     depends_on:
