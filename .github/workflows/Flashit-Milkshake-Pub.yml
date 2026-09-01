@@ -43,7 +43,7 @@ jobs:
       - name: Build and push nginx
         uses: docker/build-push-action@v7
         with:
-          context: .
+          context: ./docker/nginx
           file: docker/nginx/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ghcr.io/${{ env.OWNER_LC }}/flashit-milkshakepub-nginx:latest
