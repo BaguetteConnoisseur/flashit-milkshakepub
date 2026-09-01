@@ -37,8 +37,6 @@ services:
     volumes:
       - .:/var/www/html
       - php-sessions:/tmp
-    env_file:
-      - .env
     environment:
       APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Stockholm}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
@@ -56,8 +54,6 @@ services:
     image: ghcr.io/filuren123/flashit-milkshakepub-websocket:latest
     container_name: flashitmilkshakepub-websocket
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       BROADCAST_SECRET: ${BROADCAST_SECRET}
     healthcheck:
