@@ -40,6 +40,14 @@ jobs:
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ghcr.io/${{ env.OWNER_LC }}/flashit-milkshakepub-backend:latest
 
+      - name: Build and push nginx
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/nginx/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ghcr.io/${{ env.OWNER_LC }}/flashit-milkshakepub-nginx:latest
+
       - name: Build and push websocket
         uses: docker/build-push-action@v7
         with:
