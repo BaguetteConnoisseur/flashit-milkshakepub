@@ -1,0 +1,95 @@
+services:
+  nginx:
+    image: ghcr.io/filuren123/flashit-milkshakepub-nginx:latest
+    container_name: flashitmilkshakepub-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - php-sessions:/tmp
+      - php-sessions:/var/lib/php/sessions
+    depends_on:
+      - backend
+      - db
+      - websocket
+    networks:
+      default:
+      traefik:
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "traefik"
+      traefik.http.routers.flashit-msp.rule: "Host(`msp.chalmers.it`)"
+      traefik.http.routers.flashit-msp.tls: "true"
+      traefik.http.routers.flashit-msp.tls.certresolver: "cfResolver"
+      traefik.http.services.flashit-msp.loadbalancer.server.port: "80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  backend:
+    image: ghcr.io/filuren123/flashit-milkshakepub-backend:latest
+    container_name: flashitmilkshakepub-backend
+    restart: unless-stopped
+    volumes:
+      - .:/var/www/html
+      - php-sessions:/tmp
+    environment:
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Stockholm}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      ADMIN_PASS_HASH: ${ADMIN_PASS_HASH}
+      BROADCAST_SECRET: ${BROADCAST_SECRET}
+    healthcheck:
+      test: ["CMD-SHELL", "php-fpm -t >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  websocket:
+    image: ghcr.io/filuren123/flashit-milkshakepub-websocket:latest
+    container_name: flashitmilkshakepub-websocket
+    restart: unless-stopped
+    environment:
+      BROADCAST_SECRET: ${BROADCAST_SECRET}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e 'const net=require(\"net\");const socket=net.connect(8082,\"127.0.0.1\",()=>{socket.end();process.exit(0);});socket.on(\"error\",()=>process.exit(1));'"
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  db:
+    image: mysql:8.0
+    container_name: flashitmilkshakepub-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-flashit_milkshakepub}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      TZ: Europe/Stockholm
+    volumes:
+      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  php-sessions:
+
+networks:
+  traefik:
+    external: true

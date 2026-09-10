@@ -10,9 +10,6 @@ permissions:
   contents: read
   packages: write
 
-env:
-  IMAGE_NAME: flashit-milkshakepub
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -35,10 +32,26 @@ jobs:
           username: ${{ env.OWNER_LC }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push backend
         uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/backend/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/${{ env.OWNER_LC }}/flashit-milkshakepub:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/flashit-milkshakepub-backend:latest
+
+      - name: Build and push nginx
+        uses: docker/build-push-action@v7
+        with:
+          context: ./docker/nginx
+          file: docker/nginx/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ghcr.io/${{ env.OWNER_LC }}/flashit-milkshakepub-nginx:latest
+
+      - name: Build and push websocket
+        uses: docker/build-push-action@v7
+        with:
+          context: ./docker/websocket
+          file: ./docker/websocket/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ghcr.io/${{ env.OWNER_LC }}/flashit-milkshakepub-websocket:latest
