@@ -172,15 +172,14 @@ $activePubName = $_SESSION['active_pub_name'];
             border-radius: 4px;
         }
 
-        .inactive-milkshake-table td:nth-child(1) { width: 28%; font-weight: 600; }
-        .inactive-milkshake-table td:nth-child(2) { width: 52%; color: var(--text-sub); font-size: 0.85rem; }
-        .inactive-milkshake-table td:nth-child(3) { width: 8%; text-align: center; }
-        .inactive-milkshake-table td:nth-child(4) { width: 12%; }
+        .inactive-table td:nth-child(1) { width: 28%; font-weight: 600; }
+        .inactive-table td:nth-child(2) { width: 52%; color: var(--text-sub); font-size: 0.85rem; }
+        .inactive-table td:nth-child(3) { width: 8%; text-align: center; }
+        .inactive-table td:nth-child(4) { width: 12%; }
 
-        .inactive-milkshake-table .btn-action {
+        .inactive-table .btn-action {
             min-width: 72px;
             padding: 4px 8px;
-            font-size: 0.72rem;
         }
 
         /* Forms */
@@ -284,7 +283,7 @@ $activePubName = $_SESSION['active_pub_name'];
                 wrapper.innerHTML = `<p style="color:var(--text-sub); text-align:center;">Inga ${isActive ? 'aktiva' : 'inaktiva'} ${category === 'milkshake' ? 'milkshakes' : 'toasts'}${isActive ? ' för denna pub.' : '.'}</p>`;
             } else {
                 const table = document.createElement('table');
-                table.className = isActive ? 'inventory-table' : `inactive-${category}-table`;
+                table.className = isActive ? 'inventory-table' : `inactive-table`;
                 const thead = document.createElement('thead');
                 thead.innerHTML = `<tr>${isActive ? '<th>Namn</th><th>Beskrivning</th><th>Ingredienser</th><th>Färg</th><th>Åtgärd</th>' : '<th>Namn</th><th>Ingredienser</th><th>Färg</th><th>Åtgärd</th>'}</tr>`;
                 table.appendChild(thead);
